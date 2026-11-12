@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#ffffff">
+<title>WORLD 01</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    overflow: hidden; background: #ffffff;
+  }
+  body {
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+  }
+  #c { display: block; touch-action: none; }
+  #tip {
+    position: fixed; left: 0; right: 0;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 28px);
+    text-align: center;
+    font: 500 11.5px/1.8 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    letter-spacing: .16em; color: #c3c9cf;
+    padding: 0 22px; box-sizing: border-box;
+    pointer-events: none; transition: opacity 1s ease;
+  }
+  @media (max-width: 560px) {
+    #tip { font-size: 11px; letter-spacing: .08em; line-height: 2.1; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="tip">A D / ← → 移动　·　空格 跳跃　｜　左半屏拖动 移动　·　右半屏轻点 跳跃</div>
+<script>
+(function () {
+'use strict';
+
+/* ============================================================
+   WORLD 01 — 一切都由代码画出来，没有一张图。
+   白的天，白的地，一个人。
+   ============================================================ */
+
+var cv  = document.getElementById('c');
+var ctx = cv.getContext('2d', { alpha: false });
+var W = 0, H = 0, DPR = 1, HORIZON = 0;
+var VS = 1, VW = 0, VH = 0;   /* 视觉缩放与虚拟视口 */
+var TAU = Math.PI * 2;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  cv.style.width  = W + 'px';
+  cv.style.height = H + 'px';
+  cv.width  = Math.round(W * DPR);
+  cv.height = Math.round(H * DPR);
+
+  /* 竖屏手机放大世界，保证角色占比和横屏接近 */
+  VS = (H > W) ? 1.34 : 1.05;
+  VW = W / VS;
+  VH = H / VS;
+
+  ctx.setTransform(DPR * VS, 0, 0, DPR * VS, 0, 0);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  HORIZON = Math.round(VH * 0.70);
+}
+window.addEventListener('resize', resize, { passive: true });
+window.addEventListener('orientationchange', function () { setTimeout(resize, 150); }, { passive: true });
+resize();
+
+/* ---------------- 物理常量 ---------------- */
+var GRAV      = 2600;
+var MAX_FALL  = 2100;
+var ACC       = 2900;
+var FRICT     = 3400;
+var MAX_SPD   = 340;
+var JUMP_V    = 950;
+var COYOTE    = 0.12;
+var JUMP_BUF  = 0.14;
+
+/* ---------------- 色 ---------------- */
+var INK      = '#17181a';
+var INK_SOFT = '#adb4bb';
+var INK_FAR  = '23,24,26';
+
+/* ---------------- 状态 ---------------- */
+var pawn = {
+  x: 0, y: 0, vx: 0, vy: 0,
+  onGround: true,
+  face: 1,
+  phase: 0,
+  idleT: 0,
+  squash: 1,
+  stretch: 1
+};
+
+var cam = { x: 0, y: 0 };
+
+var keys = Object.create(null);
+var touch = { id: -1, ox: 0, oy: 0, x: 0, y: 0, active: false };
+var jumpBuf = 0;
+var coyote  = 0;
+
+var tipEl = document.getElementById('tip');
+var tipGone = false;
+function hideTip() {
+  if (tipGone) return;
+  tipGone = true;
+  tipEl.style.opacity = '0';
+}
+setTimeout(hideTip, 8000);
+
+if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
+  tipEl.textContent = '左侧拖动 移动　·　右侧轻点 跳跃';
+}
+
+/* ---------------- 输入：键盘 ---------------- */
+window.addEventListener('keydown', function (e) {
+  var k = e.key.toLowerCase();
+  if (k === ' ' || k === 'spacebar' || k.indexOf('arrow') === 0) e.preventDefault();
+  if (e.repeat) return;
+  if (k === ' ' || k === 'spacebar' || k === 'w' || k === 'arrowup') jumpBuf = JUMP_BUF;
+  keys[k] = true;
+  hideTip();
+}, { passive: false });
+
+window.addEventListener('keyup', function (e) {
+  keys[e.key.toLowerCase()] = false;
+}, { passive: true });
+
+window.addEventListener('blur', function () { keys = Object.create(null); });
+
+/* ---------------- 输入：触摸 ---------------- */
+cv.addEventListener('pointerdown', function (e) {
+  if (e.pointerType === 'mouse') return;
+  e.preventDefault();
+  if (e.clientX < W * 0.5) {
+    if (!touch.active) {
+      touch.active = true;
+      touch.id = e.pointerId;
+      touch.ox = e.clientX / VS; touch.oy = e.clientY / VS;
+      touch.x  = e.clientX / VS; touch.y  = e.clientY / VS;
+    }
+  } else {
+    jumpBuf = JUMP_BUF;
+    if (navigator.vibrate) { try { navigator.vibrate(9); } catch (_) {} }
+  }
+  hideTip();
+}, { passive: false });
+
+window.addEventListener('pointermove', function (e) {
+  if (touch.active && e.pointerId === touch.id) {
+    touch.x = e.clientX / VS;
+    touch.y = e.clientY / VS;
+  }
+}, { passive: true });
+
+function releaseTouch(e) {
+  if (touch.active && e.pointerId === touch.id) {
+    touch.active = false;
+    touch.id = -1;
+  }
+}
+window.addEventListener('pointerup', releaseTouch, { passive: true });
+window.addEventListener('pointercancel', releaseTouch, { passive: true });
+
+function getAxis() {
+  var a = 0;
+  if (keys['a'] || keys['arrowleft'])  a -= 1;
+  if (keys['d'] || keys['arrowright']) a += 1;
+  if (a !== 0) return a;
+
+  if (touch.active) {
+    var v = (touch.x - touch.ox) / 58;
+    if (v > 1) v = 1; else if (v < -1) v = -1;
+    var s = v < 0 ? -1 : 1;
+    var m = Math.abs(v);
+    if (m < 0.16) return 0;
+    return s * (m - 0.16) / 0.84;
+  }
+  return 0;
+}
+
+/* ---------------- 更新 ---------------- */
+function update(dt) {
+  var axis = getAxis();
+
+  /* 水平：加速度趋近目标速度，松手摩擦 */
+  if (Math.abs(axis) > 0.02) {
+    pawn.vx += axis * ACC * dt * (pawn.onGround ? 1 : 0.55);
+    var cap = MAX_SPD * Math.max(0.34, Math.abs(axis));
+    if (Math.abs(pawn.vx) > cap && (pawn.vx > 0) === (axis > 0)) {
+      pawn.vx = cap * (axis > 0 ? 1 : -1);
+    }
+    if (Math.abs(axis) > 0.3) pawn.face = axis > 0 ? 1 : -1;
+  } else {
+    var f = FRICT * dt * (pawn.onGround ? 1 : 0.2);
+    if (Math.abs(pawn.vx) <= f) pawn.vx = 0;
+    else pawn.vx -= (pawn.vx > 0 ? f : -f);
+  }
+
+  /* 跳跃：输入缓冲 + 土狼时间 */
+  jumpBuf = Math.max(0, jumpBuf - dt);
+  coyote  = pawn.onGround ? COYOTE : Math.max(0, coyote - dt);
+
+  if (jumpBuf > 0 && coyote > 0) {
+    pawn.vy = -JUMP_V;
+    pawn.onGround = false;
+    jumpBuf = 0; coyote = 0;
+    pawn.squash = 0.88; pawn.stretch = 1.12;
+  }
+
+  /* 重力 */
+  pawn.vy += GRAV * dt;
+  if (pawn.vy > MAX_FALL) pawn.vy = MAX_FALL;
+
+  pawn.x += pawn.vx * dt;
+  pawn.y += pawn.vy * dt;
+
+  if (pawn.y >= 0) {
+    if (!pawn.onGround) {
+      var imp = Math.min(1, pawn.vy / 1400);
+      pawn.squash  = 1 + 0.26 * imp;
+      pawn.stretch = 1 - 0.18 * imp;
+    }
+    pawn.y = 0; pawn.vy = 0; pawn.onGround = true;
+  } else {
+    pawn.onGround = false;
+  }
+
+  /* 形变回弹 */
+  var k = Math.min(1, dt * 13);
+  pawn.squash  += (1 - pawn.squash)  * k;
+  pawn.stretch += (1 - pawn.stretch) * k;
+
+  /* 步态相位 */
+  var sp = Math.abs(pawn.vx);
+  pawn.phase += dt * (pawn.onGround ? (2.0 + sp * 0.055) : 3.0);
+  pawn.idleT += dt;
+
+  /* 相机：带前瞻 */
+  var lead = Math.max(-70, Math.min(70, pawn.vx * 0.24));
+  cam.x += (pawn.x + lead - cam.x) * Math.min(1, dt * 5.5);
+  var ty = Math.min(0, pawn.y * 0.35);
+  cam.y += (ty - cam.y) * Math.min(1, dt * 5);
+}
+
+/* ---------------- 远景 ---------------- */
+function hash(i, s) {
+  var x = Math.sin(i * 127.1 + s * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function drawFar(gy) {
+  var px = cam.x * 0.34;
+  var SP = 290;
+  var i0 = Math.floor((px - VW * 0.5) / SP) - 1;
+  var i1 = i0 + Math.ceil(VW / SP) + 3;
+  for (var i = i0; i <= i1; i++) {
+    var bx = i * SP - px + VW * 0.5 + hash(i, 1) * 170;
+    var bw = 30 + hash(i, 2) * 78;
+    var bh = 24 + hash(i, 3) * 82;
+    var al = 0.007 + hash(i, 4) * 0.013;
+    ctx.fillStyle = 'rgba(' + INK_FAR + ',' + al.toFixed(3) + ')';
+    ctx.fillRect(bx, gy - bh, bw, bh);
+  }
+}
+
+/* ---------------- 地面刻度 ---------------- */
+function drawTicks(gy) {
+  var TILE = 150;
+  var start = Math.floor((cam.x - VW * 0.5) / TILE) - 1;
+  var end   = start + Math.ceil(VW / TILE) + 3;
+  ctx.fillStyle = 'rgba(' + INK_FAR + ',0.10)';
+  var yy = Math.round(gy) + 6;
+  for (var i = start; i <= end; i++) {
+    ctx.fillRect(Math.round(i * TILE - cam.x + VW * 0.5), yy, 1, 12);
+  }
+}
+
+/* ---------------- 影子 ---------------- */
+function drawShadow(gy) {
+  var h = Math.max(0, -pawn.y);
+  var t = Math.min(1, h / 300);
+  var sw = 52 * (1 - t * 0.55);
+  var sh = sw * 0.28;
+  var a  = 0.22 * (1 - t * 0.78);
+  if (a < 0.005) return;
+
+  var sx = pawn.x - cam.x + VW * 0.5;
+  ctx.save();
+  ctx.translate(sx, gy);
+  ctx.scale(1, sh / sw);
+  var g = ctx.createRadialGradient(0, 0, 0, 0, 0, sw);
+  g.addColorStop(0,    'rgba(' + INK_FAR + ',' + a.toFixed(3) + ')');
+  g.addColorStop(0.5,  'rgba(' + INK_FAR + ',' + (a * 0.55).toFixed(3) + ')');
+  g.addColorStop(1,    'rgba(' + INK_FAR + ',0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, sw, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+/* ---------------- 角色（侧视） ---------------- */
+var BODY_H   = 130;
+var HIP_Y    = -62;
+var SHO_Y    = -97;
+var SHO_HALF = 17;
+var HIP_HALF = 13;
+var HEAD_R   = 14;
+var HEAD_Y   = -BODY_H + HEAD_R;      /* -115.5 */
+var C_DARK   = '#17181a';
+var C_MID    = '#3d444a';
+var C_SOFT   = '#b9c0c6';
+
+/* 躯干：侧面轮廓，胸宽腰收，顶部随倾角前移 */
+function torsoPath(lean, br) {
+  var sy = SHO_Y + br;
+  ctx.beginPath();
+  ctx.moveTo(-SHO_HALF + 4, sy - 2);
+  ctx.quadraticCurveTo(-SHO_HALF - 0.5, sy + 4, -16, -88 + br * 0.3);
+  ctx.quadraticCurveTo(-14.5, -76, -13, -68);
+  ctx.quadraticCurveTo(-12.5, -63, -9, -62);
+  ctx.lineTo(9, -62);
+  ctx.quadraticCurveTo(12.5, -63, 12.5, -68);
+  ctx.quadraticCurveTo(13.5, -78, 14.5, -88 + br * 0.3);
+  ctx.quadraticCurveTo(SHO_HALF - 1.5, sy + 7, SHO_HALF - 3.5, sy - 1);
+  ctx.quadraticCurveTo(2 + lean * 0.6, sy - 5.5, -SHO_HALF + 4, sy - 2);
+  ctx.closePath();
+}
+
+function drawPawn(cx, cy) {
+  var spd = Math.abs(pawn.vx) / MAX_SPD;
+  var stride = Math.min(1, spd * 1.45);
+  var air = pawn.onGround ? 0 : 1;
+  var ph = pawn.phase;
+  var br = (pawn.onGround && spd < 0.06) ? Math.sin(pawn.idleT * 2.3) * 1.3 : 0;
+  var lean = 4 * (0.3 + stride * 0.7);
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(pawn.face * pawn.squash, pawn.stretch);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  /* 后侧肢体 */
+  ctx.strokeStyle = C_SOFT;
+  ctx.lineWidth = 10.5;
+  strokeLeg(ph + Math.PI, stride, air, -1);
+  ctx.lineWidth = 9;
+  strokeArm(ph, stride, air, -1, br);
+
+  /* 躯干 */
+  ctx.fillStyle = C_DARK;
+  torsoPath(lean, br);
+  ctx.fill();
+
+  /* 脖子（连接头与躯干） */
+  ctx.strokeStyle = C_DARK;
+  ctx.lineWidth = 15;
+  ctx.beginPath();
+  ctx.moveTo(lean * 0.9 + 1, SHO_Y + 3 + br);
+  ctx.lineTo(lean * 1.0 + 1, SHO_Y - 5 + br);
+  ctx.stroke();
+
+  /* 前侧肢体 */
+  ctx.strokeStyle = C_MID;
+  ctx.lineWidth = 11.5;
+  strokeLeg(ph, stride, air, 1);
+  ctx.lineWidth = 9.5;
+  strokeArm(ph + Math.PI, stride, air, 1, br);
+
+  /* 头 */
+  ctx.fillStyle = C_DARK;
+  ctx.beginPath();
+  ctx.ellipse(lean * 1.15 + 1.5, HEAD_Y + br, HEAD_R * 0.95, HEAD_R, 0, 0, TAU);
+  ctx.fill();
+  /* 面部朝向的小凸起 */
+  ctx.beginPath();
+  ctx.arc(lean * 1.15 + 1.5 + HEAD_R * 0.8, HEAD_Y + br + 4, 3.6, 0, TAU);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+/* side: 1 = 近侧(前)，-1 = 远侧(后) */
+function strokeLeg(ph, stride, air, side) {
+  var hx = 2 * side;
+  var fx, fy;
+
+  if (air) {
+    fx = side > 0 ? 17 : -11;
+    fy = side > 0 ? -32 : -20;
+  } else {
+    var sw = Math.sin(ph);
+    var off = side * (4.5 - 3.5 * stride);
+    fx = off + sw * 30 * stride;
+    fy = -Math.max(0, Math.cos(ph)) * 18 * stride;
+  }
+
+  var kx = (hx + fx) * 0.5 + 5;
+  var ky = (HIP_Y + fy) * 0.5;
+  ctx.beginPath();
+  ctx.moveTo(hx, HIP_Y);
+  ctx.lineTo(kx, ky);
+  ctx.lineTo(fx, fy);
+  ctx.stroke();
+
+  /* 脚掌 */
+  ctx.save();
+  ctx.lineWidth *= 0.72;
+  ctx.beginPath();
+  ctx.moveTo(fx - 3, fy + 0.5);
+  ctx.lineTo(fx + 7, fy + 0.5);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function strokeArm(ph, stride, air, side, br) {
+  var sx = 2 + side * 4;
+  var sy = SHO_Y + 4 + br;
+  var hx, hy;
+
+  if (air) {
+    hx = sx + 15;
+    hy = sy + 22;
+  } else {
+    var sw = Math.sin(ph);
+    hx = sx + 3 + sw * 24 * stride;
+    hy = sy + 40 - Math.max(0, sw) * 5 * stride;
+  }
+
+  var ex = (sx + hx) * 0.5 - 4.5 * stride;
+  var ey = (sy + hy) * 0.5;
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(ex, ey);
+  ctx.lineTo(hx, hy);
+  ctx.stroke();
+}
+
+/* ---------------- 摇杆可视 ---------------- */
+function drawStick() {
+  if (!touch.active) return;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(' + INK_FAR + ',0.09)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(touch.ox, touch.oy, 46, 0, TAU);
+  ctx.stroke();
+
+  var dx = touch.x - touch.ox;
+  if (dx > 46) dx = 46; else if (dx < -46) dx = -46;
+  ctx.fillStyle = 'rgba(' + INK_FAR + ',0.15)';
+  ctx.beginPath();
+  ctx.arc(touch.ox + dx, touch.oy, 11, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+/* ---------------- 渲染 ---------------- */
+function render() {
+  var gy = HORIZON - cam.y;
+
+  /* 白的天 */
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, VW, VH);
+
+  if (gy > 0) {
+    var hz = Math.max(1, Math.min(gy, 220));
+    var fog = ctx.createLinearGradient(0, gy - hz, 0, gy);
+    fog.addColorStop(0,    'rgba(206,216,226,0)');
+    fog.addColorStop(0.55, 'rgba(206,216,226,0.055)');
+    fog.addColorStop(1,    'rgba(206,216,226,0.13)');
+    ctx.fillStyle = fog;
+    ctx.fillRect(0, gy - hz, VW, hz);
+  }
+
+  drawFar(gy);
+
+  /* 地平线 */
+  ctx.fillStyle = 'rgba(' + INK_FAR + ',0.13)';
+  ctx.fillRect(0, Math.round(gy), VW, 1);
+
+  /* 远处地面的薄影，近处纯白 */
+  var gl = ctx.createLinearGradient(0, gy, 0, gy + 140);
+  gl.addColorStop(0, 'rgba(' + INK_FAR + ',0.06)');
+  gl.addColorStop(0.45, 'rgba(' + INK_FAR + ',0.022)');
+  gl.addColorStop(1, 'rgba(' + INK_FAR + ',0)');
+  ctx.fillStyle = gl;
+  ctx.fillRect(0, gy, VW, 140);
+
+  drawTicks(gy);
+  drawShadow(gy);
+  drawPawn(pawn.x - cam.x + VW * 0.5, gy + pawn.y);
+  drawStick();
+}
+
+/* ---------------- 主循环 ---------------- */
+var FIXED = 1 / 120;
+var acc = 0;
+var last = performance.now();
+
+function loop(t) {
+  var dt = (t - last) / 1000;
+  last = t;
+  if (dt > 0.1) dt = 0.1;
+  acc += dt;
+  var guard = 0;
+  while (acc >= FIXED && guard++ < 12) {
+    update(FIXED);
+    acc -= FIXED;
+  }
+  if (acc > FIXED * 12) acc = 0;
+  render();
+  requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(loop);
+
+/* 调试用钩子 */
+window.__world = { pawn: pawn, cam: cam };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# 备份与临时文件不入库：git 本身已经保存了 index.html 的每一次历史，
+# backups/ 只是给"不熟悉 git、想直接双击某个旧版本"的场景准备的物理副本。
+backups/
+
+# 调试产物
+_solo/
+_*.png
+_*.mjs
+_*.js
+.chk_*.js
+.bak_*
+
+# 系统
+Thumbs.db
+desktop.ini
+.DS_Store
