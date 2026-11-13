@@ -75,7 +75,7 @@
 <div id="snd">🔇 点这里开声音</div>
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.14</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.15</div>
 <script>
 /**
  * @license
@@ -521,6 +521,18 @@ function sndCheck() {
    <audio> 是另一条完全独立的链路，很多只拦 WebAudio 的环境里它能出声。 */
 var WAV_READY = false, WAV_POOL = {}, WAV_IDX = {}, _wavInit = false, _wavOk = false;
 
+/* base64 → Blob URL：比 data URI 快。iOS / 部分 webview 每次 play 都可能重新解析
+   data URI 的 base64（同步，60~100ms），Blob 有"真文件"语义，解析一次就缓存。 */
+function b64BlobUrl(b64) {
+  try {
+    var bin = atob(b64), n = bin.length, ab = new Uint8Array(n);
+    for (var j = 0; j < n; j++) ab[j] = bin.charCodeAt(j);
+    return URL.createObjectURL(new Blob([ab], { type: 'audio/wav' }));
+  } catch (e) {
+    return 'data:audio/wav;base64,' + b64;
+  }
+}
+
 function initWavFallback() {
   if (_wavInit) return;
   _wavInit = true;
@@ -531,7 +543,7 @@ function initWavFallback() {
     WAV_IDX[g] = 0;
     for (var i = 0; i < S[g].length; i++) {
       var el = document.createElement('audio');
-      el.src = 'data:audio/wav;base64,' + S[g][i];
+      el.src = b64BlobUrl(S[g][i]);
       el.preload = 'auto';
       el.volume = 0.9;
       el.setAttribute('playsinline', '');
@@ -788,9 +800,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.14';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.15';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.14';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.15';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -897,6 +909,7 @@ window.addEventListener('pointercancel', releasePointer, { passive: true });
 var JUMP_BUF = 0.14;
 var jumpBufT = 0;
 var pendSfxJump = 0, pendSfxLand = 0;   /* 待播音效：在 loop 渲染后消费 */
+var jumpTAnim = 0, jumpTSfx = 0, jumpTDrv = 0;   /* 起跳帧分段耗时（诊断） */
 var camKickV = 0;   /* 落地相机微沉：实际位移 */
 var camKickT = 0;   /* 落地相机微沉：目标位移（平滑逼近，不能一帧拽到位，否则远景会"跳一下"） */
 var fovKick = 0;    /* 冲刺速度感的动态扩展量 */
@@ -914,7 +927,9 @@ function realJump() {
   var jsp = Math.hypot(vel.x, vel.z);
   P.jumpAnim = (jsp > 4.8 ? 'jumpRun' : 'jumpWalk') + (P.lead ? 'R' : 'L');
   P.lead = P.lead ? 0 : 1;
+  var _ja = performance.now();
   setAnim(P.jumpAnim, 1, true);
+  jumpTAnim = performance.now() - _ja;
   pendSfxJump = 1;   /* 音效推到渲染后播（见 loop），不和起跳帧的动画混合抢主线程 */
 }
 
@@ -1209,6 +1224,9 @@ function fpsTick(t) {
   if (t - fpsT0 >= 500) {
     fpsEl.textContent = Math.round(fpsN * 1000 / (t - fpsT0)) + ' FPS' +
       (perfLong ? ' · ' + perfLong + '长' : '') + (perfLast ? ' · ' + perfLast : '');
+    if (jumpTSfx + jumpTDrv + jumpTAnim > 3) {
+      fpsEl.textContent += ' · 跳 ' + jumpTAnim.toFixed(0) + '/' + jumpTSfx.toFixed(0) + '/' + jumpTDrv.toFixed(0);
+    }
     fpsN = 0; fpsT0 = t;
   }
 }
@@ -1232,12 +1250,14 @@ function loop(t) {
   if (acc > FIXED * 12) acc = 0;
 
   /* 动画采样按渲染帧一次（60Hz 足够平滑），不再随物理步长跑 120Hz */
+  var _jd = performance.now();
   driveAnim(dt);
+  jumpTDrv = performance.now() - _jd;
   drawStick();
   renderer.render(scene, camera);
   /* 音效在渲染之后播：手机上 <audio> / WebAudio 的调度是同步开销，
      放在起跳那一帧的渲染前会抢主线程（用户感觉「起跳时掉帧」）。 */
-  if (pendSfxJump) { pendSfxJump = 0; sfxJump(); }
+  if (pendSfxJump) { pendSfxJump = 0; var _js = performance.now(); sfxJump(); jumpTSfx = performance.now() - _js; }
   if (pendSfxLand) { var lv = pendSfxLand; pendSfxLand = 0; sfxLand(lv); }
   fpsTick(t);
   if (!window.__worldDrawn) { window.__worldDrawn = true; }
