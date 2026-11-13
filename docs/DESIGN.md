@@ -102,6 +102,24 @@ DirectionalLight 白色，强度 1.84，位置角色偏移 (10, 10.5, 9) → 决
 
 **关于强度**：Three.js r155 之后是物理光照，`MeshStandardMaterial` 的漫反射带 `1/π`。要让白色地面接近纯白，各光源强度之和要到 3.0 量级；按老经验给 0.8 会整片发灰。
 
+### 3.35 动作系统：源自 ALS
+
+角色动作不是凭感觉调的，而是照 [ALS-Community](https://github.com/dyanikoglu/ALS-Community) 的 C++ 实现复刻。
+
+**核心是倾斜（Lean）**。ALS 的 `CalculateRelativeAccelerationAmount()` 把加速度按角色朝向反旋转到局部空间，再按 `MaxAcceleration` / `MaxBrakingDeceleration` 归一化到 ±1：
+
+```
+RelativeAcceleration = clamp(Acceleration / MaxAcc, -1, 1)   // 在角色局部空间
+LeanAmount.FB = InterpTo(当前, RelativeAcceleration.X, dt, 4.0)   // 前后
+LeanAmount.LR = InterpTo(当前, RelativeAcceleration.Y, dt, 4.0)   // 左右
+```
+
+这两个量驱动身体前后压和左右侧倾，于是起步前压、急停后仰、转弯侧倾——这是 ALS "有重量"的手感来源。
+
+本项目对应实现：`P.leanFB` / `P.leanLR`，用 `(vel - prevVel)/dt` 取加速度，旋转到角色局部后除以 `MAX_ACC = 20` 归一化，再指数平滑。倾斜应用系数前后 0.34 rad、左右 0.26 rad。
+
+**前提条件**：移动必须是恒定加速度。指数趋近产生的加速度是脉冲式的（速度一到位加速度就归零），倾斜来不及积累就衰减了。
+
 ### 3.4 相机模型
 
 绕角色的球面轨道，三个量：
@@ -161,4 +179,4 @@ lookAt = follow + (0, 1.05, 0)
 
 ---
 
-_最后更新：v0.5.0_
+_最后更新：v0.6.0_
