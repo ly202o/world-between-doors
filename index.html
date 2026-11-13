@@ -75,7 +75,7 @@
 <div id="snd">🔇 点这里开声音</div>
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.13</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.14</div>
 <script>
 /**
  * @license
@@ -788,9 +788,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.13';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.14';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.13';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.14';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -896,6 +896,7 @@ window.addEventListener('pointercancel', releasePointer, { passive: true });
    doJump 只记 0.14s 输入缓冲（空中点按也能落地即跳），真跳在 update 里消费。 */
 var JUMP_BUF = 0.14;
 var jumpBufT = 0;
+var pendSfxJump = 0, pendSfxLand = 0;   /* 待播音效：在 loop 渲染后消费 */
 var camKickV = 0;   /* 落地相机微沉：实际位移 */
 var camKickT = 0;   /* 落地相机微沉：目标位移（平滑逼近，不能一帧拽到位，否则远景会"跳一下"） */
 var fovKick = 0;    /* 冲刺速度感的动态扩展量 */
@@ -914,7 +915,7 @@ function realJump() {
   P.jumpAnim = (jsp > 4.8 ? 'jumpRun' : 'jumpWalk') + (P.lead ? 'R' : 'L');
   P.lead = P.lead ? 0 : 1;
   setAnim(P.jumpAnim, 1, true);
-  sfxJump();
+  pendSfxJump = 1;   /* 音效推到渲染后播（见 loop），不和起跳帧的动画混合抢主线程 */
 }
 
 /* 输出：{x: 屏幕横向 -1..1, y: 前后 -1..1（向上为前进）} */
@@ -1016,7 +1017,7 @@ function update(dt) {
         setAnim(P.land > 0.55 ? 'landHeavy' : 'landLight', 1.35, true);
       }
       camKickT = Math.min(0.15, camKickT + P.land * 0.10);   /* 相机微沉：目标量，实际值平滑追 */
-      sfxLand(P.land);
+      pendSfxLand = P.land > 0 ? P.land : 0.5;               /* 音效推到渲染后播 */
     }
   }
 
@@ -1199,13 +1200,15 @@ var last = performance.now();
 var acc = 0;
 var FIXED = 1 / 120;
 
-/* FPS 弱显示：左上角小灰字，半秒更新一次 */
+/* FPS 弱显示：左上角小灰字，半秒更新一次；顺便记长帧（>45ms）便于定位卡顿 */
 var fpsEl = document.getElementById('fps');
-var fpsN = 0, fpsT0 = last;
+var fpsN = 0, fpsT0 = last, perfLong = 0, perfLast = '';
+window.__perfLog = [];
 function fpsTick(t) {
   fpsN++;
   if (t - fpsT0 >= 500) {
-    fpsEl.textContent = Math.round(fpsN * 1000 / (t - fpsT0)) + ' FPS';
+    fpsEl.textContent = Math.round(fpsN * 1000 / (t - fpsT0)) + ' FPS' +
+      (perfLong ? ' · ' + perfLong + '长' : '') + (perfLast ? ' · ' + perfLast : '');
     fpsN = 0; fpsT0 = t;
   }
 }
@@ -1213,6 +1216,12 @@ function fpsTick(t) {
 function loop(t) {
   var dt = (t - last) / 1000;
   last = t;
+  /* 长帧记录：>45ms 记一笔（带当时动画状态），屏幕上直接显示最近一笔 */
+  if (dt > 0.045) {
+    perfLong++;
+    perfLast = ANIM.cur + ' ' + Math.round(dt * 1000) + 'ms';
+    if (window.__perfLog.length < 16) window.__perfLog.push({ ms: Math.round(dt * 1000), anim: ANIM.cur, air: !P.onGround, blend: +ANIM.blend.toFixed(2) });
+  }
   if (dt > 0.1) dt = 0.1;
   acc += dt;
   var guard = 0;
@@ -1226,6 +1235,10 @@ function loop(t) {
   driveAnim(dt);
   drawStick();
   renderer.render(scene, camera);
+  /* 音效在渲染之后播：手机上 <audio> / WebAudio 的调度是同步开销，
+     放在起跳那一帧的渲染前会抢主线程（用户感觉「起跳时掉帧」）。 */
+  if (pendSfxJump) { pendSfxJump = 0; sfxJump(); }
+  if (pendSfxLand) { var lv = pendSfxLand; pendSfxLand = 0; sfxLand(lv); }
   fpsTick(t);
   if (!window.__worldDrawn) { window.__worldDrawn = true; }
   requestAnimationFrame(loop);
