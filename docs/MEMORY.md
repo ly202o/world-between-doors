@@ -87,6 +87,7 @@
 | v0.11.38 | PC 操作说明改按 `H` 展开/收起，右上角只常驻一个 22px `H` 徽标；触屏路径不变 | 用户「pc端那个操作说明，可以快捷键显示隐藏，快捷键的提示一直常驻一个字母」 |
 | v0.11.39 | 删正交（整套）；加深色主题并**默认深色**，保留白色可切（`T` 键 / 主题按钮）；导出并内联 ALS `mantle` 动画数据（攀爬备用） | 用户「再做个深色主题，默认深色，删除正交。把攀爬做一下」+ 追问后答「去als项目里找啊」「靠近障碍按跳跃」 |
 | v0.11.40 | 攀爬接上：`doJump` 先 `tryClimb`，命中播 ALS Mantle + smoothstep 位移到障碍顶面，`update` 物理整段冻结 | 同上；用户确认用 ALS 素材、靠近障碍按跳跃触发 |
+| v0.11.41 | 碰撞体积模式（`C` / 手机「碰撞」）；攀爬位移改两段修侧穿；桌面鼠标指针锁定（移动即转视角、Esc 退出） | 用户「攀爬穿模了，给一个碰撞体积模式，我要看所有物体的实际碰撞」「pc端视角旋转不要左键点击…一般rpg游戏那样」 |
 | v0.11.8 | 手感五连：跳跃缓冲 0.14s / 落地相机微沉 / 冲刺 FOV+拉远 / 转身惯性 / 减速动画滞后 | 用户授权「完善手感细节和动作细节」 |
 | v0.11.9 | 落地微沉改平滑：幅度减半、两帧追、位置+注视点同沉 | 用户反馈「落地后远景跳一下，更低了」——一帧拽到位+只动位置导致俯仰突变 |
 
@@ -356,6 +357,12 @@ UE 命令行：`/d/app/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe D:/temp
 
 **修法**：先按 `margin=0` 找最深可站点，判完宽度后再回退 10 cm。**坑的通用形**：几何判定里，"命中条件"和"安全条件"要分开，别把安全边距塞进命中循环。
 
+### 36. 直线插值位移一定会从盒子侧面穿过去（v0.11.41）
+
+攀爬位移是"起点 → 顶面落点"一条 smoothstep 直线。起点在地面、落点在盒子顶上，这条斜线必然穿过棱柱侧面——用户一眼看出「攀爬穿模」。
+
+**修法**：拆成「先垂直撑起到顶面之上（水平只走到外层表面外一个半径）→ 再水平推进到落点」。**通用形**：任何"绕过障碍的插值位移"，都要让**位移阶段**和**碰撞阶段**分开，别用一条斜线同时完成两者。
+
 ### 34. 逐个 new Mesh 会把 draw call 翻五倍（v0.11.36）
 
 建房子时给每根栅栏柱、每条横板、每扇窗都 `new THREE.Mesh()`，还全开 `castShadow = true`。每个独立 Mesh 主画面提交一次、**2048² 阴影贴图再提交一次**；实测每帧 draw call 从 39（没房子）涨到 190，用户报「走路都掉帧」。无头浏览器帧时间看不出来（软件渲染约 105 fps），是 hook `WebGLRenderingContext.prototype.drawElements/drawArrays` 数出来的。
@@ -385,9 +392,11 @@ UE 命令行：`/d/app/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe D:/temp
 | 自由默认落点 | `FREE_PITCH_DEF` 0.66 / `FREE_DIST_DEF_L` 23 / `FREE_DIST_DEF_P` 20（沿用旧 `TOP_PITCH` / `TOP_DIST`）；`freeIntro` 0.55 s 缓动，用户一动清 0 |
 | 主题（默认深色） | `THEMES.light/dark` + `applyTheme()`；`T` 键 / `#themeBtn`；CSS 变量走 `<html data-theme>`；深色 hemi+sun = 0.62+0.80（白档 1.45+1.84）；`HOUSE_MATS` 注册房子内部材质；地面网格线色是 uniform `uGridColor` |
 | 动画 | `__ANIMS` 13 段；`mantle` = ALS_N_Mantle_1m_RH（1.5333s / 47 帧 / 32 骨），v0.11.40 接攀爬 |
-| 攀爬 | `climb` / `tryClimb()` / `advanceClimb()`；高 0.45–1.25m、顶面 hw·hd ≥ 0.30；沿 `P.face` 探 0.30–1.20m；smoothstep 前 82% 完成位移；`update` 物理段包在 `if(climb)…else…` 内 |
+| 攀爬 | `climb` / `tryClimb()` / `advanceClimb()`；高 0.45–1.25m、顶面 hw·hd ≥ 0.30；沿 `P.face` 探 0.30–1.20m；**位移分两段**（前 52% 撑起贴外层、后 48% 翻上顶面），`update` 物理段包在 `if(climb)…else…` 内 |
+| 碰撞可视化 | `colViz` 一个 `LineSegments`（96 碰撞体 → 2304 顶点 / 1 draw call，`depthTest:false`）+ 玩家胶囊 r0.36/h1.86；`C` 键 / `#colBtn` |
+| 鼠标 | 桌面 `requestPointerLock`，锁定态用 `movementX/Y` 转视角；未锁定保留拖动兜底；`pointerlockerror` 回退 |
 | 45° 锁定 | `LOCK_PITCH = π/4`、`lockYaw` = 按下时的 `camYaw`；锁定时 `turnBy` 忽略 `dx`/`dy`、禁 `Q`/`E`；每帧 `k=min(1,dt×6)` 同时收敛俯角与 yaw（`dyaw` 归一到 ±π）；跨视角保留，重进自由时落点取 `LOCK_PITCH` |
-| HUD 按钮 | `.pill` 高 34、左右 padding 13、圆角 999、字 12/600；右上 14 / 56 / 98 依次是 视角 / 45° / 主题（v0.11.39 删正交后 45° 上移）；快跑右下 100 |
+| HUD 按钮 | `.pill` 高 34、左右 padding 13、圆角 999、字 12/600；右上 14 / 56 / 98 / 140 依次是 视角 / 45° / 主题 / 碰撞 |；快跑右下 100 |
 | 操作说明 | 桌面：`#tip` 默认 `opacity 0`，按 `H` 切（0.18s 过渡），右上角 `#helpBadge` 显示 `H`、展开时点亮；`hideTip()` 桌面直接 return。触屏：开局 opacity 1、9s 淡出、徽标不显示 |
 | 碰撞 | `PLAYER_R` 0.36、`STEP_UP` 0.35、`STEP_DOWN` 0.40、站立判定放宽 0.28；96 个碰撞体（72 积木 − 院内剔除 + 11 高塔 + 4 台阶 + 主屋/车库/门廊/2 树/6 段栅栏） |
 | 贴墙摩擦 | `WALL_FRIC` 3.5：切向速度每秒衰减 `3.5 × |目标速度·法线|`；0–30° 顶死，45°+ 照常滑；只在 onGround 生效 |

@@ -292,6 +292,15 @@ lookAt = tpT·w3 + fpT·wF
   - **俯视（v0.11.29 删）**：整套透视俯视移除（`topMode` / `topBlend` / `TOP_PITCH` / `TOP_DIST` / 权重 `wT`）。它的半透明遮罩思路留下来了，在 v0.11.32 挪给了自由视角。
   - **越肩（v0.11.27 加 / v0.11.29 删）**：横向偏移在手机上把横向空间让给了空白区域，用户判定不适合，先不做。`PIVOT_H` 抬到肩点这件事保留。
 
+#### 3.41.1 桌面鼠标：指针锁定（v0.11.41）
+
+用户要求 RPG 式：不要按住左键拖，而是鼠标消失、移动即转视角。
+
+- 点画面调 `canvas.requestPointerLock()`；`pointerlockchange` 维护 `plLocked`；锁定态 `pointermove` 直接读 `movementX / movementY` 交给 `turnBy`，不再依赖 `mouse.down`。
+- 未锁定仍保留按住拖动的路径作为兜底——iframe 或浏览器策略拒绝锁定时不至于完全不能转。
+- `pointerlockerror` 把 `plLocked` 置回 false；`requestPointerLock()` 返回 Promise 时挂 `.catch()`，避免未处理拒绝污染控制台。
+- 手机端不受影响：整条路径由 `pointerType === 'mouse'` 守着。
+
 #### 3.42 地面网格：着色器画，不用 GridHelper（v0.11.21）
 
 `GridHelper` 被否掉过——远处线挤进同一个像素就是摩尔纹横条。现在用 `onBeforeCompile` 往标准材质里注入：
@@ -456,9 +465,26 @@ k = (1 - smoothstep(0.12, 0.55, pxSize)) × (1 - smoothstep(26, 78, dist));
 - **触发**：`doJump()` 先 `tryClimb()`，命中就不进起跳缓冲。键盘空格和手机轻点都走 `doJump()`，两端共用一条判定，没新增按键。
 - **判定**：沿 `P.face` 探 0.30–1.20 m，找 `top − feet ∈ [0.45, 1.25]` 且 `hw/hd ≥ 0.30` 的碰撞体。下界避开"自动迈台阶"，上界是 1m 撑上动作的合理上限，最小顶面尺寸把栅栏这类薄片排除（站不住）。
 - **落点**：沿朝向继续走，取最后一个仍在顶面的位置，再回退 10 cm。**不能用安全边距当判据**——命中点本身就在盒子边缘，一加边距就永远「站不住」，这是这版踩的坑。
-- **位移**：ALS 动画只带骨骼旋转，没有 root motion。`advanceClimb()` 用 smoothstep 在动画前 82% 时间内把 `P.pos` 从起点插到顶面落点，水平和垂直同步，结束时钉在落点。
+- **位移**：ALS 动画只带骨骼旋转，没有 root motion，位置由 `advanceClimb()` 插值。**必须分两段**（v0.11.41 修）：一条直线从起点插到顶面，45° 的斜线会穿过棱柱侧面，看着就是人从方块里钻过去。
+
+  | 段 | 占比 | 轨迹 |
+  |---|---|---|
+  | ① 撑起 | 前 52% | 起点 → 外层表面外 `PLAYER_R`（`hitS − PLAYER_R`）、顶面 +0.06 |
+  | ② 翻上 | 后 48% | 该点 → 顶面落点 |
+
+  第一段上升时身体一直在盒子外侧，第二段开始时已经高于顶面，水平推进不会穿。
 - **物理冻结**：`update()` 的物理整段包进 `if (climb) advanceClimb(dt); else { … }`。否则重力会把上升中的角色拽回地面、`collideXZ` 会把他从盒子里推出去。朝向/倾斜/动画状态机等公共部分留在 `if` 外照常跑；相关的 `sp / prevVX / prevVZ / sprint / tx / tz` 在开头先给默认值。
 - **动画交接**：`setAnim('mantle', 1, true)` 用现成的 `ANIM.oneShot`，播放期间状态机不抢；`driveAnim` 只对 walk/run/sprint 触发脚步音，mantle 不会误播。
+
+
+#### 3.55 碰撞体积可视化（v0.11.41）
+
+调试工具，用来核对「看到的模型」和「真正挡人的形状」。`C` 键 / 手机第四枚按钮切换。
+
+- 数据源就是 `colliders` 本身（没有第二套碰撞数据），把每个棱柱按 `hw / hd / top / yaw` 重建成 8 个角点、12 条边。
+- 全部合并进一个 `BufferGeometry` + `LineSegments`：96 个碰撞体 → 2304 顶点、**1 次 draw call**，不增加逐帧开销。
+- `depthTest: false` + `renderOrder 990`：被墙挡住的碰撞盒也看得到。玩家胶囊（r 0.36 / 高 1.86）每帧跟随 `P.pos`，是判断攀爬穿模最直接的参照。
+- 只在需要时构建（首次开启才建），关掉只切 `visible`。
 
 ---
 

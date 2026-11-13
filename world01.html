@@ -104,6 +104,7 @@
   #viewBtn  { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 14px); }
   #lockBtn  { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 56px); }
   #themeBtn { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 98px); }
+  #colBtn   { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 140px); }
   #fps {
     position: fixed; left: 10px; top: 8px;
     font: 400 10px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -122,7 +123,8 @@
 <button id="viewBtn" class="pill">自由</button>
 <button id="lockBtn" class="pill">俯仰</button>
 <button id="themeBtn" class="pill">深色</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳/攀　·　V 切视角　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.11.40</div>
+<button id="colBtn" class="pill">碰撞</button>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳/攀　·　V 切视角　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.11.41</div>
 <script>
 /**
  * @license
@@ -1181,6 +1183,7 @@ var keys = Object.create(null);
 var viewBtn  = document.getElementById('viewBtn');
 var lockBtn  = document.getElementById('lockBtn');
 var themeBtn = document.getElementById('themeBtn');
+var colBtn   = document.getElementById('colBtn');
 var runBtn   = document.getElementById('runBtn');
 var VIEW_NAME = ['第一', '第三', '自由'];
 var LOCK_NAME = ['俯仰', '45°'];   /* 显示当前状态：自由俯仰 / 锁在 45° */
@@ -1256,6 +1259,10 @@ function syncBtns() {
     themeBtn.textContent = THEMES[themeName].name;
     themeBtn.classList.toggle('on', themeName === 'dark');
   }
+  if (colBtn) {
+    colBtn.style.display = show;                 /* 调试开关，任何视角都能看 */
+    colBtn.classList.toggle('on', !!colVizOn);
+  }
 }
 
 function toggleView() {
@@ -1301,9 +1308,22 @@ if (themeBtn) {
     toggleTheme();
   }, { passive: false });
 }
+if (colBtn) {
+  colBtn.addEventListener('pointerdown', function (e) {
+    e.stopPropagation(); e.preventDefault();
+    setColViz(!colVizOn);
+  }, { passive: false });
+}
 var touch = { id: -1, ox: 0, oy: 0, x: 0, y: 0, active: false };
 var look  = { id: -1, active: false, dragging: false, sx: 0, sy: 0, px: 0, py: 0, t0: 0 };
 var mouse = { down: false, px: 0, py: 0 };
+/* 指针锁定：桌面点画面进入，鼠标移动 = 转视角，Esc 退出 */
+var plLocked = false;
+document.addEventListener('pointerlockchange', function () {
+  plLocked = (document.pointerLockElement === canvas);
+  if (plLocked) mouse.down = false;   /* 锁定后不再靠按住左键 */
+});
+document.addEventListener('pointerlockerror', function () { plLocked = false; });
 
 /* ---------------- 操作说明 ----------------
    手机：一开始就摊开，9 秒后自动淡出（屏幕小，不常占地方）。
@@ -1329,11 +1349,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由视角里双指缩放、45°键锁死视角、主题键切深色/白色　·　v0.11.40';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由视角里双指缩放、45°键锁死视角、主题键切主题、碰撞键看碰撞体　·　v0.11.41';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 拖动鼠标 转视角 · V 切视角 · 自由视角里滚轮缩放、L 锁死 45° 视角 · T 切深色/白色主题 · H 显示/隐藏本说明　·　v0.11.40';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · 自由视角里滚轮缩放、L 锁死 45° 视角 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.11.41';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1345,6 +1365,7 @@ window.addEventListener('keydown', function (e) {
   if (k === 'v') toggleView();
   if (k === 'l' && freeMode) toggleLock();           /* 同上：45° 俯角锁定 */
   if (k === 't') toggleTheme();                      /* 桌面没有按钮，给个键 */
+  if (k === 'c') setColViz(!colVizOn);               /* 碰撞体积可视化（调试） */
   keys[k] = true;
   hideTip();
 }, { passive: false });
@@ -1417,6 +1438,14 @@ canvas.addEventListener('pointerdown', function (e) {
   if (e.pointerType === 'mouse') {
     mouse.down = true; mouse.px = e.clientX; mouse.py = e.clientY;
     hideTip();
+    /* 桌面：点一下画面就把指针锁进来，之后鼠标移动直接转视角（RPG 式），Esc 退出。
+       仍保留 mouse.down 的拖动兜底——万一浏览器/iframe 拒绝锁定，不至于完全不能转。 */
+    if (!plLocked && canvas.requestPointerLock) {
+      try {
+        var plp = canvas.requestPointerLock();
+        if (plp && plp.catch) plp.catch(function () {});   /* 被浏览器拒绝时别抛未处理 rejection */
+      } catch (_) {}
+    }
     return;
   }
   e.preventDefault();
@@ -1459,6 +1488,12 @@ canvas.addEventListener('pointerdown', function (e) {
 
 window.addEventListener('pointermove', function (e) {
   if (e.pointerType === 'mouse') {
+    if (plLocked) {
+      /* 锁定态：直接用 movement 差值，不需要按住任何键 */
+      var mdx = e.movementX || 0, mdy = e.movementY || 0;
+      if (mdx || mdy) turnBy(mdx, mdy);
+      return;
+    }
     if (mouse.down) {
       turnBy(e.clientX - mouse.px, e.clientY - mouse.py);
       mouse.px = e.clientX; mouse.py = e.clientY;
@@ -1581,9 +1616,15 @@ function tryClimb() {
   if (sEnd - hitS < 0.15) return false;         /* 顶面太窄，站不住 */
   sEnd = Math.max(hitS + 0.15, sEnd - 0.10);
 
+  /* 位移分两段（修 v0.11.40 的穿模）：
+     ① 先抬到障碍顶面之上、同时贴到外表面（身体半径外沿）
+     ② 再往顶面里推进并落下
+     一段直线插值会让人从盒子侧面穿过去——45° 的斜线穿过棱柱内部，看着就是穿模。 */
+  var edge = Math.max(0.10, hitS - PLAYER_R);   /* 中心停在外表面外一点，胶囊刚好贴住 */
   climb = {
     t: 0, dur: AN.mantle.dur, face: P.face,
     x0: P.pos.x, y0: P.pos.y, z0: P.pos.z,
+    ex: P.pos.x + dirX * edge, ey: hitCol.top + 0.06, ez: P.pos.z + dirZ * edge,
     x1: P.pos.x + dirX * sEnd, y1: hitCol.top, z1: P.pos.z + dirZ * sEnd
   };
   vel.x = vel.z = 0; P.vy = 0;
@@ -1594,12 +1635,21 @@ function tryClimb() {
 
 function advanceClimb(dt) {
   climb.t += dt;
-  var u = Math.min(1, climb.t / (climb.dur * 0.82));
-  var s = u * u * (3 - 2 * u);                  /* smoothstep：撑上去有起步和收势 */
+  var p = Math.min(1, climb.t / climb.dur);
+  var UP = 0.52;                                /* 前 52% 用来撑起来，对应动画的撑手段 */
+  var k, ax, ay, az, bx, by, bz;
+  if (p <= UP) {
+    k = p / UP; ax = climb.x0; ay = climb.y0; az = climb.z0;
+    bx = climb.ex; by = climb.ey; bz = climb.ez;
+  } else {
+    k = (p - UP) / (1 - UP); ax = climb.ex; ay = climb.ey; az = climb.ez;
+    bx = climb.x1; by = climb.y1; bz = climb.z1;
+  }
+  k = k * k * (3 - 2 * k);                      /* smoothstep：两段各自有起步和收势 */
   P.pos.set(
-    climb.x0 + (climb.x1 - climb.x0) * s,
-    climb.y0 + (climb.y1 - climb.y0) * s,
-    climb.z0 + (climb.z1 - climb.z0) * s
+    ax + (bx - ax) * k,
+    ay + (by - ay) * k,
+    az + (bz - az) * k
   );
   vel.x = vel.z = 0; P.vy = 0; P.onGround = true;
   P.faceTarget = climb.face;
@@ -2144,7 +2194,58 @@ function resize() {
 window.addEventListener('resize', resize, { passive: true });
 window.addEventListener('orientationchange', function () { setTimeout(resize, 150); }, { passive: true });
 resize();
-applyTheme('dark');   /* 默认深色；内部会调 syncBtns() 把主题按钮文字也同步好 */
+applyTheme('dark');
+
+/* ---------------- 碰撞体积可视化（调试，按 C 切换） ----------------
+   colliders 里只有 2.5D 数据（中心、半宽、半深、yaw、顶面高度），这里按同一套
+   数据把每个盒子的实际棱柱画成线框，再加一个玩家胶囊，用来核对
+   "看到的模型" 和 "真正挡人的形状" 差多少。深度测试关掉，被墙挡住的也能看见。 */
+var colViz = null, playerViz = null, colVizOn = false;
+function buildColViz() {
+  var EDGES = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+  var CORNERS = [
+    [-0.5,-0.5,-0.5],[0.5,-0.5,-0.5],[0.5,-0.5,0.5],[-0.5,-0.5,0.5],
+    [-0.5, 0.5,-0.5],[0.5, 0.5,-0.5],[0.5, 0.5,0.5],[-0.5, 0.5,0.5]
+  ];
+  var out = [];
+  for (var i = 0; i < colliders.length; i++) {
+    var c = colliders[i];
+    var w = c.hw * 2, d = c.hd * 2, h = c.top;
+    var v = [];
+    for (var k = 0; k < 8; k++) {
+      var lx = CORNERS[k][0] * w, ly = CORNERS[k][1] * h + h / 2, lz = CORNERS[k][2] * d;
+      v.push([c.x + lx * c.c + lz * c.s, ly, c.z - lx * c.s + lz * c.c]);
+    }
+    for (var e = 0; e < EDGES.length; e++) {
+      var a = v[EDGES[e][0]], b = v[EDGES[e][1]];
+      out.push(a[0], a[1], a[2], b[0], b[1], b[2]);
+    }
+  }
+  var g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(out), 3));
+  colViz = new THREE.LineSegments(g, new THREE.LineBasicMaterial({
+    color: 0x2ee6a0, transparent: true, opacity: 0.9, depthTest: false
+  }));
+  colViz.renderOrder = 990;
+  colViz.frustumCulled = false;
+  colViz.visible = false;
+  scene.add(colViz);
+
+  playerViz = new THREE.Mesh(
+    new THREE.CylinderGeometry(PLAYER_R, PLAYER_R, 1.86, 12, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x4dd2ff, wireframe: true, transparent: true, opacity: 0.5, depthTest: false })
+  );
+  playerViz.renderOrder = 991;
+  playerViz.visible = false;
+  scene.add(playerViz);
+}
+function setColViz(on) {
+  if (!colViz) buildColViz();
+  colVizOn = !!on;
+  colViz.visible = colVizOn;
+  playerViz.visible = colVizOn;
+  syncBtns();
+}   /* 默认深色；内部会调 syncBtns() 把主题按钮文字也同步好 */
 
 /* ---------------- 主循环 ---------------- */
 var last = performance.now();
@@ -2194,6 +2295,8 @@ function loop(t) {
   driveAnim(dt);
   jumpTDrv = performance.now() - _jd;
   drawStick();
+  if (colVizOn && playerViz) playerViz.position.set(P.pos.x, P.pos.y + 0.93, P.pos.z);
+
   renderer.render(scene, camera);
   /* 音效在渲染之后播：手机上 <audio> / WebAudio 的调度是同步开销，
      放在起跳那一帧的渲染前会抢主线程（用户感觉「起跳时掉帧」）。 */
@@ -2228,6 +2331,9 @@ window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   get freeLock() { return freeLock; },
   get lockYaw() { return lockYaw; },
   setLock: function (v) { freeLock = !!v; if (freeLock) { lockYaw = camYaw; freeIntro = 0; } syncBtns(); },
+  get plLocked() { return plLocked; },
+  get colViz() { return colVizOn; },
+  setColViz: function (v) { setColViz(v); },
   get climbing() { return !!climb; },
   tryClimb: function () { return tryClimb(); },
   get theme() { return themeName; },
