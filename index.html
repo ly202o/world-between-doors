@@ -89,7 +89,7 @@
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
 <button id="viewBtn">第三</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.24</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.25</div>
 <script>
 /**
  * @license
@@ -325,28 +325,35 @@ window.__colliders = colliders;   /* 诊断用 */
   }
 })();
 
-/* 出生点台阶：正前方（-Z）三级台阶 + 顶部平台，用来验证碰撞的
+/* 出生点台阶：正前方三级台阶 + 顶部平台，用来验证碰撞的
    「自动迈台阶 / 站在盒子上 / 走到边缘掉下去」三件事
-   每级 0.30m < STEP_UP(0.35)，平台 0.90m > STEP_DOWN(0.40)，正好卡在两档阈值之间 */
+   每级 0.30m < STEP_UP(0.35)，平台 0.90m > STEP_DOWN(0.40)，正好卡在两档阈值之间
+   整组绕出生点偏转 YAW：0 = 正对镜头，看到一条条横带；偏转后能看清踏步侧影
+   但会挡住正前方视野，先按 0 摆，直走就能一级级上 */
 (function stairs() {
   var SH = 0.30, SD = 0.55, SW = 2.6, N = 3;
-  var i, h, m;
+  var YAW = 0, CS = Math.cos(YAW), SN = Math.sin(YAW);
+  var T0 = 3.0;                 /* 第一级离出生点的距离 */
+  var i, h, m, t;
+
+  function place(mesh, t, h, depth, width) {
+    /* 沿 -Z 轴排开，再整体绕 Y 转 YAW */
+    mesh.position.set(-t * SN, h / 2, -t * CS);
+    mesh.rotation.y = YAW;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+    addCollider(mesh, width, depth, h);   /* 不进 blockers：台阶太矮，不该拉近相机 */
+  }
+
   for (i = 0; i < N; i++) {
     h = SH * (i + 1);
-    m = new THREE.Mesh(new THREE.BoxGeometry(SW, h, SD), propMat);
-    m.position.set(0, h / 2, -3.0 - i * SD);
-    m.castShadow = true;
-    m.receiveShadow = true;
-    scene.add(m);
-    addCollider(m, SW, SD, h);      /* 不进 blockers：台阶太矮，不该拉近相机 */
+    t = T0 + i * SD;
+    place(new THREE.Mesh(new THREE.BoxGeometry(SW, h, SD), propMat), t, h, SD, SW);
   }
   h = SH * N;
-  m = new THREE.Mesh(new THREE.BoxGeometry(SW, h, 2.4), propMat);
-  m.position.set(0, h / 2, -3.0 - N * SD - 1.2);
-  m.castShadow = true;
-  m.receiveShadow = true;
-  scene.add(m);
-  addCollider(m, SW, 2.4, h);
+  t = T0 + N * SD + 0.85;
+  place(new THREE.Mesh(new THREE.BoxGeometry(SW, h, 1.7), propMat), t, h, 1.7, SW);
 })();
 
 /* 地面散石：近处可见，远处被雾吃掉，提供移动参照 */
@@ -974,9 +981,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/俯视/全视 · 右侧拖动 转视角 · 轻点 跳跃 · 全视里双指缩放　·　v0.11.24';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/俯视/全视 · 右侧拖动 转视角 · 轻点 跳跃 · 全视里双指缩放　·　v0.11.25';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/俯视/全视）· 全视里滚轮缩放　·　v0.11.24';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/俯视/全视）· 全视里滚轮缩放　·　v0.11.25';
 }
 
 window.addEventListener('keydown', function (e) {
