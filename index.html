@@ -89,7 +89,7 @@
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
 <button id="viewBtn">第三</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.25</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.26</div>
 <script>
 /**
  * @license
@@ -270,6 +270,7 @@ var colliders = [];
 var PLAYER_R = 0.36;      /* 角色碰撞半径 */
 var STEP_UP = 0.35;       /* 能直接迈上去的台阶高度 */
 var STEP_DOWN = 0.40;     /* 走下这个高度以内的小落差直接踩下去，不算坠落 */
+var WALL_FRIC = 3.5;      /* 贴墙摩擦系数：减速度 = WALL_FRIC × 压墙速度，正面撞停、斜撞能滑 */
 function addCollider(mesh, w, d, h) {
   var yaw = mesh.rotation.y;
   colliders.push({
@@ -981,9 +982,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/俯视/全视 · 右侧拖动 转视角 · 轻点 跳跃 · 全视里双指缩放　·　v0.11.25';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/俯视/全视 · 右侧拖动 转视角 · 轻点 跳跃 · 全视里双指缩放　·　v0.11.26';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/俯视/全视）· 全视里滚轮缩放　·　v0.11.25';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/俯视/全视）· 全视里滚轮缩放　·　v0.11.26';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1203,7 +1204,7 @@ var tmp = new THREE.Vector3();
 /* ---------------- 碰撞解算（2.5D：圆柱 vs 竖直棱柱） ----------------
    盒子是绕 Y 旋转的矩形，所以把角色位置转到盒子局部坐标里做"圆 vs 矩形"，
    推出后再转回世界坐标；速度沿法线方向的分量清零 = 贴着墙滑而不是卡住。 */
-function collideXZ() {
+function collideXZ(dt, tx, tz) {
   var feet = P.pos.y;
   /* 站在地上时允许迈上矮台阶（直接走进去，由 supportAt 抬起来）；空中不许，免得跳起来穿模 */
   var stepAllow = P.onGround ? STEP_UP : 0.08;
@@ -1242,6 +1243,24 @@ function collideXZ() {
     var wz = -nx * col.s + nz * col.c;
     var vn = vel.x * wx + vel.z * wz;
     if (vn < 0) { vel.x -= vn * wx; vel.z -= vn * wz; }
+
+    /* 贴墙摩擦：压得越正，摩擦越狠。
+       注意 press 取的是"想去墙里的速度"（tx,tz 是这帧的目标速度），
+       不能拿 −vn —— 法向速度上一帧就被清过了，这里只剩一帧重新加速的那点量，
+       按它算摩擦等于没有。
+       正面顶墙：切向输入本来就≈0，摩擦把它抹干净 → 站住；
+       斜着撞：切向有分量、press 变小，还能滑，但越滑越慢，不会被一路送到方块边缘。 */
+    if (P.onGround) {
+      var press = -(tx * wx + tz * wz);
+      if (press > 0) {
+        var vt = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+        if (vt > 1e-4) {
+          var drop = WALL_FRIC * press * dt;
+          var k = vt > drop ? (vt - drop) / vt : 0;
+          vel.x *= k; vel.z *= k;
+        }
+      }
+    }
     if (window.__colTrace && window.__colTrace.length < 20) {
       window.__colTrace.push({ lx: +lx.toFixed(2), lz: +lz.toFixed(2), n: [+nx.toFixed(2), +nz.toFixed(2)], vn: +vn.toFixed(2), v: [+vel.x.toFixed(2), +vel.z.toFixed(2)] });
     }
@@ -1312,7 +1331,7 @@ function update(dt) {
 
   P.pos.x += vel.x * dt;
   P.pos.z += vel.z * dt;
-  collideXZ();                       /* 水平推出去（贴着墙滑） */
+  collideXZ(dt, tx, tz);             /* 水平推出去（贴着墙滑 + 贴墙摩擦） */
 
   /* 跳跃与重力：脚下有方块就以方块顶面当地面 */
   var support = supportAt(P.pos.x, P.pos.z, P.pos.y);
