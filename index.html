@@ -210,80 +210,128 @@ var stoneMat = new THREE.MeshStandardMaterial({ color: 0xeaeff3, roughness: 0.95
   scene.add(inst);
 })();
 
-/* ---------------- 角色 ---------------- */
-var matDark = new THREE.MeshStandardMaterial({ color: 0x212428, roughness: 0.52, metalness: 0.10 });
+/* ---------------- 角色 ----------------
+   分节骨骼：髋→大腿→膝→小腿→脚，肩→上臂→肘→前臂→手
+   基准：脚底 0 · 踝 0.08 · 膝 0.48 · 髋 0.95 · 肩 1.42 · 头顶 1.81 */
+var matDark = new THREE.MeshStandardMaterial({ color: 0x212428, roughness: 0.50, metalness: 0.10 });
 
 var pawn = new THREE.Group();
-var bodyPivot = new THREE.Group();          /* 用于整体起伏 */
+var bodyPivot = new THREE.Group();
 pawn.add(bodyPivot);
 
-/* 躯干 */
-var torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.205, 0.40, 6, 16), matDark);
-torso.position.y = 1.06;
-torso.scale.x = 1.05;
-torso.scale.z = 0.72;
+var torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.185, 0.22, 8, 18), matDark);
+torso.position.y = 1.20;
+torso.scale.set(1.0, 1.0, 0.74);
 torso.castShadow = true;
 bodyPivot.add(torso);
 
-/* 髋 */
-var hip = new THREE.Mesh(new THREE.CapsuleGeometry(0.168, 0.12, 5, 14), matDark);
-hip.position.y = 0.78;
-hip.scale.z = 0.78;
-hip.castShadow = true;
-bodyPivot.add(hip);
+var hips = new THREE.Mesh(new THREE.CapsuleGeometry(0.163, 0.10, 6, 16), matDark);
+hips.position.y = 0.955;
+hips.scale.z = 0.80;
+hips.castShadow = true;
+bodyPivot.add(hips);
 
-/* 肩：横向胶囊，让背影有肩线 */
-var shoulder = new THREE.Mesh(new THREE.CapsuleGeometry(0.086, 0.215, 5, 14), matDark);
-shoulder.position.y = 1.375;
+var shoulder = new THREE.Mesh(new THREE.CapsuleGeometry(0.082, 0.26, 6, 16), matDark);
+shoulder.position.y = 1.425;
 shoulder.rotation.z = Math.PI / 2;
-shoulder.scale.z = 0.82;
+shoulder.scale.z = 0.78;
 shoulder.castShadow = true;
 bodyPivot.add(shoulder);
 
-/* 头 */
-var neck = new THREE.Mesh(new THREE.CylinderGeometry(0.072, 0.082, 0.13, 14), matDark);
-neck.position.y = 1.455;
+var neck = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.072, 0.14, 14), matDark);
+neck.position.y = 1.50;
 neck.castShadow = true;
 bodyPivot.add(neck);
 
-var head = new THREE.Mesh(new THREE.SphereGeometry(0.196, 28, 20), matDark);
-head.position.y = 1.615;
-head.scale.z = 0.94;
+var head = new THREE.Mesh(new THREE.SphereGeometry(0.162, 26, 20), matDark);
+head.position.y = 1.70;
+head.scale.set(0.92, 1.0, 1.02);
 head.castShadow = true;
 bodyPivot.add(head);
 
-/* 腿 / 手臂：用 pivot 旋转 */
-function makeLimb(r, len, y) {
-  var g = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 5, 12), matDark);
-  g.position.y = -len / 2 - r * 0.6;
-  g.castShadow = true;
-  return g;
+/* 鼻：侧面唯一的朝向提示 */
+var nose = new THREE.Mesh(new THREE.SphereGeometry(0.043, 12, 10), matDark);
+nose.position.set(0, 1.678, 0.158);
+nose.scale.set(0.85, 1.05, 1.1);
+nose.castShadow = true;
+bodyPivot.add(nose);
+
+function buildLeg(side) {
+  var hipJ = new THREE.Group();
+  hipJ.position.set(0.125 * side, 0.95, 0.05 * side);
+  bodyPivot.add(hipJ);
+
+  var thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.082, 0.306, 6, 14), matDark);
+  thigh.position.y = -0.235;
+  thigh.castShadow = true;
+  hipJ.add(thigh);
+
+  var kneeJ = new THREE.Group();
+  kneeJ.position.y = -0.47;
+  hipJ.add(kneeJ);
+
+  var kneeBall = new THREE.Mesh(new THREE.SphereGeometry(0.077, 14, 12), matDark);
+  kneeBall.castShadow = true;
+  kneeJ.add(kneeBall);
+
+  var shin = new THREE.Mesh(new THREE.CapsuleGeometry(0.067, 0.266, 6, 14), matDark);
+  shin.position.y = -0.20;
+  shin.castShadow = true;
+  kneeJ.add(shin);
+
+  var foot = new THREE.Mesh(new THREE.BoxGeometry(0.098, 0.058, 0.195), matDark);
+  foot.position.set(0, -0.428, 0.036);
+  foot.castShadow = true;
+  kneeJ.add(foot);
+
+  return { hip: hipJ, knee: kneeJ, foot: foot };
 }
 
-function makePivot(x, y, mesh) {
-  var p = new THREE.Group();
-  p.position.set(x, y, 0);
-  p.add(mesh);
-  bodyPivot.add(p);
-  return p;
+function buildArm(side) {
+  var shJ = new THREE.Group();
+  shJ.position.set(0.242 * side, 1.405, 0.012);
+  bodyPivot.add(shJ);
+
+  var upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.057, 0.166, 6, 12), matDark);
+  upper.position.y = -0.14;
+  upper.castShadow = true;
+  shJ.add(upper);
+
+  var elbowJ = new THREE.Group();
+  elbowJ.position.y = -0.28;
+  shJ.add(elbowJ);
+
+  var elbowBall = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 10), matDark);
+  elbowBall.castShadow = true;
+  elbowJ.add(elbowBall);
+
+  var fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.050, 0.130, 6, 12), matDark);
+  fore.position.y = -0.115;
+  fore.castShadow = true;
+  elbowJ.add(fore);
+
+  var hand = new THREE.Mesh(new THREE.SphereGeometry(0.054, 12, 10), matDark);
+  hand.position.y = -0.243;
+  hand.scale.set(1.0, 1.20, 0.80);
+  hand.castShadow = true;
+  elbowJ.add(hand);
+
+  return { sh: shJ, elbow: elbowJ };
 }
 
-var legL = makePivot(-0.105, 0.74, makeLimb(0.085, 0.56, 0));
-legL.position.z = -0.055;
-var legR = makePivot(0.105, 0.74, makeLimb(0.085, 0.56, 0));
-legR.position.z = 0.055;
-var armL = makePivot(-0.262, 1.325, makeLimb(0.064, 0.52, 0));
-var armR = makePivot(0.262, 1.325, makeLimb(0.064, 0.52, 0));
+var legL = buildLeg(-1);
+var legR = buildLeg(1);
+var armL = buildArm(-1);
+var armR = buildArm(1);
 
-/* 脚：朝 +Z 一个小方块，作为朝向提示 */
-function makeFoot(side) {
-  var f = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.10, 0.30), matDark);
-  f.position.set(0, -0.688, 0.06);
-  f.castShadow = true;
-  return f;
+/* 单条腿的姿态：髋摆 + 膝弯 + 脚掌补偿 */
+function poseLeg(leg, ph, stride) {
+  var hipA = -Math.cos(ph) * 0.50 * stride;
+  var kneeA = Math.max(0, -Math.sin(ph)) * 1.30 * stride;
+  leg.hip.rotation.x = hipA;
+  leg.knee.rotation.x = kneeA + (1 - stride) * 0.055;
+  leg.foot.rotation.x = -(hipA * 0.55 + kneeA * 0.85);
 }
-legL.add(makeFoot(-1));
-legR.add(makeFoot(1));
 
 pawn.position.set(0, 0, 0);
 scene.add(pawn);
@@ -506,28 +554,48 @@ function update(dt) {
   P.phase += dt * (2.0 + stride * 7.5);
   P.idleT += dt;
 
-  var swing = Math.sin(P.phase) * 0.72 * stride;
-  var bob = Math.abs(Math.sin(P.phase)) * 0.045 * stride;
+  var t = P.phase;
 
   if (P.onGround) {
-    legL.rotation.x = swing;
-    legR.rotation.x = -swing;
-    armL.rotation.x = -swing * 1.05;
-    armR.rotation.x = swing * 1.05;
-    armL.rotation.z = 0.055 + stride * 0.05;
-    armR.rotation.z = -0.055 - stride * 0.05;
-    bodyPivot.position.y = bob;
-    bodyPivot.rotation.x = stride * 0.10;
+    poseLeg(legR, t, stride);
+    poseLeg(legL, t + Math.PI, stride);
+
+    armR.sh.rotation.x = Math.cos(t) * 0.46 * stride;
+    armL.sh.rotation.x = -Math.cos(t) * 0.46 * stride;
+    armR.elbow.rotation.x = 0.09 + Math.max(0, Math.sin(t)) * 0.42 * stride;
+    armL.elbow.rotation.x = 0.09 + Math.max(0, -Math.sin(t)) * 0.42 * stride;
+    armL.sh.rotation.z = 0.085;
+    armR.sh.rotation.z = -0.085;
+
+    legR.hip.rotation.z = 0;
+    legL.hip.rotation.z = 0;
+    bodyPivot.position.y = Math.abs(Math.sin(t)) * 0.042 * stride;
+    bodyPivot.rotation.x = stride * 0.055;
+    bodyPivot.rotation.z = Math.cos(t) * 0.034 * stride;
   } else {
-    var t = Math.min(1, Math.max(0, 0.5 - P.vy * 0.12));
-    legL.rotation.x = -0.55 - t * 0.35;
-    legR.rotation.x = -0.20 + t * 0.30;
-    armL.rotation.x = -0.38 + t * 0.25;
-    armR.rotation.x = -0.52 + t * 0.25;
-    armL.rotation.z = 0.22;
-    armR.rotation.z = -0.22;
+    var air = Math.min(1, Math.max(0, 0.5 - P.vy * 0.12));
+
+    legR.hip.rotation.x = -0.58 - air * 0.18;
+    legR.knee.rotation.x = 1.10;
+    legR.foot.rotation.x = 0.26;
+    legR.hip.rotation.z = -0.07;
+
+    legL.hip.rotation.x = 0.12;
+    legL.knee.rotation.x = 0.58;
+    legL.foot.rotation.x = -0.20;
+    legL.hip.rotation.z = 0.07;
+
+    /* 起跳时手臂向后甩 */
+    armR.sh.rotation.x = 0.46;
+    armR.elbow.rotation.x = 0.30;
+    armL.sh.rotation.x = 0.66;
+    armL.elbow.rotation.x = 0.38;
+    armL.sh.rotation.z = 0.22;
+    armR.sh.rotation.z = -0.22;
+
     bodyPivot.position.y = 0;
-    bodyPivot.rotation.x = 0.06;
+    bodyPivot.rotation.x = 0.05;
+    bodyPivot.rotation.z = 0;
   }
 
   /* 待机呼吸 */
