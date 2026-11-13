@@ -66,6 +66,7 @@
   #runBtn  { right: 14px; bottom: calc(env(safe-area-inset-bottom, 0px) + 100px); }
   #viewBtn { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 14px); }
   #projBtn { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 56px); }
+  #lockBtn { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 98px); }
   #fps {
     position: fixed; left: 10px; top: 8px;
     font: 400 10px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -80,9 +81,10 @@
 <div id="snd">🔇 点这里开声音</div>
 <div id="fps">— FPS</div>
 <button id="runBtn" class="pill">快跑</button>
-<button id="viewBtn" class="pill">第三</button>
+<button id="viewBtn" class="pill">自由</button>
 <button id="projBtn" class="pill">透视</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　·　O 正交　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.34</div>
+<button id="lockBtn" class="pill">俯仰</button>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　·　O 正交　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.35</div>
 <script>
 /**
  * @license
@@ -1069,6 +1071,11 @@ var freeUserZoom = false;                /* 用户自己缩过没有：没缩过
 var freeToPitch = 0, freeToDist = 0;
 var FREE_PITCH = 1.45, FREE_DIST_MIN = 1.5, FREE_DIST_MAX = 60;
 var orthoMode = false;                   /* 自由视角里切：false 透视 / true 正交 */
+/* 45° 俯角锁定（僵毁式取景）：俯角焊死，水平照转、缩放照常。
+   僵毁经典相机本身就是"固定俯角 + 只能 90° 步进转"，官方没公布精确角度，
+   社区普遍按 45° 理解；配合正交按钮就是经典的斜 45° 等距。 */
+var freeLock = false;
+var LOCK_PITCH = Math.PI / 4;
 var EYE_H = 1.62;              /* 第一人称眼睛高度 */
 var PORTRAIT = false;
 var camRay = new THREE.Raycaster();
@@ -1090,9 +1097,11 @@ var keys = Object.create(null);
 /* ---- 视角切换：手机右上角按钮 / 桌面 V 键，循环：第一人称 → 第三人称 → 自由 ---- */
 var viewBtn = document.getElementById('viewBtn');
 var projBtn = document.getElementById('projBtn');
+var lockBtn = document.getElementById('lockBtn');
 var runBtn  = document.getElementById('runBtn');
 var VIEW_NAME = ['第一', '第三', '自由'];
 var PROJ_NAME = ['透视', '正交'];
+var LOCK_NAME = ['俯仰', '45°'];   /* 显示当前状态：自由俯仰 / 锁在 45° */
 
 /* 按钮只有触屏才出现（桌面用键盘/滚轮就够了）；正交按钮再叠一个"只在自由视角" */
 var TOUCH_UI = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
@@ -1111,6 +1120,11 @@ function syncBtns() {
     projBtn.textContent = PROJ_NAME[orthoMode ? 1 : 0];
     projBtn.classList.toggle('on', orthoMode);
   }
+  if (lockBtn) {
+    lockBtn.style.display = (TOUCH_UI && freeMode) ? 'block' : 'none';
+    lockBtn.textContent = LOCK_NAME[freeLock ? 1 : 0];
+    lockBtn.classList.toggle('on', freeLock);
+  }
 }
 
 function toggleView() {
@@ -1121,7 +1135,7 @@ function toggleView() {
      直接硬切会闪一下，所以给 0.55s 的接近；用户一动（转俯仰/缩放）立刻取消，不抢操作。 */
   if (freeMode) {
     freePitch = camPitch; freeDist = camDist + distKick;
-    freeToPitch = FREE_PITCH_DEF;
+    freeToPitch = freeLock ? LOCK_PITCH : FREE_PITCH_DEF;   /* 锁定 45° 时落点也落在 45° */
     freeToDist = PORTRAIT ? FREE_DIST_DEF_P : FREE_DIST_DEF_L;
     freeIntro = 0.55;
     freeUserZoom = false;
@@ -1129,6 +1143,19 @@ function toggleView() {
     freeIntro = 0;
   }
   if (!freeMode) orthoMode = false;   /* 离开自由视角就回透视，免得下次进来措手不及 */
+  syncBtns();
+  hideTip();
+}
+function toggleLock() {
+  freeLock = !freeLock;
+  /* 锁定时俯角由每帧的 easing 拉到 45°（见相机段），不用 intro——intro 会被缩放取消，
+     俯角就卡在半路了 */
+  if (freeLock) freeIntro = 0;
+  syncBtns();
+  hideTip();
+}
+function toggleProj() {
+  orthoMode = !orthoMode;
   syncBtns();
   hideTip();
 }
@@ -1141,9 +1168,13 @@ if (viewBtn) {
 if (projBtn) {
   projBtn.addEventListener('pointerdown', function (e) {
     e.stopPropagation(); e.preventDefault();
-    orthoMode = !orthoMode;
-    syncBtns();
-    hideTip();
+    toggleProj();
+  }, { passive: false });
+}
+if (lockBtn) {
+  lockBtn.addEventListener('pointerdown', function (e) {
+    e.stopPropagation(); e.preventDefault();
+    toggleLock();
   }, { passive: false });
 }
 var touch = { id: -1, ox: 0, oy: 0, x: 0, y: 0, active: false };
@@ -1160,9 +1191,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里右侧双指缩放、正交键切投影　·　v0.11.34';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里双指缩放、正交键切投影、45°键锁俯角　·　v0.11.35';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/自由）· 自由视角里滚轮缩放、O 切透视/正交　·　v0.11.34';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角 · 自由视角里滚轮缩放、O 切透视/正交、L 锁 45° 俯角　·　v0.11.35';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1171,7 +1202,8 @@ window.addEventListener('keydown', function (e) {
   if (e.repeat) return;
   if (k === ' ' || k === 'spacebar') doJump();
   if (k === 'v') toggleView();
-  if (k === 'o' && freeMode) { orthoMode = !orthoMode; syncBtns(); }   /* 桌面没有按钮，给个键 */
+  if (k === 'o' && freeMode) toggleProj();           /* 桌面没有按钮，给个键 */
+  if (k === 'l' && freeMode) toggleLock();           /* 同上：45° 俯角锁定 */
   keys[k] = true;
   hideTip();
 }, { passive: false });
@@ -1226,10 +1258,13 @@ function turnBy(dx, dy) {
   camYaw   -= dx * 0.0062;
   if (firstMode) fpPitch -= dy * 0.0035;       /* 第一人称：上下拖动抬头/低头 */
   else if (freeMode) {                         /* 自由：俯仰不设限，能翻到头顶和脚下 */
-    if (dy) freeIntro = 0;                     /* 用户自己在转俯仰了，别再往默认落点拉 */
-    freePitch += dy * 0.0042;                  /* 方向必须和第三人称一致：下拖 = 低头 */
-    if (freePitch > FREE_PITCH) freePitch = FREE_PITCH;
-    else if (freePitch < -FREE_PITCH) freePitch = -FREE_PITCH;
+    if (freeLock) { /* 45° 锁定：上下拖动不再改俯仰（僵毁的相机也不能俯仰） */ }
+    else {
+      if (dy) freeIntro = 0;                   /* 用户自己在转俯仰了，别再往默认落点拉 */
+      freePitch += dy * 0.0042;                /* 方向必须和第三人称一致：下拖 = 低头 */
+      if (freePitch > FREE_PITCH) freePitch = FREE_PITCH;
+      else if (freePitch < -FREE_PITCH) freePitch = -FREE_PITCH;
+    }
   }
   else camPitch += dy * 0.0042;                /* 第三人称：转水平 + 俯仰 */
   if (fpPitch > 1.15) fpPitch = 1.15; else if (fpPitch < -1.15) fpPitch = -1.15;
@@ -1707,6 +1742,11 @@ function update(dt) {
       if (freeIntro <= 0) { freePitch = freeToPitch; freeDist = freeToDist; }
     }
   }
+  /* 45° 锁定：俯角持续向 LOCK_PITCH 收敛。不用 intro 是因为缩放会取消 intro，
+     俯角会卡在半路；每帧小步逼近则怎么打断都能回到 45°。 */
+  if (freeLock && freeMode && wF < 0.5) {
+    freePitch += (LOCK_PITCH - freePitch) * Math.min(1, dt * 6);
+  }
 
   /* 自由视角：直接复用第三人称那套球面轨道，只是俯仰/距离换成自由值，
      所以"缩放 + 任意角度"不用另写一套相机，也不会和第三人称打架。 */
@@ -1968,6 +2008,8 @@ window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   get freeIntro() { return freeIntro; },
   get orthoMode() { return orthoMode; },
   setOrtho: function (v) { orthoMode = !!v; syncBtns(); },
+  get freeLock() { return freeLock; },
+  setLock: function (v) { freeLock = !!v; if (freeLock) freeIntro = 0; syncBtns(); },
   get camIsOrtho() { return activeCam === orthoCam; },
   get fovKick() { return fovKick; } };
 
