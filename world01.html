@@ -105,6 +105,13 @@
   #lockBtn  { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 56px); }
   #themeBtn { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 98px); }
   #colBtn   { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 140px); }
+  #settingsBtn { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 182px); display: block; }
+  #settingsPanel { position: fixed; z-index: 1100; right: 14px; top: calc(env(safe-area-inset-top, 0px) + 224px); width: 290px; max-width: calc(100vw - 28px); max-height: calc(100vh - 244px); overflow: auto; box-sizing: border-box; padding: 14px; background: #202630; color: #eef2f6; border: 1px solid #687382; border-radius: 12px; font: 13px/1.6 sans-serif; touch-action: pan-y; }
+  #settingsPanel[hidden] { display: none; }
+  #settingsPanel label { display: block; margin: 8px 0; }
+  #settingsPanel input[type=range] { width: 100%; }
+  #settingsPanel button, #settingsPanel select { padding: 5px 8px; }
+  #debugInfo { white-space: pre-wrap; font: 12px/1.6 monospace; }
   #fps {
     position: fixed; left: 10px; top: 8px;
     font: 400 10px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -124,7 +131,19 @@
 <button id="lockBtn" class="pill">俯仰</button>
 <button id="themeBtn" class="pill">深色</button>
 <button id="colBtn" class="pill">碰撞</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳/攀　·　V 切视角　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.11.42</div>
+<button id="settingsBtn" class="pill">设置</button>
+<section id="settingsPanel" hidden aria-label="运行调试与设置">
+  <strong>运行调试 / 设置</strong>
+  <label>鼠标灵敏度 <output id="mouseValue"></output><input id="mouseSensitivity" type="range" min="0.1" max="2" step="0.05"></label>
+  <label>触屏灵敏度 <output id="touchValue"></output><input id="touchSensitivity" type="range" min="0.2" max="2" step="0.05"></label>
+  <label>主题 <select id="settingsTheme"><option value="dark">深色</option><option value="light">白色</option></select></label>
+  <label><input id="settingsCollision" type="checkbox">实际移动碰撞体</label>
+  <pre id="debugInfo"></pre>
+  <div id="settingsStatus">设置修改后自动保存到本浏览器</div>
+  <button id="settingsReset" type="button">恢复默认</button>
+  <button id="settingsClose" type="button">关闭</button>
+</section>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳/攀　·　V 切视角　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.11.43</div>
 <script>
 /**
  * @license
@@ -538,8 +557,8 @@ var stoneMat = new THREE.MeshStandardMaterial({ color: 0xeaeff3, roughness: 0.95
     }
     part(alongX ? len : 0.06, 0.09, alongX ? 0.06 : len, cx, 0.42, cz);
     part(alongX ? len : 0.06, 0.09, alongX ? 0.06 : len, cx, 0.78, cz);
-    collider(cx, 0.475, cz, alongX ? 0 : Math.PI / 2,
-             alongX ? len : 0.2, alongX ? 0.2 : len, 0.95);
+    collider(cx, 0.475, cz, 0,
+             alongX ? len : 0.1, alongX ? 0.1 : len, 0.95);
   }
   var y0 = YARD.z0, y1 = YARD.z1, x0 = YARD.x0, x1 = YARD.x1;
   seg((x0 - 3.2) / 2, y1, -3.2 - x0, true);                /* 南墙西段（到院门口） */
@@ -1210,9 +1229,61 @@ var THEMES = {
   }
 };
 var themeName = 'dark';
+var settings = { mouse: 0.5, touch: 1, theme: 'dark' };
+var settingsOpen = false;
+var settingsPanel = document.getElementById('settingsPanel');
+try {
+  var savedSettings = JSON.parse(localStorage.getItem('world01.settings.v1') || 'null');
+  if (savedSettings) {
+    if (typeof savedSettings.mouse === 'number' && isFinite(savedSettings.mouse)) settings.mouse = Math.max(0.1, Math.min(2, savedSettings.mouse));
+    if (typeof savedSettings.touch === 'number' && isFinite(savedSettings.touch)) settings.touch = Math.max(0.2, Math.min(2, savedSettings.touch));
+    if (savedSettings.theme === 'light') settings.theme = 'light';
+  }
+} catch (_) {}
+function saveSettings() {
+  try {
+    localStorage.setItem('world01.settings.v1', JSON.stringify(settings));
+    document.getElementById('settingsStatus').textContent = '已保存到本浏览器';
+  } catch (_) {
+    document.getElementById('settingsStatus').textContent = '浏览器禁止保存；本次运行仍生效';
+  }
+}
+function syncSettings() {
+  document.getElementById('mouseSensitivity').value = settings.mouse;
+  document.getElementById('touchSensitivity').value = settings.touch;
+  document.getElementById('mouseValue').textContent = settings.mouse.toFixed(2);
+  document.getElementById('touchValue').textContent = settings.touch.toFixed(2);
+  document.getElementById('settingsTheme').value = themeName;
+  document.getElementById('settingsCollision').checked = !!colVizOn;
+}
+function showSettings(on) {
+  settingsOpen = !!on;
+  settingsPanel.hidden = !settingsOpen;
+  document.getElementById('settingsBtn').classList.toggle('on', settingsOpen);
+  keys = Object.create(null);
+  mouse.down = false;
+  touch.active = look.active = false;
+  ptrs = {}; pinch.on = false;
+  if (settingsOpen && document.exitPointerLock) document.exitPointerLock();
+  syncSettings();
+}
+settingsPanel.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+settingsPanel.addEventListener('wheel', function (e) { e.stopPropagation(); });
+document.getElementById('settingsBtn').addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); showSettings(!settingsOpen); });
+document.getElementById('settingsClose').onclick = function () { showSettings(false); };
+document.getElementById('mouseSensitivity').oninput = function () { settings.mouse = +this.value; syncSettings(); saveSettings(); };
+document.getElementById('touchSensitivity').oninput = function () { settings.touch = +this.value; syncSettings(); saveSettings(); };
+document.getElementById('settingsTheme').onchange = function () { applyTheme(this.value); };
+document.getElementById('settingsCollision').onchange = function () { setColViz(this.checked); };
+document.getElementById('settingsReset').onclick = function () {
+  settings.mouse = 0.5; settings.touch = 1; applyTheme('dark'); syncSettings();
+};
 function applyTheme(n) {
   var t = THEMES[n] || THEMES.dark;
   themeName = n;
+  settings.theme = n;
+  saveSettings();
+  syncSettings();
   scene.background.setHex(t.sky);
   FOG.color.setHex(t.fog);
   hemi.intensity = t.hemiI;
@@ -1350,15 +1421,20 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由视角里双指缩放、45°键锁死视角、主题键切主题、碰撞键看碰撞体　·　v0.11.42';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由视角里双指缩放、45°键锁死视角、主题键切主题、碰撞键看碰撞体　·　v0.11.43';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · 自由视角里滚轮缩放、L 锁死 45° 视角 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.11.42';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · 自由视角里滚轮缩放、L 锁死 45° 视角 · T 切主题 · C 看碰撞体 · F2 设置 · H 显示/隐藏本说明　·　v0.11.43';
 }
 
 window.addEventListener('keydown', function (e) {
   var k = e.key.toLowerCase();
+  if (k === 'f2' && !e.repeat) { e.preventDefault(); showSettings(!settingsOpen); return; }
+  if (settingsOpen) {
+    if (k === 'escape') showSettings(false);
+    return;
+  }
   if (k === ' ' || k === 'spacebar' || k.indexOf('arrow') === 0) e.preventDefault();
   if (e.repeat) return;
   if (k === 'h' && !TOUCH_UI) { setTip(!tipShown); return; }   /* 桌面：一个键管显示与隐藏 */
@@ -1417,7 +1493,8 @@ function rightIds() {
   return out;
 }
 
-function turnBy(dx, dy) {
+function turnBy(dx, dy, sensitivity) {
+  dx *= sensitivity; dy *= sensitivity;
   var locked = (freeMode && freeLock);
   if (!locked) camYaw -= dx * 0.0062;          /* 锁定 45° 视角时水平也不动 */
   if (firstMode) fpPitch -= dy * 0.0035;       /* 第一人称：上下拖动抬头/低头 */
@@ -1492,11 +1569,11 @@ window.addEventListener('pointermove', function (e) {
     if (plLocked) {
       /* 锁定态：直接用 movement 差值，不需要按住任何键 */
       var mdx = e.movementX || 0, mdy = e.movementY || 0;
-      if (mdx || mdy) turnBy(mdx * 0.5, mdy * 0.5); /* PC 鼠标灵敏度减半，触屏不变 */
+      if (mdx || mdy) turnBy(mdx, mdy, settings.mouse); /* PC 鼠标灵敏度减半，触屏不变 */
       return;
     }
     if (mouse.down) {
-      turnBy((e.clientX - mouse.px) * 0.5, (e.clientY - mouse.py) * 0.5);
+      turnBy(e.clientX - mouse.px, e.clientY - mouse.py, settings.mouse);
       mouse.px = e.clientX; mouse.py = e.clientY;
     }
     return;
@@ -1519,7 +1596,7 @@ window.addEventListener('pointermove', function (e) {
         Math.abs(e.clientX - look.sx) + Math.abs(e.clientY - look.sy) > 11) {
       look.dragging = true;
     }
-    if (look.dragging) turnBy(e.clientX - look.px, e.clientY - look.py);
+    if (look.dragging) turnBy(e.clientX - look.px, e.clientY - look.py, settings.touch);
     look.px = e.clientX; look.py = e.clientY;
   }
 }, { passive: true });
@@ -1685,6 +1762,7 @@ function realJump() {
 
 /* 输出：{x: 屏幕横向 -1..1, y: 前后 -1..1（向上为前进）} */
 function getAxis() {
+  if (settingsOpen) return { x: 0, y: 0 };
   var ax = 0, ay = 0;
   if (keys['a'] || keys['arrowleft'])  ax -= 1;
   if (keys['d'] || keys['arrowright']) ax += 1;
@@ -1892,8 +1970,8 @@ function update(dt) {
 
   /* 朝向：速度越快转身插值越慢（冲刺转弯带惯性弧线，不再是瞬间的硬转） */
   var sp = Math.hypot(vel.x, vel.z);
-  if (sp > 0.35) {
-    P.faceTarget = Math.atan2(vel.x, vel.z);
+  if (!climb && tx * tx + tz * tz > 0.0001) {
+    P.faceTarget = Math.atan2(tx, tz); /* 输入意图不受墙面消速影响 */
   }
   /* 第一人称：身体跟着视线转，不然会横着走 */
   if (fpBlend > 0.5) {
@@ -2195,7 +2273,7 @@ function resize() {
 window.addEventListener('resize', resize, { passive: true });
 window.addEventListener('orientationchange', function () { setTimeout(resize, 150); }, { passive: true });
 resize();
-applyTheme('dark');
+applyTheme(settings.theme);
 
 /* ---------------- 碰撞体积可视化（调试，按 C 切换） ----------------
    colliders 里只有 2.5D 数据（中心、半宽、半深、yaw、顶面高度），这里按同一套
@@ -2246,6 +2324,7 @@ function setColViz(on) {
   colViz.visible = colVizOn;
   playerViz.visible = colVizOn;
   syncBtns();
+  syncSettings();
 }   /* 默认深色；内部会调 syncBtns() 把主题按钮文字也同步好 */
 
 /* ---------------- 主循环 ---------------- */
@@ -2268,6 +2347,15 @@ function fpsTick(t) {
       fpsEl.textContent += ' · 跳 ' + jumpTAnim.toFixed(0) + '/' + jumpTSfx.toFixed(0) + '/' + jumpTDrv.toFixed(0);
     }
     fpsN = 0; fpsT0 = t;
+    if (settingsOpen) {
+      document.getElementById('debugInfo').textContent =
+        '状态 ' + (climb ? '攀爬' : (P.onGround ? '着地' : '空中')) + ' / ' + ANIM.cur +
+        '\n速度 ' + Math.hypot(vel.x, vel.z).toFixed(2) + ' m/s' +
+        '\n位置 ' + P.pos.x.toFixed(2) + ', ' + P.pos.y.toFixed(2) + ', ' + P.pos.z.toFixed(2) +
+        '\n朝向 ' + P.face.toFixed(2) + ' → ' + P.faceTarget.toFixed(2) +
+        '\n碰撞体 ' + colliders.length + ' / ' + VIEW_NAME[viewMode] +
+        '\n主碰撞：稳定圆柱；未启用骨骼物理';
+    }
   }
 }
 
@@ -2309,6 +2397,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
+window.__worldVersion = 'v0.11.43';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   get jumpBufT() { return jumpBufT; },
   get camKickV() { return camKickV; },

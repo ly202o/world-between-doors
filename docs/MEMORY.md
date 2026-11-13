@@ -433,3 +433,14 @@ UE 命令行：`/d/app/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe D:/temp
 ---
 
 _最后更新：v0.11.31_
+
+## 2026-11-14 · v0.11.43 首批交付
+
+- 基线 v0.11.42 已有干净提交 dc63096 与同日备份；本轮优先实现设置/调试、意图朝向与栅栏轴向根因。
+- 设置入口按钮 / F2，Esc 关闭，localStorage `world01.settings.v1` 存 mouse/touch/theme；默认 0.5/1/dark，存储拒绝显示提示。打开面板清 keys、mouse、touch、look、pinch，getAxis 返回零，关闭不会继承按住键。
+- 朝向必须取 tx/tz：碰撞后 vel 已经清零，再取它会重现“左右后 W 不朝前”。无输入保留目标，第一人称仍跟视线。
+- 栅栏东西段宽深本已交换，yaw90 是第二次旋转；现在全部 yaw=0、薄边 0.10m。没有做逐构件碰撞或栅栏顶面攀爬，不要把整盒说成精细体。
+- 本机 ALS_HUD.uasset 可读字段包括 DebugPanel/ShowCharacterInfo/ShowDebugShapes/ShowTraces/ShowHUD；只是字段参考，未打开 UE 运行窗口、未导出蓝图逻辑。
+- 5 块 script 各自检查通过；独立 CDP 9230 串行测试，file:///D:/temp/w01_iso43/world01.html 孤立单文件横1280×720/竖390×844截图已查看，0运行异常/0外部请求。自动化脚本 D:/temp/w01_verify43.mjs；截图 D:/temp/w01_iso43/。
+- 尚未实施：精细栅栏/薄顶攀、屋顶坡面、骨骼细化体、攀爬缩短/颤抖/空中抓取、平滑台阶、跑撞墙反应、脚IK。当前主碰撞仍稳定圆柱，无骨骼物理。
+- 上轮任务18继续保留 in_progress，不替上一轮补报完成；本轮任务19跟进独立成果。
