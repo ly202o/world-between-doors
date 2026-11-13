@@ -89,7 +89,7 @@
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
 <button id="viewBtn">第三</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.30</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.31</div>
 <script>
 /**
  * @license
@@ -976,9 +976,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里双指缩放　·　v0.11.30';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里右侧双指缩放　·　v0.11.31';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/自由）· 自由视角里滚轮缩放　·　v0.11.30';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/自由）· 自由视角里滚轮缩放（手机右侧双指）　·　v0.11.31';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1023,38 +1023,34 @@ window.addEventListener('wheel', function (e) {
   hideTip();
 }, { passive: false });
 
-/* 双指捏合：两指距离拉大变近、捏小变远。捏合期间作废单指摇杆/转视角，免得边走边抖 */
-var ptrs = {}, pinch = { on: false, d0: 1, dist0: 1 };
-function ptrCount() { var n = 0, k; for (k in ptrs) n++; return n; }
-function pinchDist() {
-  var a = null, b = null, k;
-  for (k in ptrs) { if (!a) a = ptrs[k]; else b = ptrs[k]; }
-  return Math.hypot(a.x - b.x, a.y - b.y) || 1;
+/* 双指捏合缩放：只在**右半屏**（看的方向）成立，用两根手指的距离控制机距。
+   左半屏永远归摇杆，所以"推着摇杆走 + 右手两指缩放"可以同时进行；
+   而"左手摇杆 + 右手单指拖动"是走 + 转视角，也不会被误判成缩放。 */
+var ptrs = {}, pinch = { on: false, d0: 1, dist0: 1, a: -1, b: -1 };
+function isRightHalf(p) { return !!p && p.x >= window.innerWidth * 0.5; }
+function pd(a, b) {
+  var p = ptrs[a], q = ptrs[b];
+  if (!p || !q) return 1;
+  return Math.hypot(p.x - q.x, p.y - q.y) || 1;
+}
+/* 当前落在右半屏的指针 id，按落下顺序 */
+function rightIds() {
+  var out = [], k;
+  for (k in ptrs) if (isRightHalf(ptrs[k])) out.push(+k);
+  return out;
 }
 
 function turnBy(dx, dy) {
   camYaw   -= dx * 0.0062;
   if (firstMode) fpPitch -= dy * 0.0035;       /* 第一人称：上下拖动抬头/低头 */
   else if (freeMode) {                         /* 自由：俯仰不设限，能翻到头顶和脚下 */
-    freePitch -= dy * 0.0042;
+    freePitch += dy * 0.0042;                  /* 方向必须和第三人称一致：下拖 = 低头 */
     if (freePitch > FREE_PITCH) freePitch = FREE_PITCH;
     else if (freePitch < -FREE_PITCH) freePitch = -FREE_PITCH;
   }
   else camPitch += dy * 0.0042;                /* 第三人称：转水平 + 俯仰 */
   if (fpPitch > 1.15) fpPitch = 1.15; else if (fpPitch < -1.15) fpPitch = -1.15;
   clampPitch();
-}
-
-/* 判断所有落下的手指是否都在同一半屏：只有同侧才当捏合。
-   一边左半屏推摇杆、一边右半屏转视角，是两种操作，不是缩放。 */
-function allOnSameSide() {
-  var half = null;
-  for (var k in ptrs) {
-    var isLeft = ptrs[k].x < window.innerWidth * 0.5;
-    if (half === null) half = isLeft;
-    else if (half !== isLeft) return false;
-  }
-  return true;
 }
 
 canvas.addEventListener('pointerdown', function (e) {
@@ -1066,17 +1062,21 @@ canvas.addEventListener('pointerdown', function (e) {
   e.preventDefault();
   hideTip();
   ptrs[e.pointerId] = { x: e.clientX, y: e.clientY };
-  /* 双指捏合的前置条件：没有手指在推摇杆，且所有手指在同一半屏。
-     「边走边转视角」（左手摇杆 + 右手拖动）是常用操作，只要看到"两根手指"就进捏合，
-     这个操作会被掐掉——摇杆和转视角同时失效，等于自由视角里不能一边走一边看。 */
-  if (freeMode && ptrCount() >= 2 && !touch.active && allOnSameSide()) {
-    /* 进捏合，单指状态全部作废 */
-    pinch.on = true;
-    pinch.d0 = pinchDist();
-    pinch.dist0 = freeDist;
-    touch.active = false; touch.id = -1;
-    look.active = false; look.id = -1; look.dragging = false;
-    return;
+  /* 右半屏凑够两根手指 = 捏合。摇杆在左半屏，不参与这个判定，
+     所以"推着摇杆走 + 右手两指缩放"和"左手摇杆 + 右手单指转视角"都不冲突。 */
+  if (freeMode && !pinch.on) {
+    var rid = rightIds();
+    if (rid.length >= 2) {
+      pinch.on = true;
+      pinch.a = rid[0]; pinch.b = rid[1];
+      pinch.d0 = pd(pinch.a, pinch.b);
+      pinch.dist0 = freeDist;
+      /* 只掐掉落在这两根手指上的"转视角"，摇杆继续走 */
+      if (look.active && (look.id === pinch.a || look.id === pinch.b)) {
+        look.active = false; look.id = -1; look.dragging = false;
+      }
+      return;
+    }
   }
   if (e.clientX < window.innerWidth * 0.5) {
     /* 左半屏：摇杆 */
@@ -1106,13 +1106,11 @@ window.addEventListener('pointermove', function (e) {
     return;
   }
   if (ptrs[e.pointerId]) { ptrs[e.pointerId].x = e.clientX; ptrs[e.pointerId].y = e.clientY; }
-  if (pinch.on) {
+  if (pinch.on && (e.pointerId === pinch.a || e.pointerId === pinch.b)) {
     /* 按"起始距离 × 起始指距/当前指距"直接设值，不要反复累乘 */
-    if (ptrCount() >= 2) {
-      var nd = pinch.dist0 * (pinch.d0 / pinchDist());
-      freeDist = nd < FREE_DIST_MIN ? FREE_DIST_MIN : (nd > FREE_DIST_MAX ? FREE_DIST_MAX : nd);
-    }
-    return;
+    var nd = pinch.dist0 * (pinch.d0 / pd(pinch.a, pinch.b));
+    freeDist = nd < FREE_DIST_MIN ? FREE_DIST_MIN : (nd > FREE_DIST_MAX ? FREE_DIST_MAX : nd);
+    return;                       /* 注意只拦截这两根手指，摇杆手指的移动照常往下走 */
   }
   if (touch.active && e.pointerId === touch.id) {
     touch.x = e.clientX; touch.y = e.clientY;
@@ -1135,20 +1133,17 @@ function releasePointer(e) {
     return;
   }
   delete ptrs[e.pointerId];
-  if (pinch.on && ptrCount() < 2) {
-    pinch.on = false;
-    /* 捏合结束后剩下那根手指接着当"转视角"用，不用抬手重按 */
-    if (ptrCount() === 1 && !touch.active) {
-      for (var pk in ptrs) {
-        var pd = ptrs[pk];
-        if (pd.x >= window.innerWidth * 0.5) {
-          look.active = true; look.id = +pk;
-          look.dragging = true;    /* 置 true：免得抬手被当成"轻点"触发跳跃 */
-          look.sx = pd.x; look.sy = pd.y;
-          look.px = pd.x; look.py = pd.y;
-          look.t0 = performance.now();
-        }
-      }
+  if (pinch.on && (e.pointerId === pinch.a || e.pointerId === pinch.b)) {
+    pinch.on = false; pinch.a = -1; pinch.b = -1;
+    /* 捏合结束后右半屏若还剩一根手指，接着当"转视角"用，不用抬手重按 */
+    var rest = rightIds();
+    if (rest.length === 1 && !look.active) {
+      var rp = ptrs[rest[0]];
+      look.active = true; look.id = rest[0];
+      look.dragging = true;    /* 置 true：免得抬手被当成"轻点"触发跳跃 */
+      look.sx = rp.x; look.sy = rp.y;
+      look.px = rp.x; look.py = rp.y;
+      look.t0 = performance.now();
     }
   }
   if (touch.active && e.pointerId === touch.id) {
