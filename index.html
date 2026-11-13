@@ -75,7 +75,7 @@
 <div id="snd">🔇 点这里开声音</div>
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.15</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.16</div>
 <script>
 /**
  * @license
@@ -800,9 +800,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.15';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.16';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.15';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.16';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1234,8 +1234,9 @@ function fpsTick(t) {
 function loop(t) {
   var dt = (t - last) / 1000;
   last = t;
-  /* 长帧记录：>45ms 记一笔（带当时动画状态），屏幕上直接显示最近一笔 */
-  if (dt > 0.045) {
+  /* 长帧记录：>45ms 记一笔（带当时动画状态），屏幕上直接显示最近一笔。
+     首帧之前的加载/着色器编译不算——那不是游戏中的卡顿。 */
+  if (window.__worldDrawn && dt > 0.045) {
     perfLong++;
     perfLast = ANIM.cur + ' ' + Math.round(dt * 1000) + 'ms';
     if (window.__perfLog.length < 16) window.__perfLog.push({ ms: Math.round(dt * 1000), anim: ANIM.cur, air: !P.onGround, blend: +ANIM.blend.toFixed(2) });
