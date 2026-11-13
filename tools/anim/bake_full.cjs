@@ -270,7 +270,10 @@ const ANIMS = {
   fall: 'ALS_N_FallLoop.fbx',
   fallFast: 'ALS_N_FallLoop_Fast.fbx',
   landLight: 'ALS_N_Land_Light.fbx',
-  landHeavy: 'ALS_N_Land_Heavy.fbx'
+  landHeavy: 'ALS_N_Land_Heavy.fbx',
+  /* 攀爬（v0.11.40）：ALS 的撑上 1m 障碍，右手撑版本。
+     LH/RH 是按哪只手先撑分的，这里统一用 RH；完整片段比跳跃长，不裁帧。 */
+  mantle: 'ALS_N_Mantle_1m_RH.fbx'
 };
 
 const result = {};

@@ -85,6 +85,7 @@
 | v0.11.36 | 房子小构件合批成 `InstancedMesh`，每帧 draw call **190 → 62**（无房子基线 39） | 用户报「走路都掉帧」，问是不是外放导致——查证与音频无关，是 v0.11.34 逐个 new Mesh 且全开投影 |
 | v0.11.37 | 45° 固定视角补全：**水平朝向也焊死**（`lockYaw` = 按下时的 `camYaw`），`Q`/`E` 同步禁用 | 用户「只固定了上下旋转，左右旋转也要固定」——v0.11.35 只锁俯角不叫固定视角 |
 | v0.11.38 | PC 操作说明改按 `H` 展开/收起，右上角只常驻一个 22px `H` 徽标；触屏路径不变 | 用户「pc端那个操作说明，可以快捷键显示隐藏，快捷键的提示一直常驻一个字母」 |
+| v0.11.39 | 删正交（整套）；加深色主题并**默认深色**，保留白色可切（`T` 键 / 主题按钮）；导出并内联 ALS `mantle` 动画数据（攀爬备用） | 用户「再做个深色主题，默认深色，删除正交。把攀爬做一下」+ 追问后答「去als项目里找啊」「靠近障碍按跳跃」 |
 | v0.11.8 | 手感五连：跳跃缓冲 0.14s / 落地相机微沉 / 冲刺 FOV+拉远 / 转身惯性 / 减速动画滞后 | 用户授权「完善手感细节和动作细节」 |
 | v0.11.9 | 落地微沉改平滑：幅度减半、两帧追、位置+注视点同沉 | 用户反馈「落地后远景跳一下，更低了」——一帧拽到位+只动位置导致俯仰突变 |
 
@@ -150,8 +151,11 @@
 ```
 export_anims.py   # UE 命令行导出动画 FBX 到 D:/temp/als_anim_out（副本工程）
 export_jump.py    # 同上，只导 JumpWalk_LF/RF、JumpRun_LF/RF、FallLoop_Fast
+export_mantle.py  # v0.11.39：导 ALS_N_Mantle_1m_LH/RH、Mantle_2m（在 Actions/ 下，不在 Base/）
 build_rig.cjs     # AnimMan.fbx → _rig.js（几何 + 蒙皮权重 + 骨骼绑定姿态）
-bake_full.cjs     # 动画 FBX → _anims.js（每骨绝对局部旋转）；跳类片段裁到前 22 帧
+bake_full.cjs     # 动画 FBX → _anims.js（每骨绝对局部旋转）；跳类裁到 22 帧；含 mantle（47 帧 / 1.53s）
+
+UE 命令行：`/d/app/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe D:/temp/als_export/AdvancedLocomotionSystemV.uproject -ExecutePythonScript="tools/anim/<脚本>.py" -unattended -nosplash -stdout`（约 40s）。烘完要把 `_anims.js` 内联回 `world01.html` 的第 3 个 script 块。
 ```
 
 ---
@@ -372,9 +376,10 @@ bake_full.cjs     # 动画 FBX → _anims.js（每骨绝对局部旋转）；跳
 | 第一人称 | 眼高 1.62 m，`fpPitch` ±1.15 rad，`fpBlend > 0.45` 隐藏自身网格 |
 | 自由 | `freePitch` ±1.45 rad，`freeDist` 1.5 – 60 m；滚轮系数 `exp(dY × 0.0011)`；双指 = `dist0 × d0/d`；`freeDist < 0.9` 藏身体；最低俯角 `asin((0.35 − follow.y − 1.42) / dist)` |
 | 自由默认落点 | `FREE_PITCH_DEF` 0.66 / `FREE_DIST_DEF_L` 23 / `FREE_DIST_DEF_P` 20（沿用旧 `TOP_PITCH` / `TOP_DIST`）；`freeIntro` 0.55 s 缓动，用户一动清 0 |
-| 正交 | `orthoCam` 与透视共用位置/朝向；`halfH = tan(fov/2) × effDist`、`halfW = halfH × aspect`；只在 `freeMode && orthoMode && wF < 0.05` 时 `activeCam = orthoCam` |
+| 主题（默认深色） | `THEMES.light/dark` + `applyTheme()`；`T` 键 / `#themeBtn`；CSS 变量走 `<html data-theme>`；深色 hemi+sun = 0.62+0.80（白档 1.45+1.84）；`HOUSE_MATS` 注册房子内部材质；地面网格线色是 uniform `uGridColor` |
+| 动画 | `__ANIMS` 13 段；v0.11.39 加 `mantle`（ALS_N_Mantle_1m_RH，1.5333s / 47 帧 / 32 骨），**尚未接玩法** |
 | 45° 锁定 | `LOCK_PITCH = π/4`、`lockYaw` = 按下时的 `camYaw`；锁定时 `turnBy` 忽略 `dx`/`dy`、禁 `Q`/`E`；每帧 `k=min(1,dt×6)` 同时收敛俯角与 yaw（`dyaw` 归一到 ±π）；跨视角保留，重进自由时落点取 `LOCK_PITCH` |
-| HUD 按钮 | `.pill` 高 34、左右 padding 13、圆角 999、字 12/600；右上 14 / 56 / 98 依次是 视角 / 正交 / 45°；快跑右下 100 |
+| HUD 按钮 | `.pill` 高 34、左右 padding 13、圆角 999、字 12/600；右上 14 / 56 / 98 依次是 视角 / 45° / 主题（v0.11.39 删正交后 45° 上移）；快跑右下 100 |
 | 操作说明 | 桌面：`#tip` 默认 `opacity 0`，按 `H` 切（0.18s 过渡），右上角 `#helpBadge` 显示 `H`、展开时点亮；`hideTip()` 桌面直接 return。触屏：开局 opacity 1、9s 淡出、徽标不显示 |
 | 碰撞 | `PLAYER_R` 0.36、`STEP_UP` 0.35、`STEP_DOWN` 0.40、站立判定放宽 0.28；96 个碰撞体（72 积木 − 院内剔除 + 11 高塔 + 4 台阶 + 主屋/车库/门廊/2 树/6 段栅栏） |
 | 贴墙摩擦 | `WALL_FRIC` 3.5：切向速度每秒衰减 `3.5 × |目标速度·法线|`；0–30° 顶死，45°+ 照常滑；只在 onGround 生效 |
