@@ -75,7 +75,7 @@
 <div id="snd">🔇 点这里开声音</div>
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.16</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.17</div>
 <script>
 /**
  * @license
@@ -188,6 +188,8 @@ function hash(i, s) {
 
 /* ---------------- 散落的白色积木（空间参照物） ---------------- */
 var propMat = new THREE.MeshStandardMaterial({ color: 0xf4f7fa, roughness: 0.92, metalness: 0 });
+var blockers = [];   /* 会挡住相机的实体（积木 + 高塔），散石太小不参与 */
+window.__blockers = blockers;   /* 诊断用 */
 
 (function scatter() {
   var i, n = 72;
@@ -208,6 +210,7 @@ var propMat = new THREE.MeshStandardMaterial({ color: 0xf4f7fa, roughness: 0.92,
     m.castShadow = true;
     m.receiveShadow = true;
     scene.add(m);
+    blockers.push(m);
   }
 })();
 
@@ -224,6 +227,7 @@ var propMat = new THREE.MeshStandardMaterial({ color: 0xf4f7fa, roughness: 0.92,
     m.castShadow = false;
     m.receiveShadow = true;
     scene.add(m);
+    blockers.push(m);
   }
 })();
 
@@ -601,9 +605,19 @@ window.addEventListener('keydown', audioUnlock, true);
 document.addEventListener('WeixinJSBridgeReady', function () { audioUnlock({ type: 'weixin' }); }, false);
 /* 从后台切回来，有些浏览器会把上下文挂起 */
 document.addEventListener('visibilitychange', function () {
-  if (!document.hidden && AC && AC.state !== 'running' && AC.resume) {
-    var p = AC.resume();
-    if (p && p.catch) p.catch(function () {});
+  if (document.hidden) {
+    /* 切后台：停掉渲染循环省电，回来时重置时间基准，避免卡一大跳 */
+    renderPaused = true;
+  } else {
+    renderPaused = false;
+    last = performance.now();
+    acc = 0;
+    cancelAnimationFrame(rafId);   /* 防止旧链和重建链双跑 */
+    rafId = requestAnimationFrame(loop);
+    if (AC && AC.state !== 'running' && AC.resume) {
+      var p = AC.resume();
+      if (p && p.catch) p.catch(function () {});
+    }
   }
 }, false);
 
@@ -708,14 +722,17 @@ function audioReady() {
   return AC.state === 'running';
 }
 
-/* 脚步：gait 0=走 1=跑 2=冲刺，音量按步态递进 */
+/* 脚步：gait 0=走 1=跑 2=冲刺。冲刺用同一批录音但音高抬 6%、力度更大，
+   听感更 "冲"，和跑步拉开层次。 */
 function sfxStep(gait) {
   var set = gait === 0 ? 'walk' : 'run';
   if (!AC || AC.state !== 'running') { if (wavPlay(set)) return; }   /* WebAudio 被拦 → 走备用播放 */
   if (!audioReady()) return;
-  playBuf(set, 0.95 + Math.random() * 0.1, gait === 0 ? 0.85 : 1.0);
+  var rate = 0.95 + Math.random() * 0.1;
+  var gain = gait === 0 ? 0.85 : 1.0;
+  if (gait === 2) { rate *= 1.06; gain = 1.12; }
+  playBuf(set, rate, gain);
 }
-
 /* 起跳：ALS 原版就是播一声脚步（Animation Notify），我们也一样 */
 function sfxJump() {
   if (!AC || AC.state !== 'running') { if (wavPlay('step')) return; }
@@ -775,6 +792,10 @@ var FRICT = 22;
 var camYaw   = 0;          /* 水平角，0 = 在角色正后方 */
 var camPitch = 0.30;       /* 俯角 */
 var camDist  = 8.6;
+var camRay = new THREE.Raycaster();
+var camRayT = 0;          /* 射线计时器：100ms 一次 */
+var camBlockCur = 999, camBlockGoal = 999;   /* 防穿模后的实际/目标距离 */
+var _rayO = new THREE.Vector3(), _rayD = new THREE.Vector3();
 var PITCH_MIN = 0.06, PITCH_MAX = 1.00;
 var camReady = false;
 var follow = new THREE.Vector3(0, 0, 0);
@@ -800,9 +821,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.16';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.17';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.16';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.17';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1137,7 +1158,23 @@ function update(dt) {
 
   var effDist = camDist + distKick;
   var cP = Math.cos(camPitch), sP = Math.sin(camPitch);
-  /* 位置和注视点一起下沉：画面整体点头，不改变俯仰角（只动位置会让远景跳变） */
+
+  /* ---- 相机防穿模：从角色胸口向相机方向打射线，被挡住就拉近。
+     每 100ms 算一次（手机上 raycast 也不能每帧做），收缩快、恢复慢，避免抽晃。 ---- */
+  camRayT -= dt;
+  if (camRayT <= 0 || camBlockCur > effDist) {
+    camRayT = 0.1;
+    _rayO.set(P.pos.x, P.pos.y + 1.35, P.pos.z);
+    _rayD.set(Math.sin(camYaw) * cP, sP, Math.cos(camYaw) * cP);
+    camRay.set(_rayO, _rayD);
+    camRay.far = effDist + 0.2;
+    var hits = camRay.intersectObjects(blockers, false);
+    camBlockGoal = hits.length ? Math.max(2.0, hits[0].distance - 0.35) : effDist;
+  }
+  var camBlockK = camBlockGoal < camBlockCur ? 18 : 5;
+  camBlockCur += (camBlockGoal - camBlockCur) * Math.min(1, dt * camBlockK);
+  if (camBlockCur < effDist) effDist = camBlockCur;
+
   camera.position.set(
     follow.x + Math.sin(camYaw) * cP * effDist,
     follow.y + sP * effDist + 0.95 - camKickV,
@@ -1214,6 +1251,8 @@ resize();
 var last = performance.now();
 var acc = 0;
 var FIXED = 1 / 120;
+var renderPaused = false;   /* 切后台就停循环省电 */
+var rafId = 0;
 
 /* FPS 弱显示：左上角小灰字，半秒更新一次；顺便记长帧（>45ms）便于定位卡顿 */
 var fpsEl = document.getElementById('fps');
@@ -1232,6 +1271,7 @@ function fpsTick(t) {
 }
 
 function loop(t) {
+  if (renderPaused) return;   /* 后台不跑，回来时由 visibilitychange 重新拉起来 */
   var dt = (t - last) / 1000;
   last = t;
   /* 长帧记录：>45ms 记一笔（带当时动画状态），屏幕上直接显示最近一笔。
@@ -1262,14 +1302,15 @@ function loop(t) {
   if (pendSfxLand) { var lv = pendSfxLand; pendSfxLand = 0; sfxLand(lv); }
   fpsTick(t);
   if (!window.__worldDrawn) { window.__worldDrawn = true; }
-  requestAnimationFrame(loop);
+  rafId = requestAnimationFrame(loop);
 }
-requestAnimationFrame(loop);
+rafId = requestAnimationFrame(loop);
 
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   get jumpBufT() { return jumpBufT; },
   get camKickV() { return camKickV; },
   get camKickT() { return camKickT; },
+  get camBlockCur() { return camBlockCur; },
   get fovKick() { return fovKick; } };
 
 setTimeout(function () {
