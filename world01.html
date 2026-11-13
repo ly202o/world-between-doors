@@ -124,7 +124,7 @@
 <button id="lockBtn" class="pill">俯仰</button>
 <button id="themeBtn" class="pill">深色</button>
 <button id="colBtn" class="pill">碰撞</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳/攀　·　V 切视角　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.11.41</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳/攀　·　V 切视角　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.11.42</div>
 <script>
 /**
  * @license
@@ -665,8 +665,9 @@ var _poseCur = {}, _posePrev = {};
 /* 采样某动画在 t 时刻的姿态，写入 out（bone 名 -> Quaternion），返回骨盆起伏 */
 function samplePose(anim, t, out) {
   var d = AN[anim], n = d.n, dur = d.dur || 0.0001;
-  var ft = (((t % dur) + dur) % dur) / dur * n;
-  var i0 = Math.floor(ft) % n, i1 = (i0 + 1) % n, f = ft - Math.floor(ft);
+  /* Mantle 是单次动作，末帧必须停住，不能插值回首帧。 */
+  var ft = anim === 'mantle' ? Math.min(Math.max(t / dur, 0), 1) * (n - 1) : (((t % dur) + dur) % dur) / dur * n;
+  var i0 = Math.floor(ft) % n, i1 = anim === 'mantle' ? Math.min(i0 + 1, n - 1) : (i0 + 1) % n, f = ft - Math.floor(ft);
   for (var name in d.bones) {
     var arr = d.bones[name], q = out[name] || (out[name] = new THREE.Quaternion());
     if (arr.length === 4) { q.fromArray(arr); continue; }  /* 静止骨：单帧 */
@@ -1349,11 +1350,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由视角里双指缩放、45°键锁死视角、主题键切主题、碰撞键看碰撞体　·　v0.11.41';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由视角里双指缩放、45°键锁死视角、主题键切主题、碰撞键看碰撞体　·　v0.11.42';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · 自由视角里滚轮缩放、L 锁死 45° 视角 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.11.41';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · 自由视角里滚轮缩放、L 锁死 45° 视角 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.11.42';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1491,11 +1492,11 @@ window.addEventListener('pointermove', function (e) {
     if (plLocked) {
       /* 锁定态：直接用 movement 差值，不需要按住任何键 */
       var mdx = e.movementX || 0, mdy = e.movementY || 0;
-      if (mdx || mdy) turnBy(mdx, mdy);
+      if (mdx || mdy) turnBy(mdx * 0.5, mdy * 0.5); /* PC 鼠标灵敏度减半，触屏不变 */
       return;
     }
     if (mouse.down) {
-      turnBy(e.clientX - mouse.px, e.clientY - mouse.py);
+      turnBy((e.clientX - mouse.px) * 0.5, (e.clientY - mouse.py) * 0.5);
       mouse.px = e.clientX; mouse.py = e.clientY;
     }
     return;
@@ -1642,7 +1643,7 @@ function advanceClimb(dt) {
     k = p / UP; ax = climb.x0; ay = climb.y0; az = climb.z0;
     bx = climb.ex; by = climb.ey; bz = climb.ez;
   } else {
-    k = (p - UP) / (1 - UP); ax = climb.ex; ay = climb.ey; az = climb.ez;
+    k = Math.min(1, (p - UP) / 0.32); ax = climb.ex; ay = climb.ey; az = climb.ez; /* 提前站稳，留出收尾时间 */
     bx = climb.x1; by = climb.y1; bz = climb.z1;
   }
   k = k * k * (3 - 2 * k);                      /* smoothstep：两段各自有起步和收势 */
