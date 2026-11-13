@@ -59,15 +59,84 @@ const SCALE = 0.01;
 
 // 绑定姿态（来自 rig 数据），用于判断"这个姿势是否和绑定不同"
 const BIND = {};
+const RIGBONE = [];
+let RIGPAR = {};
 {
   const code = fs.readFileSync('D:/VibeCoding/游戏开发/world01/tools/anim/_rig.js', 'utf8');
   const g = { window: {} };
   new Function('window', code)(g.window);
   for (const b of g.window.__RIG.bones) BIND[b.n] = b.q;
+  g.window.__RIG.bones.forEach((b, i) => { RIGBONE[i] = b; RIGPAR[b.n] = b.p; });
 }
 function angDeg(a, b) {
   const dot = Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]);
   return 2 * Math.acos(Math.min(1, dot)) * 180 / Math.PI;
+}
+
+// ---------- FK：算脚骨每帧世界高度，用来取脚步触地时刻 ----------
+function quatToMat(q) { // col-major 4x4
+  const [x, y, z, w] = q;
+  const x2 = x + x, y2 = y + y, z2 = z + z;
+  const xx = x * x2, xy = x * y2, xz = x * z2;
+  const yy = y * y2, yz = y * z2, zz = z * z2;
+  const wx = w * x2, wy = w * y2, wz = w * z2;
+  return [1 - (yy + zz), xy + wz, xz - wy, 0,
+    xy - wz, 1 - (xx + zz), yz + wx, 0,
+    xz + wy, yz - wx, 1 - (xx + yy), 0,
+    0, 0, 0, 1];
+}
+function matMul(a, b) { // a*b, col-major
+  const o = new Array(16);
+  for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+    let s = 0; for (let k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k];
+    o[c * 4 + r] = s;
+  }
+  return o;
+}
+function withPos(m, t) {
+  const o = m.slice(); o[12] = t[0]; o[13] = t[1]; o[14] = t[2]; return o;
+}
+function footHeights(poseQuats, nF) {
+  const out = { foot_l: [], foot_r: [] };
+  const names = RIGBONE.map(b => b.n);
+  const world = {};
+  for (let f = 0; f < nF; f++) {
+    for (let i = 0; i < RIGBONE.length; i++) {
+      const b = RIGBONE[i];
+      const q = poseQuats[b.n] ? poseQuats[b.n][f] : b.q;
+      const local = withPos(quatToMat(q), b.t);
+      world[b.n] = b.p >= 0 ? matMul(world[RIGBONE[b.p].n] || [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], local) : local;
+    }
+    out.foot_l.push(world.foot_l[13]);
+    out.foot_r.push(world.foot_r[13]);
+  }
+  return out;
+}
+function findSteps(heightArr, times, dur) {
+  const n = heightArr.length;
+  const min = Math.min(...heightArr), max = Math.max(...heightArr);
+  const thr = min + Math.max(0.010, (max - min) * 0.08);
+  const cand = [];
+  for (let i = 0; i < n; i++) {
+    const a = heightArr[(i - 1 + n) % n], b = heightArr[i], c = heightArr[(i + 1) % n];
+    if (b <= thr && b <= a && b <= c) cand.push({ t: times[i], y: b });
+  }
+  cand.sort((p, q) => p.t - q.t);
+  const merged = [];
+  for (const c of cand) {
+    const last = merged[merged.length - 1];
+    if (last && c.t - last.t < 0.16) { if (c.y < last.y) merged[merged.length - 1] = c; }
+    else merged.push(c);
+  }
+  // 首尾跨循环重复：合成一次
+  if (merged.length > 1) {
+    const gap = (dur - merged[merged.length - 1].t) + merged[0].t;
+    if (gap < 0.18) {
+      if (merged[0].y <= merged[merged.length - 1].y) merged.pop();
+      else merged.shift();
+    }
+  }
+  return merged.map(c => c.t);
 }
 
 function modelRest(model) {
@@ -158,6 +227,22 @@ function extractAnim(file) {
     outBones[boneName] = Array.from(q);
   }
 
+  // 脚步时刻：先用全部骨骼算出脚骨高度（不参与落地判定的骨也要在里面）
+  const poseQuats = {};
+  for (const [bn, data] of Object.entries(bones)) {
+    if (!data.r.X && !data.r.Y && !data.r.Z) continue;
+    const arr = [];
+    for (let i = 0; i < nF; i++) arr.push(toThreeQ(eulerXYZquat(sample(data.r.X, i), sample(data.r.Y, i), sample(data.r.Z, i))));
+    poseQuats[bn] = arr;
+  }
+  let steps = [];
+  if (nF > 4) {
+    const fh = footHeights(poseQuats, nF);
+    const sl = findSteps(fh.foot_l, frames, frames[frames.length - 1]).map(t => [+t.toFixed(3), 0]);
+    const sr = findSteps(fh.foot_r, frames, frames[frames.length - 1]).map(t => [+t.toFixed(3), 1]);
+    steps = sl.concat(sr).sort((a, b) => a[0] - b[0]);
+  }
+
   // pelvis 上下起伏（水平位移丢弃）
   let bob = null;
   const pt = bones['pelvis'] && bones['pelvis'].t;
@@ -169,7 +254,7 @@ function extractAnim(file) {
       bob.push(+(v[1] - base).toFixed(3));
     }
   }
-  return { dur: +(frames[frames.length - 1]).toFixed(4), n: nF, bones: outBones, bob };
+  return { dur: +(frames[frames.length - 1]).toFixed(4), n: nF, bones: outBones, bob, steps };
 }
 
 const ANIMS = {
@@ -189,7 +274,7 @@ for (const [key, file] of Object.entries(ANIMS)) {
   if (!fs.existsSync(p)) p = path.join(FALLBACK_SRC, file);
   const a = extractAnim(p);
   result[key] = a;
-  console.log(key, 'dur=' + a.dur, 'frames=' + a.n, 'animated bones=' + Object.keys(a.bones).length);
+  console.log(key, 'dur=' + a.dur, 'frames=' + a.n, 'bones=' + Object.keys(a.bones).length, 'steps=' + a.steps.length);
 }
 fs.writeFileSync(OUTJS, 'window.__ANIMS=' + JSON.stringify(result) + ';');
 console.log('written', OUTJS, (fs.statSync(OUTJS).size / 1024).toFixed(0) + 'KB');
