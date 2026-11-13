@@ -112,6 +112,11 @@
   #settingsPanel input[type=range] { width: 100%; }
   #settingsPanel button, #settingsPanel select { padding: 5px 8px; }
   #debugInfo { white-space: pre-wrap; font: 12px/1.6 monospace; }
+  #fireBtn { right: 14px; bottom: calc(env(safe-area-inset-bottom, 0px) + 150px); width: 64px; height: 44px; }
+  #reloadBtn { right: 88px; bottom: calc(env(safe-area-inset-bottom, 0px) + 150px); }
+  #weaponHud { position: fixed; left: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 54px); color: var(--ink); font: 12px/1.6 sans-serif; pointer-events: none; z-index: 180; }
+  #aim { position: fixed; width: 14px; height: 14px; margin: -7px; color: var(--on-bg); font: 20px/14px monospace; text-align: center; pointer-events: none; z-index: 180; }
+  #aim.hit { color: #f5cf75; }
   #fps {
     position: fixed; left: 10px; top: 8px;
     font: 400 10px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -126,6 +131,10 @@
 <div id="snd">🔇 点这里开声音</div>
 <div id="fps">— FPS</div>
 <div id="helpBadge" title="按 H 显示 / 隐藏操作说明">H</div>
+<button id="fireBtn" class="pill">射击</button>
+<button id="reloadBtn" class="pill">换弹</button>
+<div id="weaponHud"></div>
+<div id="aim">+</div>
 <button id="runBtn" class="pill">快跑</button>
 <button id="viewBtn" class="pill">自由</button>
 <button id="lockBtn" class="pill">俯仰</button>
@@ -143,7 +152,7 @@
   <button id="settingsReset" type="button">恢复默认</button>
   <button id="settingsClose" type="button">关闭</button>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳/攀　·　V 切视角　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.11.45</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳/攀　·　V 切视角　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.12.0</div>
 <script>
 /**
  * @license
@@ -1351,6 +1360,8 @@ function toggleTheme() { applyTheme(themeName === 'dark' ? 'light' : 'dark'); hi
 var TOUCH_UI = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 function syncBtns() {
   var show = TOUCH_UI ? 'block' : 'none';
+  document.getElementById('fireBtn').style.display = show;
+  document.getElementById('reloadBtn').style.display = show;
   if (runBtn) {
     runBtn.style.display = show;
     runBtn.classList.toggle('on', RUN_TOGGLE);
@@ -1459,11 +1470,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由视角里双指缩放、45°键锁死视角、主题键切主题、碰撞键看碰撞体　·　v0.11.45';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 射击键 开火 · 换弹键 装填 · 轻点 跳/攀 · 自由视角里双指缩放、45°键锁死视角、主题键切主题、碰撞键看碰撞体　·　v0.12.0';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · 自由视角里滚轮缩放、L 锁死 45° 视角 · T 切主题 · C 看碰撞体 · F2 设置 · H 显示/隐藏本说明　·　v0.11.45';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 左键 射击 · R 换弹 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · 自由视角里滚轮缩放、L 锁死 45° 视角 · T 切主题 · C 看碰撞体 · F2 设置 · H 显示/隐藏本说明　·　v0.12.0';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1480,6 +1491,7 @@ window.addEventListener('keydown', function (e) {
   if (k === 'v') toggleView();
   if (k === 'l' && freeMode) toggleLock();           /* 同上：45° 俯角锁定 */
   if (k === 't') toggleTheme();                      /* 桌面没有按钮，给个键 */
+  if (k === 'r') reloadWeapon();
   if (k === 'c') setColViz(!colVizOn);               /* 碰撞体积可视化（调试） */
   keys[k] = true;
   hideTip();
@@ -1489,6 +1501,12 @@ window.addEventListener('keyup', function (e) { keys[e.key.toLowerCase()] = fals
 window.addEventListener('blur', resetInput);
 
 /* ---- 快跑切换按钮：只在触屏设备显示，开一次后摇杆推着走就是冲刺 ---- */
+document.getElementById('fireBtn').addEventListener('pointerdown', function (e) {
+  e.preventDefault(); e.stopPropagation(); fireWeapon();
+}, { passive: false });
+document.getElementById('reloadBtn').addEventListener('pointerdown', function (e) {
+  e.preventDefault(); e.stopPropagation(); reloadWeapon();
+}, { passive: false });
 var RUN_TOGGLE = false;
 window.__forceTouchUI = function () { TOUCH_UI = true; syncBtns(); };  /* 诊断：headless 测按钮用 */
 runBtn.addEventListener('pointerdown', function (e) {
@@ -1553,6 +1571,8 @@ function turnBy(dx, dy, sensitivity) {
 canvas.addEventListener('pointerdown', function (e) {
   if (settingsOpen) return;
   if (e.pointerType === 'mouse') {
+    if (e.button !== 0) return;
+    fireWeapon();
     mouse.down = true; mouse.px = e.clientX; mouse.py = e.clientY;
     hideTip();
     /* 桌面：点一下画面就把指针锁进来，之后鼠标移动直接转视角（RPG 式），Esc 退出。
@@ -2461,6 +2481,114 @@ function setColViz(on) {
   syncSettings();
 }   /* 默认深色；内部会调 syncBtns() 把主题按钮文字也同步好 */
 
+/* ---------------- 基础手枪：纯几何、半自动、无战斗扩展 ---------------- */
+var weapon = { capacity: 8, ammo: 8, reserve: 48, cooldown: 0, reload: 0, shots: 0, hits: 0, last: '就绪', flash: 0, hitTime: 0, recoil: 0 };
+var gunMat = new THREE.MeshStandardMaterial({ color: 0x8899aa, roughness: 0.6 });
+var gunDark = new THREE.MeshStandardMaterial({ color: 0x26303a, roughness: 0.9 });
+function makePistol() {
+  var g = new THREE.Group();
+  var slide = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.09, 0.25), gunMat);
+  slide.position.set(0, 0.035, -0.075); g.add(slide);
+  var grip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.15, 0.09), gunDark);
+  grip.position.set(0, -0.065, 0.005); grip.rotation.x = -0.16; g.add(grip);
+  var flash = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.12, 5), new THREE.MeshBasicMaterial({ color: 0xffd58a }));
+  flash.rotation.x = -Math.PI / 2; flash.position.set(0, 0.035, -0.25); flash.visible = false; g.add(flash);
+  g.userData.flash = flash;
+  return g;
+}
+var heldPistol = makePistol();
+boneByName.hand_r.add(heldPistol);
+heldPistol.rotation.set(0, Math.PI / 2, Math.PI / 2);
+var fpPistol = makePistol(); camera.add(fpPistol); scene.add(camera);
+fpPistol.position.set(0.20, -0.19, -0.48);
+var targets = [], targetMat = new THREE.MeshStandardMaterial({ color: 0xc1b594, roughness: 0.85 });
+for (var targetIndex = 0; targetIndex < 3; targetIndex++) {
+  var target = new THREE.Mesh(new THREE.BoxGeometry(0.75, 1.15, 0.16), targetMat.clone());
+  target.position.set(4 + targetIndex * 1.8, 1.35, -6); target.userData.hitTime = 0; scene.add(target); targets.push(target);
+  var stand = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.78, 0.12), gunDark);
+  stand.position.set(target.position.x, 0.39, -6); scene.add(stand);
+}
+var shotOrigin = new THREE.Vector3(), shotDir = new THREE.Vector3(), aimPoint = new THREE.Vector3();
+var shotRay = new THREE.Raycaster(), aimEl = document.getElementById('aim'), weaponHud = document.getElementById('weaponHud');
+function weaponAim() {
+  shotOrigin.set(P.pos.x, P.pos.y + 1.35, P.pos.z);
+  var pitch = firstMode ? fpPitch : 0;
+  shotDir.set(-Math.sin(camYaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(camYaw) * Math.cos(pitch));
+}
+/* 与移动共用解析体；凸体半空间裁剪，屋顶保留双坡，不使用空气包围盒。 */
+function shotCollider(c) {
+  var dx = shotOrigin.x - c.x, dz = shotOrigin.z - c.z;
+  var ox = dx * c.c - dz * c.s, oz = dx * c.s + dz * c.c;
+  var vx = shotDir.x * c.c - shotDir.z * c.s, vz = shotDir.x * c.s + shotDir.z * c.c;
+  var lo = 0, hi = 80;
+  var planes = [[1,0,0,c.hw],[-1,0,0,c.hw],[0,0,1,c.hd],[0,0,-1,c.hd],[0,-1,0,-(c.bottom || 0)],[0,1,0,c.top]];
+  if (c.kind === 'roof') {
+    var slope = (c.top - c.base) / c.hw;
+    planes.push([slope,1,0,c.top],[-slope,1,0,c.top]);
+  }
+  for (var i = 0; i < planes.length; i++) {
+    var p = planes[i], dist = p[3] - (p[0]*ox + p[1]*shotOrigin.y + p[2]*oz);
+    var dot = p[0]*vx + p[1]*shotDir.y + p[2]*vz;
+    if (Math.abs(dot) < 0.000001) { if (dist < 0) return Infinity; }
+    else if (dot > 0) hi = Math.min(hi, dist / dot);
+    else lo = Math.max(lo, dist / dot);
+    if (lo > hi) return Infinity;
+  }
+  return lo;
+}
+function reloadWeapon() {
+  if (settingsOpen || climb || weapon.reload > 0 || weapon.ammo === weapon.capacity || weapon.reserve <= 0) return false;
+  weapon.reload = 1.15; weapon.last = '换弹中'; return true;
+}
+function fireWeapon() {
+  if (settingsOpen || climb || weapon.reload > 0 || weapon.cooldown > 0) return false;
+  if (!weapon.ammo) { weapon.last = '空仓：请换弹'; return false; }
+  weapon.ammo--; weapon.shots++; weapon.cooldown = 0.22; weapon.flash = 0.055; weapon.recoil = 1;
+  weaponAim();
+  var nearest = 80;
+  for (var i = 0; i < colliders.length; i++) nearest = Math.min(nearest, shotCollider(colliders[i]));
+  shotRay.set(shotOrigin, shotDir); shotRay.far = 80;
+  scene.updateMatrixWorld(true);
+  var hits = shotRay.intersectObjects(targets, false);
+  if (hits.length && hits[0].distance < nearest) {
+    weapon.hits++; weapon.hitTime = 0.18; hits[0].object.userData.hitTime = 0.18; weapon.last = '命中靶子';
+  } else weapon.last = nearest < 80 ? '命中场景' : '未命中';
+  return true;
+}
+var gunParentQ = new THREE.Quaternion(), gunAimQ = new THREE.Quaternion(), gunUp = new THREE.Vector3(0, 1, 0);
+function updateWeapon(dt) {
+  weapon.cooldown = Math.max(0, weapon.cooldown - dt);
+  weapon.flash = Math.max(0, weapon.flash - dt); weapon.hitTime = Math.max(0, weapon.hitTime - dt);
+  weapon.recoil = Math.max(0, weapon.recoil - dt * 8);
+  if (weapon.reload > 0) {
+    weapon.reload = Math.max(0, weapon.reload - dt);
+    if (!weapon.reload) { var take = Math.min(weapon.capacity - weapon.ammo, weapon.reserve); weapon.ammo += take; weapon.reserve -= take; weapon.last = '就绪'; }
+  }
+  heldPistol.visible = fpBlend < 0.45 && !climb;
+  fpPistol.visible = fpBlend >= 0.45 && !climb;
+  boneByName.hand_r.getWorldQuaternion(gunParentQ);
+  gunAimQ.setFromAxisAngle(gunUp, camYaw);
+  heldPistol.quaternion.copy(gunParentQ).invert().multiply(gunAimQ);
+  heldPistol.position.set(0.015, -0.015, 0);
+  fpPistol.scale.setScalar(0.7);
+  fpPistol.position.x = innerWidth < innerHeight ? 0.075 : 0.14;
+  fpPistol.position.y = -0.115 - (weapon.reload > 0 ? 0.12 : 0);
+  fpPistol.position.z = -0.48 + weapon.recoil * 0.035;
+  fpPistol.rotation.x = weapon.recoil * 0.12;
+  heldPistol.userData.flash.visible = fpPistol.userData.flash.visible = weapon.flash > 0;
+  for (var i = 0; i < targets.length; i++) {
+    var target = targets[i]; target.userData.hitTime = Math.max(0, target.userData.hitTime - dt);
+    target.material.emissive.setHex(target.userData.hitTime > 0 ? 0x997744 : 0);
+  }
+  weaponAim(); aimPoint.copy(shotDir).multiplyScalar(12).add(shotOrigin).project(camera);
+  aimEl.style.left = ((aimPoint.x + 1) * innerWidth / 2) + 'px';
+  aimEl.style.top = ((1 - aimPoint.y) * innerHeight / 2) + 'px';
+  aimEl.style.display = settingsOpen || climb || aimPoint.z > 1 ? 'none' : 'block';
+  aimEl.classList.toggle('hit', weapon.hitTime > 0);
+  var weaponText = '手枪 ' + weapon.ammo + ' / ' + weapon.reserve + ' · ' + (weapon.reload > 0 ? '换弹中' : weapon.last) + ' · 命中 ' + weapon.hits;
+  if (weaponHud.textContent !== weaponText) weaponHud.textContent = weaponText;
+}
+
 /* ---------------- 主循环 ---------------- */
 var last = performance.now();
 var acc = 0;
@@ -2491,6 +2619,8 @@ function fpsTick(t) {
         '\n抓沿 ' + motionDebug.ledge + ' / 阶段 ' + (climb ? (climb.t / climb.dur < 0.5 ? '抬升' : '翻上') : '无') +
         '\n撞墙 ' + motionDebug.wall + ' / 踉跄 ' + motionDebug.stumble.toFixed(2) +
         '\n脚接触 L/R ' + footState.left + '/' + footState.right + ' / 骨盆 ' + footState.pelvis.toFixed(3) +
+        '\n手枪 ' + weapon.ammo + '/' + weapon.reserve + ' 冷却 ' + weapon.cooldown.toFixed(2) + ' 换弹 ' + weapon.reload.toFixed(2) +
+        '\n射击 ' + weapon.shots + ' 命中 ' + weapon.hits + ' / ' + weapon.last +
         '\n脚层：接触检测/骨盆补偿，非完整腿IK' +
         '\n绿=实体 橙=逐构件栅栏 粉=坡屋面 蓝=主圆柱 金=随骨骼近似盒' +
         '\n主碰撞稳定圆柱；骨骼盒仅显示、不参与阻挡';
@@ -2523,6 +2653,7 @@ function loop(t) {
   driveAnim(dt);
   updateFootContact(dt);
   updateBoneViz();
+  updateWeapon(dt);
   jumpTDrv = performance.now() - _jd;
   drawStick();
   if (colVizOn && playerViz) playerViz.position.set(P.pos.x, P.pos.y + 0.93, P.pos.z);
@@ -2538,8 +2669,11 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.11.45';
+window.__worldVersion = 'v0.12.0';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
+  weapon: weapon, targets: targets, fire: fireWeapon, reload: reloadWeapon,
+  shotCollider: shotCollider, shotOrigin: shotOrigin, shotDir: shotDir,
+  heldPistol: heldPistol, fpPistol: fpPistol,
   motionDebug: motionDebug, footState: footState,
   supportAt: supportAt, bodyClear: bodyClear,
   get boneBoxes() { return boneViz.length; },
