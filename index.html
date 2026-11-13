@@ -89,7 +89,7 @@
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
 <button id="viewBtn">第三</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.27</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.28</div>
 <script>
 /**
  * @license
@@ -989,9 +989,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/俯视/全视 · 右侧拖动 转视角 · 轻点 跳跃 · 全视里双指缩放　·　v0.11.27';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/俯视/全视 · 右侧拖动 转视角 · 轻点 跳跃 · 全视里双指缩放　·　v0.11.28';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/俯视/全视）· 全视里滚轮缩放　·　v0.11.27';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/俯视/全视）· 全视里滚轮缩放　·　v0.11.28';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1515,9 +1515,12 @@ function update(dt) {
   var cP = Math.cos(orbitPitch), sP = Math.sin(orbitPitch);
 
   /* 越肩偏移（右向量 = (cos yaw, 0, −sin yaw)）。射线和机位都要用它，所以先算。
-     偏移量随机距成比例，角色在画面里始终偏左同一个角度；不做成固定值是因为
-     全视能拉到 1.5m，固定 1m 的偏移在贴脸时会把角色推出画面。 */
-  var shoulder = effDist * SHOULDER_K;
+     ① 随机距成比例：角色在画面里始终偏左同一个角度（固定值在全视 1.5m 时会把角色推出画面）。
+     ② 再按画面宽高比收一下：竖屏横向视野窄，同样的世界偏移占屏幕的比例大得多，
+        不收会把人挤到左边缘（实测 27% 位置，几乎贴边）。 */
+  var aspK = (window.innerWidth / Math.max(1, window.innerHeight)) / 1.6;
+  if (aspK < 0.6) aspK = 0.6; else if (aspK > 1.2) aspK = 1.2;
+  var shoulder = effDist * SHOULDER_K * aspK;
   if (shoulder < SHOULDER_MIN) shoulder = SHOULDER_MIN;
   else if (shoulder > SHOULDER_MAX) shoulder = SHOULDER_MAX;
   var shx = Math.cos(camYaw) * shoulder;
