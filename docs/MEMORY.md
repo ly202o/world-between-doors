@@ -46,6 +46,7 @@
 | v0.9.0 | 走/跑/跳/落换成 ALS 原版动画曲线（导出 12 个动画烘焙成四元数） | sin 摆姿势和 ALS 差一个方法论 |
 | v0.9.1 | 角色改真蒙皮（68 骨 + 顶点权重），修腰胯/锁骨/脚踝断层 | 刚性绑定一弯就露缝 |
 | v0.10.0 | 音效：脚步/跳跃/落地全部 WebAudio 合成；脚步时机由 FK 算脚骨触地 | 用户定规则：能代码生成就不用素材 |
+| v0.11.0 | 音效响度重做（频段上移 + 压缩器）；跳跃改三段式，补 JumpWalk/JumpRun/FallFast 五个动画 | 用户反馈「没声音」「跳跃有滑步」 |
 
 **现在**：角色播放真实动画，能走、能跳、能转视角。**但仍然没有玩法**——没有目标、没有交互、没有痕迹。
 
@@ -70,7 +71,7 @@
 
 ## 五、代码地图
 
-`index.html` 约 1.38MB，四个 `<script>` 块：Three.js（654KB）+ 角色网格数据 `__CHAR`（417KB）+ 动画曲线 `__ANIMS`（284KB）+ 游戏本体（25KB）。
+`index.html` 约 1.95MB，四个 `<script>` 块：Three.js（654KB）+ 角色蒙皮数据 `__RIG`（629KB）+ 动画曲线 `__ANIMS`（577KB）+ 游戏本体（27KB）。
 
 区块顺序固定，找东西按这个找：
 
@@ -83,7 +84,7 @@
 | 道具 | 72 块大积木 / 240 颗实例化散石 / 11 座远处高塔，全部确定性伪随机 |
 | 角色 | 单个 `SkinnedMesh` + 68 根 `THREE.Bone`（数据 `__RIG`），无切块 |
 | 音效 | `audioInit`/`sfxStep`/`sfxJump`/`sfxLand`，WebAudio 合成，无音频文件；脚步事件来自 `__ANIMS[].steps` |
-| 动画 | `ANIM` 状态机 + `samplePose`（帧间 slerp，绝对局部旋转）+ `driveAnim`（写回骨骼）+ 0.18s 跨动画混合 |
+| 动画 | `ANIM` 状态机 + `samplePose`（帧间 slerp，绝对局部旋转）+ `driveAnim`（写回骨骼）+ 0.18s 跨动画混合；跳跃三段见 `doJump` / `P.jumpAnim` / `P.landLock` |
 | 状态 | `P`（位置、速度、朝向、lean、落地冲击） |
 | 相机 | `camYaw` / `camPitch` / `camDist` + `follow` 平滑跟随 |
 | 输入 | 键盘 / 鼠标拖动 / 左半屏摇杆 / 右半屏拖动转视角 + 轻点跳 |
@@ -96,8 +97,9 @@
 
 ```
 export_anims.py   # UE 命令行导出动画 FBX 到 D:/temp/als_anim_out（副本工程）
+export_jump.py    # 同上，只导 JumpWalk_LF/RF、JumpRun_LF/RF、FallLoop_Fast
 build_rig.cjs     # AnimMan.fbx → _rig.js（几何 + 蒙皮权重 + 骨骼绑定姿态）
-bake_full.cjs     # 动画 FBX → _anims.js（每骨绝对局部旋转）
+bake_full.cjs     # 动画 FBX → _anims.js（每骨绝对局部旋转）；跳类片段裁到前 22 帧
 ```
 
 ---
@@ -147,6 +149,18 @@ bake_full.cjs     # 动画 FBX → _anims.js（每骨绝对局部旋转）
 ### 8. 落地动画一帧就被覆盖
 - **根因**：状态机每帧都调 `setAnim`，一次性动画被立刻换回 idle。
 - **修法**：`if (!ANIM.oneShot) setAnim(...)`，让落地动画播完再交还状态机。
+- **v0.11.0 修正**：反过来也不行——落地锁满整段 1.2s，玩家继续前进就变成「脚不动人在滑」。改成 `P.landLock = 0.32` 计时器，到点强制清 `oneShot`。
+
+### 9. 「没声音」不等于链路断了
+- **现象**：探针 440Hz RMS 0.32 正常，脚步却听不见。
+- **根因**：不是链路，是**量级**。旧参数跑动峰值 RMS 只有 0.02 量级，且主体能量在 60–100Hz（手机喇叭发不出）。
+- **修法**：频段上移到 300–2200Hz、增益 ×1.5、母线上加压缩器当限幅（−16dB / 8:1）。
+- **测量教训**：用 CDP 50ms 轮询读 analyser 会**错过短脉冲**，读出 0.004 而实际 0.077。要在页面里用 `requestAnimationFrame` 连续采样再取最大值。
+
+### 10. 跳跃滑步 = 用了跑跳循环 + 空中没有位移
+- **根因**：`ALS_N_JumpLoop` 是**跑动起跳**的循环，脚前后行程 63–70cm；角色空中不位移 → 脚原地划。
+- **修法**：起跳用 `JumpWalk_*`/`JumpRun_*`（按速度选、左右脚交替），下落换 `FallLoop`（脚行程仅 7cm），空中 ACC 降到 30% 保惯性。
+- **判断工具**：`node w01_foot.cjs` 用 FK 算脚骨每帧世界坐标，行程大 = 一定会划。
 
 ---
 

@@ -155,7 +155,7 @@ function modelRest(model) {
 }
 
 // ---------- 主提取 ----------
-function extractAnim(file) {
+function extractAnim(file, limitF) {
   const { objects, connections } = parseFBX(file);
   const models = objects.children.filter(c => c.name === 'Model');
   const acns = objects.children.filter(c => c.name === 'AnimationCurveNode');
@@ -201,7 +201,8 @@ function extractAnim(file) {
 
   let refTimes = null;
   for (const b of Object.values(bones)) { for (const ch of Object.values(b.r)) { if (ch) { refTimes = ch.times; break; } } if (refTimes) break; }
-  const frames = refTimes ? refTimes.map(t => t / KTIME) : [0];
+  let frames = refTimes ? refTimes.map(t => t / KTIME) : [0];
+  if (limitF && frames.length > limitF) frames = frames.slice(0, limitF); // 起跳片段只用前段，后面裁掉省体积
   const nF = frames.length;
   const sample = (ch, i) => ch ? ch.vals[i % ch.vals.length] : 0;
 
@@ -262,17 +263,22 @@ const ANIMS = {
   walk: 'ALS_N_Walk_F.fbx',
   run: 'ALS_N_Run_F.fbx',
   sprint: 'ALS_N_Sprint_F.fbx',
-  jump: 'ALS_N_JumpLoop.fbx',
+  jumpWalkL: 'ALS_N_JumpWalk_LF.fbx',
+  jumpWalkR: 'ALS_N_JumpWalk_RF.fbx',
+  jumpRunL: 'ALS_N_JumpRun_LF.fbx',
+  jumpRunR: 'ALS_N_JumpRun_RF.fbx',
   fall: 'ALS_N_FallLoop.fbx',
+  fallFast: 'ALS_N_FallLoop_Fast.fbx',
   landLight: 'ALS_N_Land_Light.fbx',
   landHeavy: 'ALS_N_Land_Heavy.fbx'
 };
 
 const result = {};
+const LIMIT = { jumpWalkL: 22, jumpWalkR: 22, jumpRunL: 22, jumpRunR: 22 }; /* 起跳只用 ~0.7s，其余裁掉 */
 for (const [key, file] of Object.entries(ANIMS)) {
   let p = path.join(SRC, file);
   if (!fs.existsSync(p)) p = path.join(FALLBACK_SRC, file);
-  const a = extractAnim(p);
+  const a = extractAnim(p, LIMIT[key]);
   result[key] = a;
   console.log(key, 'dur=' + a.dur, 'frames=' + a.n, 'bones=' + Object.keys(a.bones).length, 'steps=' + a.steps.length);
 }
