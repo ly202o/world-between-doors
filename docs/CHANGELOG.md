@@ -5,6 +5,61 @@
 
 ---
 
+## v0.9.0 — 2026-11-13
+
+**角色开始播放 ALS 原版动画**（不再是 sin 曲线摆姿势）
+
+从本地 ALS 项目导出 12 个动画资产的 FBX，烘焙成四元数曲线内联进 html，走/跑/跳/落全部换成真实动画。
+
+### 导出了什么
+
+| 用途 | 资产 |
+|---|---|
+| 待机 | ALS_N_Pose |
+| 走 / 跑 / 冲刺 | ALS_N_Walk_F / ALS_N_Run_F / ALS_N_Sprint_F |
+| 空中 | ALS_N_JumpLoop / ALS_N_FallLoop |
+| 落地 | ALS_N_Land_Light / ALS_N_Land_Heavy |
+| 转身 / 停步（已导出，暂未接） | ALS_N_TurnIP_L90/R90、ALS_N_Stop_L_Down/R_Down |
+
+### 烘焙流程（工具已归档）
+
+```
+# 1) UE 命令行导出动画 FBX（复用上次导模型的工程副本）
+UnrealEditor-Cmd.exe D:/temp/als_export/AdvancedLocomotionSystemV.uproject \
+  -ExecutePythonScript="tools/anim/export_anims.py" -unattended -nosplash -stdout
+
+# 2) 解析 FBX → 精简 JSON（每骨每帧四元数，3 位小数）
+node tools/anim/bake_anims.cjs
+```
+
+### 曲线解析踩的四个坑（都已修）
+
+1. **Properties70 的 P 节点**：格式是 `[名字, 类型, 标签, 标志, 值×3]`，值要取末尾 3 个数值；
+2. **属性名带空格**：FBX 里是 `Lcl Rotation` 不是 `LclRotation`；
+3. **rest 姿态只在部分文件里**：`ALS_N_Pose.fbx` 不写绑定姿态，rest 必须从 `ALS_N_Walk_F.fbx` 读；
+4. **欧拉顺序**：FBX `eEulerXYZ` 对应 `Rz·Ry·Rx`（X 先施加），写成 `Rx·Ry·Rz` 会让 pelvis 扭 40°、角色躺倒。
+
+### 关键公式
+
+我们的骨架组挂在「rest 世界朝向」的组里，而 FBX 的局部旋转增量表达在父骨 rest 坐标系内，必须用父骨 rest 世界旋转共轭：
+
+```
+Q(bone) = W_rest(parent) · (R_anim_local · R_rest_local⁻¹) · W_rest(parent)⁻¹
+```
+
+再整体转到 Three 坐标系：`q' = m ⊗ q ⊗ m⁻¹`，`m` = Rx(−90°)。
+
+### 运行时
+
+- 状态机：idle / walk / run / jump / fall / land，落地是一次性动画（播完才回到状态机）
+- 切换混合 0.18s（四元数 slerp）
+- 播放速率 = 实际速度 / 动画原生步速（walk 1.7、run 3.75、sprint 6.5 m/s，先拍的估值，等体验后调）
+- 移除了手臂 A-pose 的 ±0.66 修正层：手臂归位现在由动画曲线自己完成
+- Lean 倾斜保留（bodyPivot 叠加）
+- 文件从 1.37MB → 1.38MB（动画数据 284KB）
+
+---
+
 ## v0.8.0 — 2026-11-13
 
 **角色换成 ALS 原版 AnimMan 的真实网格**

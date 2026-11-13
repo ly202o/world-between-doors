@@ -42,8 +42,10 @@
 | v0.2.1 | 真单文件化 + 启动自检 | 手机打开纯白，根因是依赖没跟着文件走 |
 | v0.3.0 | 第三人称轨道相机，能转视角 | 原来相机方位固定，转不了身 |
 | v0.4.0 | 角色重做，分节骨骼，有膝有肘 | 原来角色是胶囊拼的，侧面一根柱 |
+| v0.8.0 | 角色换成 ALS 原版 AnimMan 网格（UE 命令行导 FBX）+ Lean 倾斜 | 几何体拼的形体不像 ALS |
+| v0.9.0 | 走/跑/跳/落换成 ALS 原版动画曲线（导出 12 个动画烘焙成四元数） | sin 摆姿势和 ALS 差一个方法论 |
 
-**现在**：能走、能跳、能转视角，世界有纵深。**但没有玩法**——没有目标、没有交互、没有痕迹。
+**现在**：角色播放真实动画，能走、能跳、能转视角。**但仍然没有玩法**——没有目标、没有交互、没有痕迹。
 
 ---
 
@@ -64,7 +66,7 @@
 
 ## 五、代码地图
 
-`index.html` 约 690KB，其中 670KB 是内联的 Three.js（r160 UMD）。游戏本体约 600 行，用 IIFE 包着。
+`index.html` 约 1.38MB，四个 `<script>` 块：Three.js（654KB）+ 角色网格数据 `__CHAR`（417KB）+ 动画曲线 `__ANIMS`（284KB）+ 游戏本体（25KB）。
 
 区块顺序固定，找东西按这个找：
 
@@ -75,22 +77,30 @@
 | 光影 | `HemisphereLight` 1.45 + `DirectionalLight` 1.84（跟随角色） |
 | 地面 | `PlaneGeometry(300)` + `Fog(#F1F5F8, 20, 145)` |
 | 道具 | 72 块大积木 / 240 颗实例化散石 / 11 座远处高塔，全部确定性伪随机 |
-| 角色 | 分节骨骼，见下 |
-| 状态 | `P`（位置、速度、朝向、相位、形变） |
+| 角色 | ALS AnimMan 网格按骨骼刚性绑定成 13 个关节组（`buildPart` / `buildArm` / `buildLeg`） |
+| 动画 | `ANIM` 状态机 + `samplePose`（帧间 slerp）+ `driveAnim`（写入骨架四元数）+ 0.18s 跨动画混合 |
+| 状态 | `P`（位置、速度、朝向、lean、落地冲击） |
 | 相机 | `camYaw` / `camPitch` / `camDist` + `follow` 平滑跟随 |
 | 输入 | 键盘 / 鼠标拖动 / 左半屏摇杆 / 右半屏拖动转视角 + 轻点跳 |
-| 更新 | 固定步长 1/120，移动 → 跳跃 → 步态 → 相机 |
+| 更新 | 固定步长 1/120，移动 → 跳跃 → 动画状态机 → 相机 |
 | 绘制 | 摇杆画在独立 2D canvas 覆盖层 |
 
-**角色骨骼**（改比例就照这条基准线对）：
+**角色骨架**（网格数据 `CH.joints` 是 Three 坐标，`parts` 是每个部位的顶点/索引）：
 
 ```
-脚底 0 · 踝 0.08 · 膝 0.48 · 髋 0.95 · 肩 1.42 · 头顶 1.86   （约 5.7 头身）
+bodyPivot（lean 叠加层）
+└── hipsJ(pelvis 四元数 + 骨盆 bob)
+    ├── spineJ(spine_01·02·03 连乘)
+    │   ├── headJ(neck_01·head 连乘)
+    │   └── armFix L/R(upperarm_*) → elbow(lowerarm_*) → hand(hand_*)
+    ├── thighL/R(thigh_*) → knee(calf_*) → foot(foot_*)
+```
 
-bodyPivot
-├── torso / hips / shoulder / neck / head / nose
-├── hipJ(±0.125, 0.95) → thigh → kneeJ(-0.47) → shin → foot
-└── shJ(±0.242, 1.405) → upper → elbowJ(-0.28) → fore → hand
+**动画工具链**（在 `tools/anim/`，重跑要 UE 工程副本 `D:/temp/als_export`）：
+
+```
+export_anims.py   # UE 命令行导出动画 FBX 到 D:/temp/als_anim_out
+bake_anims.cjs    # 解析 FBX → tools/anim/_anims.js（再内联进 index.html）
 ```
 
 ---
@@ -126,13 +136,27 @@ bodyPivot
 - **根因**：移动方向没改成相机相对。
 - **修法**：`forward = (−sin yaw, −cos yaw)`、`right = (cos yaw, −sin yaw)`。
 
+### 7. 动画接入后角色躺平（FBX 曲线四个连环坑）
+- **坑 1**：`Properties70` 的 `P` 节点格式是 `[名字, 类型, 标签, 标志, 值×3]`，值要从**末尾**取，从 `props[3]` 取会拿到标志位（字符串 → NaN）。
+- **坑 2**：FBX 属性名带空格（`Lcl Rotation`），比对前要 `replace(/\s+/g,'')`。
+- **坑 3**：`ALS_N_Pose.fbx` 这类资产**不写绑定姿态**，rest 必须从 `ALS_N_Walk_F.fbx` 统一取。
+- **坑 4**：FBX `eEulerXYZ` = `Rz·Ry·Rx`（X 先施加）。写成 `Rx·Ry·Rz` 在 gimbal 附近（pelvis 的 Y≈−90°）会算出 40° 假旋转 → 整个人躺倒。
+- **另一个必踩的公式坑**：局部旋转增量不能直接套。我们的骨骼组挂在「rest 世界朝向」里，增量要用**父骨 rest 世界旋转共轭**：
+  `Q(bone) = W_rest(parent) · (R_anim_local · R_rest_local⁻¹) · W_rest(parent)⁻¹`，
+  再转 Three 坐标 `q' = m ⊗ q ⊗ m⁻¹`（m = Rx(−90°)）。
+- **验证手法**：把每个动画 pelvis/thigh 的增量角打出来，走路 pelvis 应在 10° 内、thigh 在 30° 上下。数字离谱就是上面某个坑。
+
+### 8. 落地动画一帧就被覆盖
+- **根因**：状态机每帧都调 `setAnim`，一次性动画被立刻换回 idle。
+- **修法**：`if (!ANIM.oneShot) setAnim(...)`，让落地动画播完再交还状态机。
+
 ---
 
 ## 七、参数速查
 
 | 项 | 值 |
 |---|---|
-| 移动速度 | 3.6 m/s |
+| 移动速度 | 4.5 m/s（恒定加速度 ACC 20 / 摩擦 22） |
 | 重力 | 21 m/s² |
 | 跳跃初速 | 6.7 m/s（跳起约 1.07 m，滞空 0.64 s） |
 | 身高 | 1.86 m |
@@ -143,6 +167,8 @@ bodyPivot
 | 阴影贴图 | 2048²，范围 ±26 m |
 | 转视角灵敏度 | 水平 0.0062 rad/px，垂直 0.0042 rad/px |
 | 右半屏判定 | 位移 > 11px 算拖动，否则 < 280ms 松手算点击跳 |
+| 动画原生步速 | walk 1.7 / run 3.75 / sprint 6.5 m/s（**拍的估值，待手感校准**） |
+| 动画切换混合 | 0.18 s |
 
 ---
 
