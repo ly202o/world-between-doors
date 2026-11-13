@@ -232,39 +232,40 @@ function part(geo, x, y, z, sx, sy, sz, parent) {
 /* ---- 躯干：旋转体，一条轮廓线扫出胸-腰-臀 ---- */
 var torsoPts = [
   new THREE.Vector2(0.002, 0.850),
-  new THREE.Vector2(0.126, 0.862),
-  new THREE.Vector2(0.158, 0.905),
-  new THREE.Vector2(0.150, 0.960),
-  new THREE.Vector2(0.133, 1.030),
-  new THREE.Vector2(0.139, 1.100),
-  new THREE.Vector2(0.163, 1.175),
-  new THREE.Vector2(0.179, 1.255),
-  new THREE.Vector2(0.181, 1.322),
-  new THREE.Vector2(0.168, 1.372),
-  new THREE.Vector2(0.132, 1.400),
-  new THREE.Vector2(0.002, 1.412)
+  new THREE.Vector2(0.145, 0.845),
+  new THREE.Vector2(0.185, 0.900),
+  new THREE.Vector2(0.172, 0.960),
+  new THREE.Vector2(0.155, 1.030),
+  new THREE.Vector2(0.147, 1.100),
+  new THREE.Vector2(0.152, 1.170),
+  new THREE.Vector2(0.163, 1.250),
+  new THREE.Vector2(0.170, 1.330),
+  new THREE.Vector2(0.168, 1.380),
+  new THREE.Vector2(0.126, 1.440),
+  new THREE.Vector2(0.104, 1.478),
+  new THREE.Vector2(0.002, 1.495)
 ];
 var torso = new THREE.Mesh(new THREE.LatheGeometry(torsoPts, 18), MAT);
-torso.scale.z = 0.64;
+torso.scale.z = 0.80;
 torso.castShadow = true;
 bodyPivot.add(torso);
 
 /* ---- 颈 ---- */
-part(new THREE.CylinderGeometry(0.058, 0.066, 0.10, 12, 1), 0, 1.492, 0.004);
+part(new THREE.CylinderGeometry(0.055, 0.062, 0.11, 12, 1), 0, 1.500, 0.004);
 
 /* ---- 头：压扁的球，后脑略大，做出头盔轮廓 ---- */
-part(new THREE.CapsuleGeometry(0.082, 0.062, 8, 16), 0, 1.668, 0.006, 1.0, 1.0, 0.96);
+part(new THREE.CapsuleGeometry(0.089, 0.028, 8, 16), 0, 1.672, 0.006, 1.0, 1.0, 0.90);
 /* 面罩：一块略前的凸起，给朝向做依据 */
-part(new THREE.BoxGeometry(0.105, 0.115, 0.035), 0, 1.652, 0.062, 1, 1, 1);
+part(new THREE.BoxGeometry(0.098, 0.108, 0.030), 0, 1.658, 0.062, 1, 1, 1);
 
 /* ---- 手臂 ---- */
 function buildArm(side) {
   var shJ = new THREE.Group();
-  shJ.position.set(0.190 * side, 1.386, 0.004);
+  shJ.position.set(0.150 * side, 1.366, 0.004);
   bodyPivot.add(shJ);
 
   /* 三角肌 */
-  part(new THREE.SphereGeometry(0.079, 14, 12), 0, -0.012, 0, 1.12, 0.84, 1.00, shJ);
+  part(new THREE.SphereGeometry(0.076, 14, 12), 0, -0.014, 0, 1.10, 0.86, 1.00, shJ);
   /* 上臂 */
   part(new THREE.CapsuleGeometry(0.057, 0.175, 8, 14), 0, -0.146, 0, 1, 1, 1, shJ);
 
@@ -286,16 +287,16 @@ function buildLeg(side) {
   hipJ.position.set(0.108 * side, 0.90, 0.010 * side);
   bodyPivot.add(hipJ);
 
-  part(new THREE.CapsuleGeometry(0.098, 0.272, 8, 16), 0, -0.215, 0, 1, 1, 1, hipJ);
+  part(new THREE.CapsuleGeometry(0.088, 0.268, 8, 16), 0, -0.215, 0, 1, 1, 1, hipJ);
 
   var kneeJ = new THREE.Group();
   kneeJ.position.y = -0.44;
   hipJ.add(kneeJ);
 
-  part(new THREE.SphereGeometry(0.074, 14, 12), 0, 0, 0.004, 1, 0.94, 1, kneeJ);
-  part(new THREE.CapsuleGeometry(0.067, 0.238, 8, 14), 0, -0.182, 0, 1, 1, 1, kneeJ);
+  part(new THREE.SphereGeometry(0.064, 14, 12), 0, 0, 0.004, 1, 0.94, 1, kneeJ);
+  part(new THREE.CapsuleGeometry(0.056, 0.250, 8, 14), 0, -0.180, 0, 1, 1, 1, kneeJ);
   /* 脚 */
-  var foot = part(new THREE.BoxGeometry(0.092, 0.062, 0.215), 0, -0.404, 0.038, 1, 1, 1, kneeJ);
+  var foot = part(new THREE.BoxGeometry(0.086, 0.058, 0.205), 0, -0.404, 0.036, 1, 1, 1, kneeJ);
 
   return { hip: hipJ, knee: kneeJ, foot: foot };
 }
