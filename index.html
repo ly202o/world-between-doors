@@ -61,14 +61,21 @@
     -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
   }
   #runBtn.on { background: #454d54; color: #ffffff; }
+  #fps {
+    position: fixed; left: 10px; top: 8px;
+    font: 400 10px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #b9c0c6; opacity: .65; letter-spacing: .08em;
+    pointer-events: none; z-index: 150;
+  }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="err"></div>
 <div id="snd">🔇 点这里开声音</div>
+<div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.7</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.10</div>
 <script>
 /**
  * @license
@@ -765,9 +772,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.7';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.10';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.7';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.10';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1175,6 +1182,17 @@ var last = performance.now();
 var acc = 0;
 var FIXED = 1 / 120;
 
+/* FPS 弱显示：左上角小灰字，半秒更新一次 */
+var fpsEl = document.getElementById('fps');
+var fpsN = 0, fpsT0 = last;
+function fpsTick(t) {
+  fpsN++;
+  if (t - fpsT0 >= 500) {
+    fpsEl.textContent = Math.round(fpsN * 1000 / (t - fpsT0)) + ' FPS';
+    fpsN = 0; fpsT0 = t;
+  }
+}
+
 function loop(t) {
   var dt = (t - last) / 1000;
   last = t;
@@ -1189,6 +1207,7 @@ function loop(t) {
 
   drawStick();
   renderer.render(scene, camera);
+  fpsTick(t);
   if (!window.__worldDrawn) { window.__worldDrawn = true; }
   requestAnimationFrame(loop);
 }

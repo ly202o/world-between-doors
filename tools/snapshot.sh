@@ -31,6 +31,14 @@ if [ -e "$DEST" ]; then
   exit 1
 fi
 
+# ---- ⓪ 版本号检查：html 里的版本字符串必须和参数一致 ----
+# （吃过亏：v0.11.8/9 发版时忘了改 tip 里的版本号字符串）
+if ! grep -q "v${VER}" index.html; then
+  echo "!! index.html 里没有找到 \"v${VER}\" —— 先改版本号字符串（#tip + 2 处 tipEl.textContent）再发版"
+  exit 1
+fi
+echo "⓪ 版本号字符串 v${VER} 已确认"
+
 # ---- ① 备份主文件 ----
 cp index.html "$DEST"
 echo "① 已备份 -> $DEST  ($(wc -c < "$DEST" | tr -d ' ') 字节)"
