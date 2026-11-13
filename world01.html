@@ -143,6 +143,7 @@
 <button id="settingsBtn" class="pill">设置</button>
 <section id="settingsPanel" hidden aria-label="运行调试与设置">
   <strong>运行调试 / 设置</strong>
+  <label>模拟倍速 <output id="timeScaleValue"></output><input id="timeScale" type="range" min="0.25" max="2" step="0.05"></label>
   <label>鼠标灵敏度 <output id="mouseValue"></output><input id="mouseSensitivity" type="range" min="0.1" max="2" step="0.05"></label>
   <label>触屏灵敏度 <output id="touchValue"></output><input id="touchSensitivity" type="range" min="0.2" max="2" step="0.05"></label>
   <label>主题 <select id="settingsTheme"><option value="dark">深色</option><option value="light">白色</option></select></label>
@@ -152,7 +153,7 @@
   <button id="settingsReset" type="button">恢复默认</button>
   <button id="settingsClose" type="button">关闭</button>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳/攀　·　V 切视角　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.12.0</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳/攀　·　V 切视角　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.12.1</div>
 <script>
 /**
  * @license
@@ -525,6 +526,8 @@ var stoneMat = new THREE.MeshStandardMaterial({ color: 0xeaeff3, roughness: 0.95
   addCollider(mainWall, 8, 6, 3); blockers.push(mainWall);
     blockers.push(gable(8.8, 1.45, 6.8, HX, 2.96, HZ));    /* 视觉与支撑共用山墙坡面参数 */
   part(0.55, 1.5, 0.55, HX + 2.3, 3.6, HZ + 1.8);        /* 烟囱 */
+  collider(HX + 2.3, 3.6, HZ + 1.8, 0, 0.55, 0.55, 1.5);
+  colliders[colliders.length - 1].bottom = 2.85;
 
   /* ---- 车库翼（贴主屋东墙） ---- */
   var garWall = box(3.7, 2.7, 5.5, GX, 1.35, GZ, propMat);
@@ -539,6 +542,8 @@ var stoneMat = new THREE.MeshStandardMaterial({ color: 0xeaeff3, roughness: 0.95
   colliders[colliders.length - 1].kind = 'canopy';
   part(0.1, 2.35, 0.1, HX - 1.2, 1.175, -15.0);
   part(0.1, 2.35, 0.1, HX + 1.2, 1.175, -15.0);
+  collider(HX - 1.2, 1.175, -15.0, 0, 0.1, 0.1, 2.35);
+  collider(HX + 1.2, 1.175, -15.0, 0, 0.1, 0.1, 2.35);
 
   /* ---- 开口（贴墙的深色面片） ----
      它们贴在墙面上、不在 blockers 里，所以墙体被遮罩换透明时得跟着藏起来，
@@ -1270,7 +1275,7 @@ var THEMES = {
   }
 };
 var themeName = 'dark';
-var settings = { mouse: 0.5, touch: 1, theme: 'dark' };
+var settings = { mouse: 0.5, touch: 1, theme: 'dark', timeScale: 1 };
 var settingsOpen = false;
 var settingsPanel = document.getElementById('settingsPanel');
 try {
@@ -1278,6 +1283,7 @@ try {
   if (savedSettings) {
     if (typeof savedSettings.mouse === 'number' && isFinite(savedSettings.mouse)) settings.mouse = Math.max(0.1, Math.min(2, savedSettings.mouse));
     if (typeof savedSettings.touch === 'number' && isFinite(savedSettings.touch)) settings.touch = Math.max(0.2, Math.min(2, savedSettings.touch));
+    if (typeof savedSettings.timeScale === 'number' && isFinite(savedSettings.timeScale)) settings.timeScale = Math.max(0.25, Math.min(2, savedSettings.timeScale));
     if (savedSettings.theme === 'light') settings.theme = 'light';
   }
 } catch (_) {}
@@ -1290,6 +1296,8 @@ function saveSettings() {
   }
 }
 function syncSettings() {
+  document.getElementById('timeScale').value = settings.timeScale;
+  document.getElementById('timeScaleValue').textContent = settings.timeScale.toFixed(2) + '×';
   document.getElementById('mouseSensitivity').value = settings.mouse;
   document.getElementById('touchSensitivity').value = settings.touch;
   document.getElementById('mouseValue').textContent = settings.mouse.toFixed(2);
@@ -1310,7 +1318,8 @@ function showSettings(on) {
   settingsOpen = !!on;
   settingsPanel.hidden = !settingsOpen;
   document.getElementById('settingsBtn').classList.toggle('on', settingsOpen);
-  resetInput();
+  /* 面板只释放视角指针，不清理持续按住的键盘移动。 */
+  mouse.down = false;
   if (settingsOpen && document.exitPointerLock) document.exitPointerLock();
   syncSettings();
 }
@@ -1318,12 +1327,13 @@ settingsPanel.addEventListener('pointerdown', function (e) { e.stopPropagation()
 settingsPanel.addEventListener('wheel', function (e) { e.stopPropagation(); });
 document.getElementById('settingsBtn').addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); showSettings(!settingsOpen); });
 document.getElementById('settingsClose').onclick = function () { showSettings(false); };
+document.getElementById('timeScale').oninput = function () { settings.timeScale = Math.max(0.25, Math.min(2, +this.value)); syncSettings(); saveSettings(); };
 document.getElementById('mouseSensitivity').oninput = function () { settings.mouse = +this.value; syncSettings(); saveSettings(); };
 document.getElementById('touchSensitivity').oninput = function () { settings.touch = +this.value; syncSettings(); saveSettings(); };
 document.getElementById('settingsTheme').onchange = function () { applyTheme(this.value); };
 document.getElementById('settingsCollision').onchange = function () { setColViz(this.checked); };
 document.getElementById('settingsReset').onclick = function () {
-  settings.mouse = 0.5; settings.touch = 1; applyTheme('dark'); syncSettings();
+  settings.mouse = 0.5; settings.touch = 1; settings.timeScale = 1; applyTheme('dark'); syncSettings();
 };
 function applyTheme(n) {
   var t = THEMES[n] || THEMES.dark;
@@ -1470,20 +1480,17 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 射击键 开火 · 换弹键 装填 · 轻点 跳/攀 · 自由视角里双指缩放、45°键锁死视角、主题键切主题、碰撞键看碰撞体　·　v0.12.0';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 射击键 开火 · 换弹键 装填 · 轻点 跳/攀 · 自由视角里双指缩放、45°键锁死视角、主题键切主题、碰撞键看碰撞体　·　v0.12.1';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 左键 射击 · R 换弹 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · 自由视角里滚轮缩放、L 锁死 45° 视角 · T 切主题 · C 看碰撞体 · F2 设置 · H 显示/隐藏本说明　·　v0.12.0';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 左键 射击 · R 换弹 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · 自由视角里滚轮缩放、L 锁死 45° 视角 · T 切主题 · C 看碰撞体 · F2 设置 · H 显示/隐藏本说明　·　v0.12.1';
 }
 
 window.addEventListener('keydown', function (e) {
   var k = e.key.toLowerCase();
   if (k === 'f2' && !e.repeat) { e.preventDefault(); showSettings(!settingsOpen); return; }
-  if (settingsOpen) {
-    if (k === 'escape') showSettings(false);
-    return;
-  }
+  if (settingsOpen && k === 'escape') { showSettings(false); return; }
   if (k === ' ' || k === 'spacebar' || k.indexOf('arrow') === 0) e.preventDefault();
   if (e.repeat) return;
   if (k === 'h' && !TOUCH_UI) { setTip(!tipShown); return; }   /* 桌面：一个键管显示与隐藏 */
@@ -1714,7 +1721,7 @@ var FOV_BASE = 48;  /* resize 里按横竖屏写入 */
    动画只有骨骼旋转、没有 root motion：位置由 advanceClimb() 用 smoothstep 从起点
    插值到障碍顶面；攀爬期间 update() 的整段物理冻结，避免重力/碰撞把人拽回去。 */
 var climb = null;
-var motionDebug = { ledge: '无', wall: '无', stumble: 0, cooldown: 0, stepTarget: 0 };
+var motionDebug = { ledge: '无', wall: '无', stumble: 0, cooldown: 0, stepTarget: 0, launchY: 0, recoilX: 0, recoilZ: 0, impact: 0 };
 var CLIMB_MIN_H = 0.40, CLIMB_MAX_H = 1.30;
 var CLIMB_MIN_FOOT = 0.30;
 
@@ -1746,6 +1753,7 @@ function bodyClear(x, y, z) {
 
 function tryClimb() {
   if (climb || motionDebug.stumble > 0 || (!P.onGround && (P.vy < -4 || P.vy > 6.8))) return false;
+  /* 地面直接抓沿不先普通起跳；空抓也不能把1m动作拉成完整2m。 */
   var dirX = Math.sin(P.face), dirZ = Math.cos(P.face);
   var hitCol = null, hitS = 0, hitY = 0;
   /* 空中以当前脚底为基准，抓沿高度受手臂可达范围限制，不把三米墙直接吸上去。 */
@@ -1753,7 +1761,8 @@ function tryClimb() {
     var px = P.pos.x + dirX * s, pz = P.pos.z + dirZ * s;
     for (var i = 0; i < colliders.length; i++) {
       var col = colliders[i], top = colHeight(col, px, pz), h = top - P.pos.y;
-      if (h < (P.onGround ? CLIMB_MIN_H : 0.20) || h > (P.onGround ? CLIMB_MAX_H : 1.45)) continue;
+      if (h < (P.onGround ? CLIMB_MIN_H : 0.20) || h > CLIMB_MAX_H) continue;
+      if (!P.onGround && top - motionDebug.launchY > CLIMB_MAX_H + 0.05) continue;
       if (col.kind === 'roof') continue;
       if (col.kind !== 'fence' && (col.hw < CLIMB_MIN_FOOT || col.hd < CLIMB_MIN_FOOT)) continue;
       if (col.kind === 'fence' && col.top < 0.8) continue;
@@ -1767,38 +1776,45 @@ function tryClimb() {
     if (insideCol(hitCol, P.pos.x + dirX * s2, P.pos.z + dirZ * s2, 0)) sEnd = s2;
     else break;
   }
-  if (hitCol.kind === 'fence') sEnd = (hitS + sEnd) / 2;
+  var isVault = hitCol.kind === 'fence';
+  if (isVault) sEnd += PLAYER_R + 0.22;
   else {
-    if (sEnd - hitS < 0.20) return false;
-    sEnd = Math.max(hitS + 0.18, sEnd - 0.10);
+    if (sEnd - hitS < PLAYER_R * 2) { motionDebug.ledge = '顶面太窄'; return false; }
+    sEnd = hitS + PLAYER_R + 0.08;
   }
-  /* 先在原地抬起，再横移；不用正值 edge 强推身体进入墙面。 */
   var x1 = P.pos.x + dirX * sEnd, z1 = P.pos.z + dirZ * sEnd;
-  if (hitCol.kind === 'fence') {
-    /* 圆柱横跨柱与横板时，取实际覆盖圆柱的最高构件，不能落入旁边柱头。 */
+  var landingY = hitY;
+  if (isVault) {
     for (var fi = 0; fi < colliders.length; fi++) {
       var fc = colliders[fi];
-      if (fc.kind === 'fence' && insideCol(fc, x1, z1, -PLAYER_R)) hitY = Math.max(hitY, fc.top);
+      if (fc.kind === 'fence' && insideCol(fc, x1, z1, -PLAYER_R - 0.04)) {
+        motionDebug.ledge = '翻越落点受阻'; return false;
+      }
+      if (fc.kind === 'fence' && insideCol(fc, P.pos.x + dirX * hitS, P.pos.z + dirZ * hitS, -PLAYER_R)) hitY = Math.max(hitY, fc.top);
     }
+    landingY = supportAt(x1, z1, hitY);
   }
-  var clearY = hitY + (hitCol.kind === 'fence' ? 0.16 : 0.04);
-  for (var ck = 0; ck <= 12; ck++) {
-    var u = ck / 12;
-    if (!bodyClear(P.pos.x, P.pos.y + (clearY - P.pos.y) * u, P.pos.z) ||
-        !bodyClear(P.pos.x + (x1 - P.pos.x) * u, clearY, P.pos.z + (z1 - P.pos.z) * u)) {
+  var approach = Math.max(0, hitS - PLAYER_R - 0.045);
+  var edgeX = P.pos.x + dirX * approach, edgeZ = P.pos.z + dirZ * approach;
+  var clearY = hitY + (isVault ? 0.14 : 0.04);
+  for (var ck = 0; ck <= 24; ck++) {
+    var u = ck / 24;
+    if (!bodyClear(P.pos.x + (edgeX - P.pos.x) * u, P.pos.y + (clearY - P.pos.y) * u, P.pos.z + (edgeZ - P.pos.z) * u) ||
+        !bodyClear(edgeX + (x1 - edgeX) * u, clearY, edgeZ + (z1 - edgeZ) * u) ||
+        !bodyClear(x1, clearY + (landingY - clearY) * u, z1)) {
       motionDebug.ledge = '净空不足'; return false;
     }
   }
-  if (!bodyClear(x1, hitY, z1)) { motionDebug.ledge = '落点受阻'; return false; }
-  var duration = Math.max(0.58, Math.min(0.94, 0.52 + (hitY - P.pos.y) * 0.27));
+  var duration = Math.max(0.68, Math.min(1.08, 0.58 + (hitY - P.pos.y) * 0.30));
+  var incoming = Math.max(0, vel.x * dirX + vel.z * dirZ);
   climb = {
-    t: 0, dur: duration, face: P.face,
+    t: 0, dur: duration, face: P.face, incoming: incoming, vault: isVault,
     x0: P.pos.x, y0: P.pos.y, z0: P.pos.z,
-    ex: P.pos.x, ey: clearY, ez: P.pos.z,
-    x1: x1, y1: hitY, z1: z1
+    ex: edgeX, ey: clearY, ez: edgeZ,
+    x1: x1, y1: landingY, z1: z1
   };
-  motionDebug.ledge = hitCol.kind === 'fence' ? '栅栏顶沿' : (P.onGround ? '地面抓沿' : '空中抓沿');
-  vel.x = vel.z = 0; P.vy = 0; P.onGround = true;
+  motionDebug.ledge = isVault ? '翻栏落到另一侧' : (P.onGround ? '地面抓沿1m' : '空中抓沿1m');
+  P.vy = 0; P.onGround = true;
   P.leanFB = P.leanLR = 0; P.squash = 1;
   jumpBufT = 0; P.landLock = 0;
   setAnim('mantle', AN.mantle.dur / duration, true);
@@ -1808,20 +1824,28 @@ function tryClimb() {
 function advanceClimb(dt) {
   climb.t += dt;
   var p = Math.min(1, climb.t / climb.dur), k;
-  if (p < 0.50) {
-    k = p / 0.50; k = k * k * (3 - 2 * k);
-    P.pos.set(climb.x0, climb.y0 + (climb.ey - climb.y0) * k, climb.z0);
-  } else {
-    k = (p - 0.50) / 0.50; k = k * k * (3 - 2 * k);
+  var oldX = P.pos.x, oldZ = P.pos.z;
+  if (p < 0.48) {
+    k = p / 0.48;
+    var approachK = 1 - (1 - k) * (1 - k);
+    P.pos.set(climb.x0 + (climb.ex - climb.x0) * approachK,
+      climb.y0 + (climb.ey - climb.y0) * k * k * (3 - 2 * k),
+      climb.z0 + (climb.ez - climb.z0) * approachK);
+  } else if (p < 0.78) {
+    k = (p - 0.48) / 0.30; k = k * k * (3 - 2 * k);
     P.pos.set(climb.ex + (climb.x1 - climb.ex) * k, climb.ey, climb.ez + (climb.z1 - climb.ez) * k);
-    /* 越过边缘后才收最后几厘米，确保整圆柱高于实体。 */
-    if (p > 0.88) P.pos.y += (climb.y1 - climb.ey) * ((p - 0.88) / 0.12);
+  } else {
+    k = (p - 0.78) / 0.22; k = k * k * (3 - 2 * k);
+    P.pos.set(climb.x1, climb.ey + (climb.y1 - climb.ey) * k, climb.z1);
   }
-  vel.x = vel.z = 0; P.vy = 0; P.onGround = true;
+  vel.x = (P.pos.x - oldX) / dt; vel.z = (P.pos.z - oldZ) / dt;
+  P.vy = 0; P.onGround = true;
   P.face = P.faceTarget = climb.face;
   if (climb.t >= climb.dur) {
     P.pos.set(climb.x1, climb.y1, climb.z1);
+    motionDebug.stepTarget = climb.y1;
     climb = null;
+    vel.x = vel.z = 0;
     ANIM.oneShot = false;
     motionDebug.cooldown = 0.35;
     pendSfxLand = 0.35;
@@ -1835,6 +1859,7 @@ function doJump() {
 }
 
 function realJump() {
+  motionDebug.launchY = P.pos.y;
   P.vy = JUMP_V;
   P.onGround = false;
   P.squash = 0.82;
@@ -1851,7 +1876,6 @@ function realJump() {
 
 /* 输出：{x: 屏幕横向 -1..1, y: 前后 -1..1（向上为前进）} */
 function getAxis() {
-  if (settingsOpen) return { x: 0, y: 0 };
   var ax = 0, ay = 0;
   if (keys['a'] || keys['arrowleft'])  ax -= 1;
   if (keys['d'] || keys['arrowright']) ax += 1;
@@ -1924,10 +1948,14 @@ function collideXZ(dt, tx, tz) {
     var wz = -nx * col.s + nz * col.c;
     var vn = vel.x * wx + vel.z * wz;
     motionDebug.wall = col.kind;
-    if (vn < -3.8 && P.onGround && motionDebug.cooldown <= 0) {
+    if (vn < -0.7 && P.onGround && motionDebug.cooldown <= 0) {
       P.face = P.faceTarget = Math.atan2(tx, tz);
-      if (tryClimb()) return;
-      motionDebug.stumble = 0.28; motionDebug.cooldown = 0.95;
+      /* 普通行走只回退；达到跑步速度才自动抓沿。 */
+      if (vn < -2.8 && tryClimb()) return;
+      motionDebug.impact = -vn;
+      motionDebug.stumble = 0.22 + Math.min(0.18, -vn * 0.025); motionDebug.cooldown = 0.95;
+      var recoil = Math.min(2.5, 0.35 - vn * 0.30);
+      motionDebug.recoilX = wx * recoil; motionDebug.recoilZ = wz * recoil;
       P.landLock = 0.20; setAnim('landLight', 1.8, true);
     }
     if (vn < 0) { vel.x -= vn * wx; vel.z -= vn * wz; }
@@ -1967,11 +1995,11 @@ function supportAt(px, pz, feet) {
     var lx = dx * col.c - dz * col.s;
     var lz = dx * col.s + dz * col.c;
     /* 站立判定往外放宽 0.28：踩在边缘上也算站住，不会在缝隙里抖 */
-    var pad = col.kind === 'roof' ? 0 : (col.kind === 'fence' ? PLAYER_R - 0.01 : 0.22);
-    if (col.kind === 'fence') {
-      var fenceEX = Math.max(0, Math.abs(lx) - col.hw), fenceEZ = Math.max(0, Math.abs(lz) - col.hd);
-      if (fenceEX * fenceEX + fenceEZ * fenceEZ > pad * pad) continue;
-    }
+    var pad = col.kind === 'roof' ? 0 : PLAYER_R + 0.015;
+    /* 狭窄栅栏不作为站立支撑；台阶支撑须先于圆柱触边承接。 */
+    if (col.kind === 'fence') continue;
+    var supportEX = Math.max(0, Math.abs(lx) - col.hw), supportEZ = Math.max(0, Math.abs(lz) - col.hd);
+    if (supportEX * supportEX + supportEZ * supportEZ > pad * pad) continue;
     if (Math.abs(lx) <= col.hw + pad && Math.abs(lz) <= col.hd + pad) best = height;
   }
   return best;
@@ -2009,6 +2037,7 @@ function update(dt) {
   var tx = (rx * axis.x - fx * axis.y) * MOVE_V;
   var tz = (rz * axis.x - fz * axis.y) * MOVE_V;
 
+  if (motionDebug.stumble > 0) { tx = motionDebug.recoilX; tz = motionDebug.recoilZ; }
   var prevVX = vel.x, prevVZ = vel.z;
 
   /* 加速度按"向量长度"截断，不要分轴截断：
@@ -2017,7 +2046,11 @@ function update(dt) {
   var dvx = tx - vel.x, dvz = tz - vel.z;
   var dvMax = ACC * dt;
   /* 空中操控减弱，保留水平惯性（起跳后不会突然刹停） */
-  if (!P.onGround) dvMax *= 0.3;
+  if (!P.onGround) {
+    dvMax *= 0.16;
+    var airDrag = Math.exp(-0.70 * dt);
+    vel.x *= airDrag; vel.z *= airDrag;
+  }
   var dvl = Math.hypot(dvx, dvz);
   if (dvl > dvMax) { var dk = dvMax / dvl; dvx *= dk; dvz *= dk; }
   vel.x += dvx;
@@ -2032,9 +2065,25 @@ function update(dt) {
     if (P.onGround) { jumpBufT = 0; realJump(); }
   }
 
-  P.pos.x += vel.x * dt;
-  P.pos.z += vel.z * dt;
-  collideXZ(dt, tx, tz);             /* 水平推出去（贴着墙滑 + 贴墙摩擦） */
+  /* 跑步在圆柱撞停前预接近高沿；可迈台阶优先走支撑，不抢成攀爬。 */
+  if (P.onGround && motionDebug.cooldown <= 0 && motionDebug.stumble <= 0 && Math.hypot(vel.x, vel.z) > 2.8) {
+    var runLength = Math.hypot(tx, tz);
+    if (runLength > 0) {
+      var probeX = P.pos.x + tx / runLength * 0.56, probeZ = P.pos.z + tz / runLength * 0.56;
+      for (var approachIndex = 0; approachIndex < colliders.length; approachIndex++) {
+        var approachCol = colliders[approachIndex];
+        if (insideCol(approachCol, probeX, probeZ, 0) && colHeight(approachCol, probeX, probeZ) - Math.max(P.pos.y, motionDebug.stepTarget) > STEP_UP + 0.02) {
+          P.face = P.faceTarget = Math.atan2(tx, tz);
+          if (tryClimb()) break;
+        }
+      }
+    }
+  }
+  if (!climb) {
+    P.pos.x += vel.x * dt;
+    P.pos.z += vel.z * dt;
+    collideXZ(dt, tx, tz);
+  }
 
   /* 跳跃与重力：脚下有方块就以方块顶面当地面 */
   if (!P.onGround && axisMag > 0.2 && motionDebug.cooldown <= 0) {
@@ -2048,6 +2097,8 @@ function update(dt) {
   } else if (P.onGround) {
     if (P.pos.y - support > STEP_DOWN) {
       P.onGround = false; P.vy = 0;
+      motionDebug.launchY = P.pos.y;
+      vel.x *= 0.55; vel.z *= 0.55;
     } else {
       var stepDelta = support - P.pos.y;
       P.pos.y += Math.max(-2.8 * dt, Math.min(3.6 * dt, stepDelta));
@@ -2066,6 +2117,8 @@ function update(dt) {
     }
     if (P.vy <= 0 && P.pos.y <= support) {
       P.land = Math.min(1, Math.abs(P.vy) / 7.5);
+      var absorb = Math.max(0.25, 1 - Math.max(0, Math.abs(P.vy) - 4) * 0.075);
+      vel.x *= absorb; vel.z *= absorb;
       P.pos.y = support;
       P.vy = 0;
       P.onGround = true;
@@ -2092,7 +2145,7 @@ function update(dt) {
 
   /* 朝向：速度越快转身插值越慢（冲刺转弯带惯性弧线，不再是瞬间的硬转） */
   var sp = Math.hypot(vel.x, vel.z);
-  if (!climb && tx * tx + tz * tz > 0.0001) {
+  if (!climb && motionDebug.stumble <= 0 && tx * tx + tz * tz > 0.0001) {
     P.faceTarget = Math.atan2(tx, tz); /* 输入意图不受墙面消速影响 */
   }
   /* 第一人称：身体跟着视线转，不然会横着走 */
@@ -2616,7 +2669,8 @@ function fpsTick(t) {
         '\n位置 ' + P.pos.x.toFixed(2) + ', ' + P.pos.y.toFixed(2) + ', ' + P.pos.z.toFixed(2) +
         '\n朝向 ' + P.face.toFixed(2) + ' → ' + P.faceTarget.toFixed(2) +
         '\n碰撞体 ' + colliders.length + ' / ' + VIEW_NAME[viewMode] +
-        '\n抓沿 ' + motionDebug.ledge + ' / 阶段 ' + (climb ? (climb.t / climb.dur < 0.5 ? '抬升' : '翻上') : '无') +
+        '\n模拟倍速 ' + settings.timeScale.toFixed(2) + '× / 诊断按真实时间刷新' +
+        '\n抓沿 ' + motionDebug.ledge + ' / 阶段 ' + (climb ? (climb.t / climb.dur < 0.48 ? '接近/撑起' : (climb.t / climb.dur < 0.78 ? '越沿' : '落稳')) : '无') +
         '\n撞墙 ' + motionDebug.wall + ' / 踉跄 ' + motionDebug.stumble.toFixed(2) +
         '\n脚接触 L/R ' + footState.left + '/' + footState.right + ' / 骨盆 ' + footState.pelvis.toFixed(3) +
         '\n手枪 ' + weapon.ammo + '/' + weapon.reserve + ' 冷却 ' + weapon.cooldown.toFixed(2) + ' 换弹 ' + weapon.reload.toFixed(2) +
@@ -2640,20 +2694,21 @@ function loop(t) {
     if (window.__perfLog.length < 16) window.__perfLog.push({ ms: Math.round(dt * 1000), anim: ANIM.cur, air: !P.onGround, blend: +ANIM.blend.toFixed(2) });
   }
   if (dt > 0.1) dt = 0.1;
-  acc += dt;
+  var simDt = dt * settings.timeScale;
+  acc += simDt;
   var guard = 0;
-  while (acc >= FIXED && guard++ < 12) {
+  while (acc >= FIXED && guard++ < 24) {
     update(FIXED);
     acc -= FIXED;
   }
-  if (acc > FIXED * 12) acc = 0;
+  if (acc > FIXED * 24) acc = 0;
 
   /* 动画采样按渲染帧一次（60Hz 足够平滑），不再随物理步长跑 120Hz */
   var _jd = performance.now();
-  driveAnim(dt);
-  updateFootContact(dt);
+  driveAnim(simDt);
+  updateFootContact(simDt);
   updateBoneViz();
-  updateWeapon(dt);
+  updateWeapon(simDt);
   jumpTDrv = performance.now() - _jd;
   drawStick();
   if (colVizOn && playerViz) playerViz.position.set(P.pos.x, P.pos.y + 0.93, P.pos.z);
@@ -2669,7 +2724,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.12.0';
+window.__worldVersion = 'v0.12.1';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   weapon: weapon, targets: targets, fire: fireWeapon, reload: reloadWeapon,
   shotCollider: shotCollider, shotOrigin: shotOrigin, shotDir: shotDir,

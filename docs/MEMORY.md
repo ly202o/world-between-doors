@@ -434,6 +434,14 @@ UE 命令行：`/d/app/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe D:/temp
 
 _最后更新：v0.11.31_
 
+## 2026-11-14 · v0.12.1 最新体验反馈（优先于旧条目）
+
+- 接手git干净cca1f00，v0.12.0手枪已存在；snapshot同名安全拒绝覆盖，cmp一致，额外修改前副本D:/temp/world01_pre_feedback_20261114.html。不要重做/丢失手枪。
+- 台阶先撞再支撑根因是pad0.22<PLAYER_R0.36；改0.375圆形支撑，仍独立stepTarget平滑。栅栏绝不能再以柱头为站立终点：无fence支撑，翻到另一侧y0/可站面，24段净空。
+- 跑步>2.8m/s预探0.56m接mantle approach，保留incoming；低速撞墙只分级回退。动作只有ALS1m RH，限制相对launchY≤1.35m，不把跳到半空抓3m墙当完整2m。完整双手IK/ALS蓝图仍未做。
+- timeScale0.25–2（默认1）存原设置槽，物理/动画/武器共用缩放dt，UI/FPS/诊断真实时间；F2不resetInput、不禁键盘/快捷键，失焦后台仍reset。面板鼠标保护与禁射/开始换弹保留。
+- 运动三轮D:/temp/w01_feedback_test.mjs→w01_feedback/report.json，手枪后三轮D:/temp/w01_weapon_test.mjs→w01_weapon/report.json，5脚本检查/孤立file横竖截图，异常0/HTTP0。无头不代表真机手感，1m旋转动画+程序路径不是完整ALS移植。烟囱+门廊柱后148实体。
+
 ## 2026-11-14 · v0.12.0 基础手枪
 
 - 本次授权允许自选枪型，选纯几何半自动：8/48、0.22s冷却、1.15s换弹，左键/R与手机射击/换弹。3静态靶x4/5.8/7.6,z-6；无AI/血量/新增枪声音源。ammo/hits不持久化。
