@@ -49,6 +49,7 @@
 | v0.11.0 | 音效响度重做（频段上移 + 压缩器）；跳跃改三段式，补 JumpWalk/JumpRun/FallFast 五个动画 | 用户反馈「没声音」「跳跃有滑步」 |
 | v0.11.1 | 手机解锁路径铺全（audioSession / 空 buffer / 微信 bridge / 重建上下文）+ 失败提示条；跑跳落地不再插落地姿势 | 手机上仍无声音、落地仍滑 |
 | v0.11.2 | `AudioContext` 改为只允许在手势里创建（非手势实例在 iOS 上 resume 无效） | 手机上提示「声音被挡住了」 |
+| v0.11.3 | 备用播放链路（OfflineAudioContext 渲染 WAV + `<audio>`）；起跳→下落混合拉长到 0.30s | 手机 webview 直接拦 WebAudio；跳跃时手臂像被拽下来 |
 
 **现在**：角色播放真实动画，能走、能跳、能转视角。**但仍然没有玩法**——没有目标、没有交互、没有痕迹。
 
@@ -169,6 +170,7 @@ bake_full.cjs     # 动画 FBX → _anims.js（每骨绝对局部旋转）；跳
 - **根本原因（v0.11.2）**：`AudioContext` 在**非手势**上下文里被创建了（`update()` 第一帧的兜底解锁）。iOS 上这种实例 `resume()` 返回成功但状态永远 `suspended`。**上下文只能在手势里 new**，`audioReady()` / 兜底一律只 resume 不新建。
 - **确定性修复**：手势里真播 1 帧空 buffer、`navigator.audioSession.type='playback'`、`WeixinJSBridgeReady` + `visibilitychange` 重试、连续失败就重建 `AudioContext`。
 - **别忘自证**：失败时才显示的提示条 + 页面角落的版本号，能区分"代码没修好"和"手机跑的是旧文件"。
+- **兜底链路（v0.11.3）**：`OfflineAudioContext` 不需要手势、不受自动播放策略限制，可以把合成结果渲染成 WAV，交给 `<audio>` 播。有些 webview 只拦 WebAudio 的输出，这条能救。
 
 ### 12. 落地滑步：脚钉住的动画 + 身体位移 = 必滑
 - **根因**：落地片段里脚基本不动（行程 8–14cm），但身体还在以 4.5 m/s 前进，0.32s 就是 1.4m。

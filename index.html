@@ -54,7 +54,7 @@
 <canvas id="c"></canvas>
 <div id="err"></div>
 <div id="snd">🔇 点这里开声音</div>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.2</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.3</div>
 <script>
 /**
  * @license
@@ -276,7 +276,7 @@ skinMesh.bind(new THREE.Skeleton(boneList));
    走/跑/跳/落/待机状态机 + 0.18s 姿态混合。 */
 var AN = window.__ANIMS;
 var ANIM_NATIVE = { walk: 1.7, run: 3.75, sprint: 6.5 }; /* 各动画原生步速 m/s（播放速率 = 实际速度 / 原生） */
-var ANIM = { cur: 'idle', t: 0, rate: 1, prev: null, prevT: 0, blend: 1, oneShot: false };
+var ANIM = { cur: 'idle', t: 0, rate: 1, prev: null, prevT: 0, blend: 1, oneShot: false, blendDur: 0.18 };
 var ANIM_BLEND = 0.18;
 
 var _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _qt = new THREE.Quaternion();
@@ -303,6 +303,8 @@ function setAnim(name, rate, oneShot) {
   ANIM.prev = ANIM.cur; ANIM.prevT = ANIM.t;
   ANIM.cur = name; ANIM.t = 0; ANIM.rate = rate || 1;
   ANIM.blend = 0; ANIM.oneShot = !!oneShot;
+  /* 起跳 → 下落这一下手臂摆幅很大，混合时间给长一点，免得像被"拽"下来 */
+  ANIM.blendDur = (name === 'fall' || name === 'fallFast') ? 0.30 : ANIM_BLEND;
   for (var k in _poseCur) delete _poseCur[k];
   for (var k2 in _posePrev) delete _posePrev[k2];
 }
@@ -311,7 +313,7 @@ function driveAnim(dt) {
   var tPrev = ANIM.t;
   ANIM.t += dt * ANIM.rate;
   if (ANIM.oneShot && ANIM.t >= AN[ANIM.cur].dur) ANIM.oneShot = false; /* 播完，下一帧状态机接管 */
-  ANIM.blend = Math.min(1, ANIM.blend + dt / ANIM_BLEND);
+  ANIM.blend = Math.min(1, ANIM.blend + dt / (ANIM.blendDur || ANIM_BLEND));
 
   /* 脚步音：只在走/跑/冲刺时出声 */
   if (ANIM.cur === 'walk' || ANIM.cur === 'run' || ANIM.cur === 'sprint') {
@@ -397,6 +399,9 @@ function audioUnlock(ev) {
     }
   } catch (e) {}
 
+  /* 第一次真手势就把备用播放准备好，等真失败时不用再等 */
+  if (gesture) initWavFallback();
+
   /* 关键：AudioContext 必须在手势里创建。
      非手势创建的实例，在 iOS 上后续 resume() 经常永远起不来——只能丢掉重建。 */
   if (gesture && AC && !_acInGesture) {
@@ -417,14 +422,17 @@ function audioUnlock(ev) {
     if (p && p.catch) p.catch(function () {});
   }
   /* iOS 的老规矩：光 resume 不响，得在同一个手势里真播一次空 buffer */
-  if (gesture && AC.state !== 'running') {
-    try {
-      var s = AC.createBufferSource();
-      s.buffer = AC.createBuffer(1, 1, AC.sampleRate);
-      s.connect(AC.destination);
-      s.start(0);
-    } catch (e) {}
-    setTimeout(sndCheck, 400);
+  if (gesture) {
+    if (AC.state !== 'running') {
+      try {
+        var s = AC.createBufferSource();
+        s.buffer = AC.createBuffer(1, 1, AC.sampleRate);
+        s.connect(AC.destination);
+        s.start(0);
+      } catch (e) {}
+      setTimeout(sndCheck, 400);
+    }
+    wavUnlock();
   }
 }
 
@@ -436,13 +444,159 @@ function sndHint(show) {
   sndEl.style.display = show ? 'block' : 'none';
 }
 function sndCheck() {
-  if (!AC) { sndHint(true); return; }
+  if (_wavOk) { sndHint(false); return; }
+  if (!AC) { sndHint(true); initWavFallback(); return; }
   if (AC.state === 'running') { sndHint(false); _sndTried = 0; return; }
   /* 连续两次手势还是没起来，才认为真的失败了，避免误报 */
   if (++_sndTried >= 2) {
     sndHint(true);
-    if (sndEl) sndEl.textContent = '🔇 声音被挡住了（' + AC.state + '）· 点这里再试';
+    if (sndEl) sndEl.textContent = '🔇 声音被挡住了（' + AC.state + '）· 正在切备用播放…';
+    initWavFallback();
   }
+}
+
+/* ================= 备用播放：离线渲染成 WAV，用 <audio> 播 =================
+   WebAudio 的输出在一些 webview 里会被整个拦掉（state 永远 suspended）。
+   OfflineAudioContext 不受这个限制，所以先用它把音效渲染成 wav，
+   再交给 <audio> 元素播放——这是另一条完全独立的链路。 */
+var WAV_MODE = false, WAV_READY = false, WAV_URLS = {}, WAV_POOL = {}, WAV_IDX = {}, _wavInit = false, _wavOk = false;
+
+function encodeWav(buf) {
+  var ch = buf.numberOfChannels, len = buf.length, sr = buf.sampleRate;
+  var bytes = 44 + len * ch * 2, ab = new ArrayBuffer(bytes), v = new DataView(ab);
+  function tag(o, s) { for (var i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); }
+  tag(0, 'RIFF'); v.setUint32(4, bytes - 8, true); tag(8, 'WAVE');
+  tag(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+  v.setUint16(22, ch, true); v.setUint32(24, sr, true);
+  v.setUint32(28, sr * ch * 2, true); v.setUint16(32, ch * 2, true); v.setUint16(34, 16, true);
+  tag(36, 'data'); v.setUint32(40, len * ch * 2, true);
+  var off = 44, data = [];
+  for (var c = 0; c < ch; c++) data.push(buf.getChannelData(c));
+  for (var i2 = 0; i2 < len; i2++) {
+    for (var c2 = 0; c2 < ch; c2++) {
+      var s = Math.max(-1, Math.min(1, data[c2][i2]));
+      v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      off += 2;
+    }
+  }
+  return new Blob([ab], { type: 'audio/wav' });
+}
+
+function renderOffline(kind) {
+  var OC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if (!OC) return null;
+  var SR = 44100;
+  var dur = kind === 'step' ? 0.20 : (kind === 'jump' ? 0.32 : 0.46);
+  var oc = new OC(1, Math.round(SR * dur), SR);
+  var nb = oc.createBuffer(1, oc.length, SR), nd = nb.getChannelData(0);
+  for (var i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  function noise(t0, d, f, q, peak) {
+    var s = oc.createBufferSource(); s.buffer = nb;
+    var fl = oc.createBiquadFilter(); fl.type = 'bandpass'; fl.frequency.value = f; fl.Q.value = q;
+    var g = oc.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+    s.connect(fl); fl.connect(g); g.connect(oc.destination);
+    s.start(t0); s.stop(t0 + d + 0.02);
+  }
+  function thump(t0, f0, f1, d, peak) {
+    var o = oc.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(f0, t0);
+    o.frequency.exponentialRampToValueAtTime(f1, t0 + d);
+    var g = oc.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+    o.connect(g); g.connect(oc.destination);
+    o.start(t0); o.stop(t0 + d + 0.02);
+  }
+  var t = 0.001;
+  if (kind === 'step') {
+    noise(t, 0.07, 1900, 0.9, 0.60);
+    noise(t + 0.003, 0.09, 520, 0.7, 0.45);
+    thump(t, 150, 82, 0.10, 0.42);
+  } else if (kind === 'jump') {
+    noise(t, 0.20, 950, 0.8, 0.40);
+    noise(t + 0.01, 0.12, 500, 0.7, 0.30);
+    thump(t, 180, 110, 0.11, 0.36);
+  } else {
+    thump(t, 140, 70, 0.24, 0.62);
+    noise(t, 0.20, 430, 0.7, 0.46);
+    noise(t + 0.006, 0.10, 1700, 0.9, 0.32);
+  }
+  return oc.startRendering();
+}
+
+function initWavFallback() {
+  if (_wavInit) return;
+  _wavInit = true;
+  var kinds = ['step', 'jump', 'land'], jobs = [];
+  kinds.forEach(function (k) {
+    WAV_URLS[k] = [];
+    for (var v = 0; v < 3; v++) {
+      var p = renderOffline(k);
+      if (!p) return;
+      jobs.push(p.then(function (k2, idx) {
+        return function (buf) {
+          var url = URL.createObjectURL(encodeWav(buf));
+          WAV_URLS[k2][idx] = url;
+        };
+      }(k, v)));
+    }
+  });
+  if (!jobs.length) { _wavInit = false; return; }
+  Promise.all(jobs).then(function () {
+    kinds.forEach(function (k) {
+      var arr = WAV_URLS[k] || [];
+      WAV_POOL[k] = [];
+      WAV_IDX[k] = 0;
+      for (var i = 0; i < arr.length; i++) {
+        if (!arr[i]) continue;
+        var el = document.createElement('audio');
+        el.src = arr[i];
+        el.preload = 'auto';
+        el.volume = 0.9;
+        el.setAttribute('playsinline', '');
+        el.style.display = 'none';
+        document.body.appendChild(el);
+        WAV_POOL[k].push(el);
+      }
+    });
+    WAV_READY = true;
+  }).catch(function () { _wavInit = false; });
+}
+
+function wavPlay(kind) {
+  if (!WAV_READY) return false;
+  var arr = WAV_POOL[kind];
+  if (!arr || !arr.length) return false;
+  var i = WAV_IDX[kind] = ((WAV_IDX[kind] | 0) + 1) % arr.length;
+  var el = arr[i];
+  try {
+    el.currentTime = 0;
+    var p = el.play();
+    if (p && p.then) {
+      p.then(function () {
+        if (!_wavOk) { _wavOk = true; sndHint(false); }
+      }, function () {});
+    } else if (p && p.catch) p.catch(function () {});
+    return true;
+  } catch (e) { return false; }
+}
+
+/* 手势里先把 <audio> 也"解锁"一次，之后游戏循环里调用就不用每次都点 */
+function wavUnlock() {
+  if (!WAV_READY) return;
+  var arr = WAV_POOL.step;
+  if (!arr || !arr.length) return;
+  try {
+    var el = arr[0];
+    el.volume = 0;
+    var p = el.play();
+    if (p && p.then) p.then(function () { el.pause(); el.currentTime = 0; el.volume = 0.9; },
+                             function () { el.volume = 0.9; });
+  } catch (e) {}
 }
 
 window.addEventListener('pointerdown', audioUnlock, true);
@@ -473,9 +627,14 @@ document.addEventListener('visibilitychange', function () {
       if (e && e.preventDefault) e.preventDefault();
       audioUnlock(e);
       setTimeout(function () {
-        if (AC && AC.state === 'running') { sfxStep(1); sndHint(false); }
-        else if (el) el.textContent = '🔇 还是没起来（' + (AC ? AC.state : '无上下文') + '）· 松开静音键 / 提高媒体音量再点';
-      }, 150);
+        if (AC && AC.state === 'running') { sfxStep(1); sndHint(false); return; }
+        /* WebAudio 还是起不来，改试备用播放 */
+        initWavFallback();
+        setTimeout(function () {
+          if (wavPlay('step')) { sndHint(false); return; }
+          if (el) el.textContent = '🔇 播放被系统拦住了（' + (AC ? AC.state : '无上下文') + '）· 请用系统浏览器打开这个文件';
+        }, 500);
+      }, 200);
     }
     el.addEventListener('touchstart', hit, { passive: false });
     el.addEventListener('mousedown', hit);
@@ -501,8 +660,23 @@ window.__audioState = function () {
   return {
     state: AC ? AC.state : 'none', on: AUDIO_ON,
     rms: +rms.toFixed(4), peak: +peak.toFixed(4),
-    t: AC ? +AC.currentTime.toFixed(2) : 0
+    t: AC ? +AC.currentTime.toFixed(2) : 0,
+    wav: WAV_READY, wavOk: _wavOk,
+    els: WAV_POOL.step ? WAV_POOL.step.length : 0
   };
+};
+/* 诊断：强制走备用播放（模拟 WebAudio 被拦的情况） */
+window.__forceWav = function () {
+  initWavFallback();
+  return new Promise(function (res) {
+    var t = 0, iv = setInterval(function () {
+      if (WAV_READY || ++t > 40) {
+        clearInterval(iv);
+        if (AC && AC.suspend) { try { AC.suspend(); } catch (e) {} }
+        res({ ready: WAV_READY, played: wavPlay('step') });
+      }
+    }, 50);
+  });
 };
 window.__testStep = function (n) { for (var i = 0; i < (n||1); i++) sfxStep(1); return "ok"; };
 window.__testLand = function () { sfxLand(1); return "ok"; };
@@ -563,6 +737,7 @@ function audioReady() {
 /* 脚步：gait 0=走 1=跑 2=冲刺
    手机喇叭放不出 60–100Hz，所以主体放在 300–2200Hz，低频撞击只给耳机加重量 */
 function sfxStep(gait) {
+  if (!AC || AC.state !== 'running') { if (wavPlay('step')) return; }   /* WebAudio 被拦 → 走备用播放 */
   if (!audioReady()) return;
   var t = AC.currentTime + 0.001;
   var hard = 0.6 + gait * 0.2;
@@ -572,6 +747,7 @@ function sfxStep(gait) {
 }
 
 function sfxJump() {
+  if (!AC || AC.state !== 'running') { if (wavPlay('jump')) return; }
   if (!audioReady()) return;
   var t = AC.currentTime + 0.001;
   playNoise(t, 0.20, 950, 0.8, 0.42, 'bandpass');
@@ -580,6 +756,7 @@ function sfxJump() {
 }
 
 function sfxLand(impact) {
+  if (!AC || AC.state !== 'running') { if (wavPlay('land')) return; }
   if (!audioReady()) return;
   var t = AC.currentTime + 0.001;
   var imp = Math.min(1, Math.max(0, impact));
@@ -656,9 +833,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.2';
+  tipEl.textContent = '左侧拖动 移动 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.3';
 } else {
-  tipEl.textContent = 'WASD 移动 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.2';
+  tipEl.textContent = 'WASD 移动 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.3';
 }
 
 window.addEventListener('keydown', function (e) {
