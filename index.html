@@ -89,7 +89,7 @@
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
 <button id="viewBtn">第三</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.28</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.29</div>
 <script>
 /**
  * @license
@@ -254,13 +254,6 @@ function hash(i, s) {
 var propMat = new THREE.MeshStandardMaterial({ color: 0xf4f7fa, roughness: 0.92, metalness: 0 });
 var blockers = [];   /* 会挡住相机的实体（积木 + 高塔），散石太小不参与 */
 window.__blockers = blockers;   /* 诊断用 */
-
-/* 上帝视角的遮挡遮罩：被挡住的物体换成这个半透明材质（opacity 随视角模式淡入） */
-var ghostMat = propMat.clone();
-ghostMat.transparent = true;
-ghostMat.opacity = 0;
-ghostMat.depthWrite = false;
-var occluded = [];
 
 /* ---------------- 碰撞体 ----------------
    所有积木/高塔都是竖直棱柱（BoxGeometry 绕 Y 旋转），所以碰撞可以用 2.5D：
@@ -918,24 +911,19 @@ var FRICT = 22;
 var camYaw   = 0;          /* 水平角，0 = 在角色正后方 */
 var camPitch = 0.30;       /* 俯角 */
 var camDist  = 8.6;
-/* 视角模式：0=第一人称 1=第三人称（默认） 2=俯视（可旋转，透视） */
+/* 视角模式：0=第一人称 1=第三人称（默认） 2=自由（可旋转 + 可缩放） */
 var viewMode = 1;
-var firstMode = false, topMode = false, freeMode = false;
-var fpBlend = 0, topBlend = 0;   /* 两个平滑量，三档之间都是连续过渡 */
+var firstMode = false, freeMode = false;
+var fpBlend = 0;                 /* 第一/第三之间的平滑量，切换永远是连续曲线 */
 var fpPitch = -0.02;
-/* 越肩取景：枢轴在肩点（1.42m），镜头整体右偏，偏多少随机距走（见 SHOULDER_K）。
-   参考主流 TPS 的做法（UE 里就是一个 SpringArm + SocketOffset.y ≈ 55cm）：
-   枢轴挂在肩而不是胸口/眼睛——眼睛归第一人称，胸口会让人被"卡在肚子"。 */
+/* 轨道枢轴高度：肩点 1.42m。比胸口高、比眼低——挂胸口会让近景镜头卡在肚子上，
+   挂眼睛那是第一人称的事。 */
 var PIVOT_H = 1.42;
-var SHOULDER_K = 0.12, SHOULDER_MIN = 0.22, SHOULDER_MAX = 3.0;
-/* 全视：自由轨道。俯仰不设限、距离可滚轮/双指缩放，等于把前三档的取景范围都包含进来。
-   最近只到 1.5m：再近镜头就钻进身体了（成熟项目也都是靠最短臂长挡住，不靠"拉进眼睛"，
-   第一人称是独立模式，不该由缩放连续过渡而来）。 */
+/* 自由视角：俯仰不设限、距离可滚轮/双指缩放。
+   最近只到 1.5m：再近镜头就钻进身体了（最短臂长挡着，不靠"拉进眼睛"）。 */
 var freePitch = 0.30, freeDist = 8.6;
 var FREE_PITCH = 1.45, FREE_DIST_MIN = 1.5, FREE_DIST_MAX = 60;
 var EYE_H = 1.62;              /* 第一人称眼睛高度 */
-var TOP_PITCH = 0.66;          /* 俯视俯角：约 38°，能看见方块侧面又不被遮死 */
-var TOP_DIST_L = 23, TOP_DIST_P = 20;   /* 俯视机距：横屏 / 竖屏 */
 var PORTRAIT = false;
 var camRay = new THREE.Raycaster();
 var camRayT = 0;          /* 射线计时器：100ms 一次 */
@@ -953,15 +941,14 @@ function clampPitch() {
 /* ---------------- 输入 ---------------- */
 var keys = Object.create(null);
 
-/* ---- 视角切换：手机右上角按钮 / 桌面 V 键，循环：第一人称 → 第三人称 → 俯视 ---- */
+/* ---- 视角切换：手机右上角按钮 / 桌面 V 键，循环：第一人称 → 第三人称 → 自由 ---- */
 var viewBtn = document.getElementById('viewBtn');
-var VIEW_NAME = ['第一', '第三', '俯视', '全视'];
+var VIEW_NAME = ['第一', '第三', '自由'];
 function toggleView() {
-  viewMode = (viewMode + 1) % 4;
+  viewMode = (viewMode + 1) % 3;
   firstMode = (viewMode === 0);
-  topMode = (viewMode === 2);
-  freeMode = (viewMode === 3);
-  /* 进全视时从当前第三人称取景开始，镜头不会跳 */
+  freeMode = (viewMode === 2);
+  /* 进自由视角时从当前第三人称取景开始，镜头不会跳 */
   if (freeMode) { freePitch = camPitch; freeDist = camDist + distKick; }
   if (viewBtn) {
     viewBtn.classList.toggle('on', viewMode !== 1);
@@ -989,9 +976,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/俯视/全视 · 右侧拖动 转视角 · 轻点 跳跃 · 全视里双指缩放　·　v0.11.28';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里双指缩放　·　v0.11.29';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/俯视/全视）· 全视里滚轮缩放　·　v0.11.28';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/自由）· 自由视角里滚轮缩放　·　v0.11.29';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1022,8 +1009,8 @@ runBtn.addEventListener('pointerdown', function (e) {
   hideTip();
 }, { passive: false });
 
-/* ---- 全视缩放：滚轮 / 双指捏合 ----
-   只在全视里生效——另外三档的距离是视角身份的一部分，不该被随手改。 */
+/* ---- 自由视角缩放：滚轮 / 双指捏合 ----
+   只在自由视角里生效——第一/第三的距离是视角身份的一部分，不该被随手改。 */
 function zoomFree(k) {
   freeDist *= k;
   if (freeDist < FREE_DIST_MIN) freeDist = FREE_DIST_MIN;
@@ -1048,12 +1035,12 @@ function pinchDist() {
 function turnBy(dx, dy) {
   camYaw   -= dx * 0.0062;
   if (firstMode) fpPitch -= dy * 0.0035;       /* 第一人称：上下拖动抬头/低头 */
-  else if (freeMode) {                         /* 全视：俯仰不设限，能翻到头顶和脚下 */
+  else if (freeMode) {                         /* 自由：俯仰不设限，能翻到头顶和脚下 */
     freePitch -= dy * 0.0042;
     if (freePitch > FREE_PITCH) freePitch = FREE_PITCH;
     else if (freePitch < -FREE_PITCH) freePitch = -FREE_PITCH;
   }
-  else if (!topMode) camPitch += dy * 0.0042;  /* 俯视：轴测角固定，拖动只转水平 */
+  else camPitch += dy * 0.0042;                /* 第三人称：转水平 + 俯仰 */
   if (fpPitch > 1.15) fpPitch = 1.15; else if (fpPitch < -1.15) fpPitch = -1.15;
   clampPitch();
 }
@@ -1459,7 +1446,7 @@ function update(dt) {
   var sq = P.squash;
   pawn.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
   /* 第一人称不渲染自己的身体，否则会看到头部内部（提前藏，避免过渡时相机穿进身体）。
-     全视把镜头推到贴近身体时同理。 */
+     自由视角把镜头推到贴近身体时同理。 */
   skinMesh.visible = fpBlend < 0.45 && !(freeMode && freeDist < 0.9);
 
   /* 阴影相机跟随 */
@@ -1480,7 +1467,7 @@ function update(dt) {
   ground.position.z = P.pos.z;
 
   /* 相机：平滑跟随角色位置（落地微沉、冲刺拉远都叠在这上面） */
-  var kf = Math.min(1, dt * (topMode ? 8 : 4.2));   /* 俯视是战术视角，跟得紧一点 */
+  var kf = Math.min(1, dt * 4.2);
   follow.x += (P.pos.x - follow.x) * kf;
   follow.y += (P.pos.y * 0.4 - follow.y) * kf;
   follow.z += (P.pos.z - follow.z) * kf;
@@ -1488,109 +1475,50 @@ function update(dt) {
   camKickT *= Math.pow(0.004, dt);                          /* 目标衰减：~0.25s 归零 */
   camKickV += (camKickT - camKickV) * Math.min(1, dt * 22); /* 实际值 2~3 帧平滑追上 */
 
-  /* ---- 三档视角：第一 / 第三 / 俯视，全部是同一台透视相机，靠权重混合 ----
-     两个平滑量在切换时一个涨一个落，所以往哪一档切都是连续的（不会硬切镜头）。 */
-  var effDist = camDist + distKick;      /* 第三人称的目标机距 */
+  /* ---- 两种取景：第一人称 / 轨道（第三人称 · 自由视角），同一台透视相机按权重混合 ----
+     平滑量一涨一落，所以切到哪一档都是连续的（不会硬切镜头）。 */
+  var effDist = camDist + distKick;      /* 轨道的目标机距 */
   fpBlend  += ((firstMode ? 1 : 0) - fpBlend)  * Math.min(1, dt * 3.6);
   if (fpBlend  < 0.001) fpBlend  = 0;
   if (fpBlend  > 0.999) fpBlend  = 1;
-  topBlend += ((topMode   ? 1 : 0) - topBlend) * Math.min(1, dt * 2.8);
-  if (topBlend < 0.001) topBlend = 0;
-  if (topBlend > 0.999) topBlend = 1;
 
   var wF = fpBlend;                    /* 第一人称权重 */
-  var wT = topBlend * (1 - wF);        /* 俯视权重 */
-  var w3 = Math.max(0, 1 - wF - wT);   /* 第三人称权重 */
-  var topDist = PORTRAIT ? TOP_DIST_P : TOP_DIST_L;
+  var w3 = 1 - wF;                     /* 轨道权重（和恒为 1） */
 
-  /* 全视：直接复用第三人称那套球面轨道，只是俯仰/距离换成自由值，
-     所以"缩放 + 任意角度"不用另写一套相机，也不会和其它档位打架。 */
+  /* 自由视角：直接复用第三人称那套球面轨道，只是俯仰/距离换成自由值，
+     所以"缩放 + 任意角度"不用另写一套相机，也不会和第三人称打架。 */
   var orbitPitch = freeMode ? freePitch : camPitch;
-  var orbitDist  = freeMode ? freeDist  : effDist;
-  if (freeMode) effDist = orbitDist;
-
-  /* 射线/遮挡用的混合俯角与机距（只用于算方向和阈值，真正的镜头位置在下面按权重插） */
-  var blendPitch = orbitPitch + (TOP_PITCH - orbitPitch) * wT;
-  var blendDist = effDist + (topDist - effDist) * wT;
+  if (freeMode) effDist = freeDist;
   var cP = Math.cos(orbitPitch), sP = Math.sin(orbitPitch);
 
-  /* 越肩偏移（右向量 = (cos yaw, 0, −sin yaw)）。射线和机位都要用它，所以先算。
-     ① 随机距成比例：角色在画面里始终偏左同一个角度（固定值在全视 1.5m 时会把角色推出画面）。
-     ② 再按画面宽高比收一下：竖屏横向视野窄，同样的世界偏移占屏幕的比例大得多，
-        不收会把人挤到左边缘（实测 27% 位置，几乎贴边）。 */
-  var aspK = (window.innerWidth / Math.max(1, window.innerHeight)) / 1.6;
-  if (aspK < 0.6) aspK = 0.6; else if (aspK > 1.2) aspK = 1.2;
-  var shoulder = effDist * SHOULDER_K * aspK;
-  if (shoulder < SHOULDER_MIN) shoulder = SHOULDER_MIN;
-  else if (shoulder > SHOULDER_MAX) shoulder = SHOULDER_MAX;
-  var shx = Math.cos(camYaw) * shoulder;
-  var shz = -Math.sin(camYaw) * shoulder;
-
   /* ---- 相机防穿模：从角色肩点向相机方向打射线，被挡住就拉近。
-     每 100ms 算一次（手机上 raycast 也不能每帧做），收缩快、恢复慢，避免抽晃。
-     俯视不拉近（拉近就没俯瞰感了），改用下面的半透明遮罩；第一人称不需要。 ---- */
+     每 100ms 算一次（手机上 raycast 也不能每帧做），收缩快、恢复慢，避免抽晃。 ---- */
   camRayT -= dt;
   if (camRayT <= 0 || camBlockCur > effDist) {
     camRayT = 0.1;
-    var rcp = Math.cos(blendPitch), rsp = Math.sin(blendPitch);
-    _rayO.set(P.pos.x + shx, P.pos.y + PIVOT_H, P.pos.z + shz);
-    _rayD.set(Math.sin(camYaw) * rcp, rsp, Math.cos(camYaw) * rcp);
+    _rayO.set(P.pos.x, P.pos.y + PIVOT_H, P.pos.z);
+    _rayD.set(Math.sin(camYaw) * cP, sP, Math.cos(camYaw) * cP);
     camRay.set(_rayO, _rayD);
-    camRay.far = blendDist + 0.2;
+    camRay.far = effDist + 0.2;
     var hits = camRay.intersectObjects(blockers, false);
 
-    /* 只在第三人称里改机距；俯视/第一人称都不用管 */
-    if (wT < 0.05 && wF < 0.05) {
-      /* 极限拉近 0.9m：再近就钻进身体了。比全视的缩放下限（1.5）更小，
-         因为这里是被墙逼的，宁可贴脸也不能穿墙。 */
+    if (wF < 0.05) {
+      /* 极限拉近 0.9m：被墙逼的，宁可贴脸也不能穿墙 */
       var pullMin = Math.min(0.9, effDist);
       camBlockGoal = hits.length ? Math.max(pullMin, hits[0].distance - 0.35) : effDist;
     } else {
-      camBlockGoal = effDist;
-    }
-
-    /* 俯视：角色与相机之间的物体做成半透明遮罩（“柱子挡人”就靠这个）。
-       只在俯视里换材质，否则第三人称下被射线扫到的积木会变成全透明。 */
-    if (ghostMat) {
-      var keep = [];
-      if (wT > 0.05) {
-        for (var hi = 0; hi < hits.length; hi++) {
-          if (keep.indexOf(hits[hi].object) < 0) keep.push(hits[hi].object);
-        }
-      }
-      for (var oi = 0; oi < occluded.length; oi++) {
-        if (keep.indexOf(occluded[oi]) < 0) occluded[oi].material = propMat;
-      }
-      for (var ki = 0; ki < keep.length; ki++) keep[ki].material = ghostMat;
-      occluded = keep;
+      camBlockGoal = effDist;          /* 第一人称不用管 */
     }
   }
   var camBlockK = camBlockGoal < camBlockCur ? 18 : 5;
   camBlockCur += (camBlockGoal - camBlockCur) * Math.min(1, dt * camBlockK);
   if (camBlockCur < effDist) effDist += (camBlockCur - effDist) * (1 - wF);
 
-  /* 遮罩只属于俯视；切走时把材质还回去 */
-  if (ghostMat) ghostMat.opacity = 0.26 * wT;
-  if (wT < 0.02 && occluded.length) {
-    for (var ci = 0; ci < occluded.length; ci++) occluded[ci].material = propMat;
-    occluded = [];
-  }
-
-  /* 第三人称 / 全视的球面轨道位置
-     越肩视角（over-the-shoulder，Gears / TLOU / UE 的 SpringArm + SocketOffset 都是这么摆的）：
-     枢轴抬到肩点 PIVOT_H，再整体向右偏 SHOULDER——角色落在画面左侧、正前方不被自己挡住。
-     偏移同时加到机位和注视点，所以是"整个取景框右移"，不是把镜头歪着对准人。 */
-  var tpX = follow.x + Math.sin(camYaw) * cP * effDist + shx;
+  /* 轨道机位：枢轴在肩点，球面绕角色转（第三人称与自由视角共用） */
+  var tpX = follow.x + Math.sin(camYaw) * cP * effDist;
   var tpY = follow.y + PIVOT_H + sP * effDist - camKickV;
-  var tpZ = follow.z + Math.cos(camYaw) * cP * effDist + shz;
-  var tpTX = follow.x + shx, tpTY = follow.y + PIVOT_H - camKickV, tpTZ = follow.z + shz;
-
-  /* 俯视：抬高 + 拉远，俯角固定、水平角可转 */
-  var tcp = Math.cos(TOP_PITCH), tsp = Math.sin(TOP_PITCH);
-  var opX = follow.x + Math.sin(camYaw) * tcp * topDist;
-  var opY = follow.y + tsp * topDist + 0.6;
-  var opZ = follow.z + Math.cos(camYaw) * tcp * topDist;
-  var opTX = follow.x, opTY = follow.y + 1.0, opTZ = follow.z;
+  var tpZ = follow.z + Math.cos(camYaw) * cP * effDist;
+  var tpTX = follow.x, tpTY = follow.y + PIVOT_H - camKickV, tpTZ = follow.z;
 
   /* 第一人称：眼睛位置 + 视线方向（camYaw 水平、fpPitch 俯仰） */
   var fpEyeX = P.pos.x, fpEyeY = P.pos.y + EYE_H, fpEyeZ = P.pos.z;
@@ -1599,18 +1527,18 @@ function update(dt) {
   var fpTY = fpEyeY + sfb * 12 - camKickV * 0.6;
   var fpTZ = fpEyeZ - Math.cos(camYaw) * cfb * 12;
 
-  /* 三套位置/注视点按权重相加（权重和恒为 1） */
+  /* 两套位置/注视点按权重相加（权重和恒为 1） */
   camera.position.set(
-    tpX * w3 + opX * wT + fpEyeX * wF,
-    tpY * w3 + opY * wT + fpEyeY * wF,
-    tpZ * w3 + opZ * wT + fpEyeZ * wF
+    tpX * w3 + fpEyeX * wF,
+    tpY * w3 + fpEyeY * wF,
+    tpZ * w3 + fpEyeZ * wF
   );
   camera.lookAt(
-    tpTX * w3 + opTX * wT + fpTX * wF,
-    tpTY * w3 + opTY * wT + fpTY * wF,
-    tpTZ * w3 + opTZ * wT + fpTZ * wF
+    tpTX * w3 + fpTX * wF,
+    tpTY * w3 + fpTY * wF,
+    tpTZ * w3 + fpTZ * wF
   );
-  /* 全视能转到地平线以下，但不能钻到地面底下：按当前机距反算"最低俯角"，
+  /* 自由视角能转到地平线以下，但不能钻到地面底下：按当前机距反算"最低俯角"，
      比直接裁 camera.y 更自然——机距越大允许越低，拉近了自然抬起来。 */
   if (freeMode) {
     var yMin = 0.35 - follow.y - PIVOT_H;
@@ -1756,15 +1684,11 @@ window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   get keys() { return keys; },
   get axis() { return getAxis(); },
   get camBlockCur() { return camBlockCur; },
-  get topMode() { return topMode; },
   get viewMode() { return viewMode; },
-  get topBlend() { return topBlend; },
   get camDistNow() { return camera.position.distanceTo(new THREE.Vector3(P.pos.x, P.pos.y + 1.35, P.pos.z)); },
   get fpBlend() { return fpBlend; },
   get fpPitch() { return fpPitch; },
   get skinVisible() { return skinMesh.visible; },
-  get occludedCount() { return occluded.length; },
-  get ghostOpacity() { return ghostMat.opacity; },
   get fovKick() { return fovKick; } };
 
 setTimeout(function () {
