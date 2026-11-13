@@ -54,7 +54,7 @@
 <canvas id="c"></canvas>
 <div id="err"></div>
 <div id="snd">🔇 点这里开声音</div>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.4</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.5</div>
 <script>
 /**
  * @license
@@ -709,12 +709,14 @@ var P = {
   leanFB: 0,     /* 前后倾斜，对应 ALS 的 LeanAmount.FB */
   jumpAnim: 'jumpWalkL',  /* 本次起跳用的片段 */
   lead: 0,        /* 起跳领先脚，0=左 1=右，每次起跳交替 */
-  landLock: 0     /* 落地动作的最短占用时间，之后立刻交还给移动状态 */
+  landLock: 0,    /* 落地动作的最短占用时间，之后立刻交还给移动状态 */
+  autoSprint: false /* 手机摇杆推满触发的自动冲刺，松手回落 */
 };
 
 var GRAV = 21;
 var JUMP_V = 6.7;
 var SPEED = 4.5;
+var SPRINT_V = 6.5;   /* ALS 冲刺基准 600cm/s，对应原生 sprint 动画 */
 var ACC = 20;
 var FRICT = 22;
 
@@ -747,9 +749,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.4';
+  tipEl.textContent = '左侧拖动 移动 · 推满 自动快跑 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.5';
 } else {
-  tipEl.textContent = 'WASD 移动 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.4';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.5';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -835,9 +837,8 @@ function releasePointer(e) {
 window.addEventListener('pointerup', releasePointer, { passive: true });
 window.addEventListener('pointercancel', releasePointer, { passive: true });
 
-/* 起跳：统一用 JumpWalk 片段（双臂一起向前摆），左右脚交替。
-   JumpRun 片段原版是反侧手甩到头顶以上 33cm 的夸张动作，实际看起来像"举手"，
-   这里不用它；要恢复改成 sp < 2.6 ? 'jumpWalk' : 'jumpRun' 即可。
+/* 起跳片段按速度选：普通走/跑用 JumpWalk（双臂前摆到下巴）；
+   冲刺起跳才用 JumpRun（原版反侧手甩过头顶 33cm，只有冲刺时这个力度才合理）。
    空中不播循环踏步，避免脚在原地划。 */
 function doJump() {
   if (!P.onGround) return;
@@ -845,7 +846,8 @@ function doJump() {
   P.onGround = false;
   P.squash = 0.82;
   P.landLock = 0;
-  P.jumpAnim = 'jumpWalk' + (P.lead ? 'R' : 'L');
+  var jsp = Math.hypot(vel.x, vel.z);
+  P.jumpAnim = (jsp > 4.8 ? 'jumpRun' : 'jumpWalk') + (P.lead ? 'R' : 'L');
   P.lead = P.lead ? 0 : 1;
   setAnim(P.jumpAnim, 1, true);
   sfxJump();
@@ -879,6 +881,7 @@ function getAxis() {
 /* ---------------- 更新 ---------------- */
 var vel = new THREE.Vector3();
 var tmp = new THREE.Vector3();
+var sprintT = 0;   /* 摇杆推满累计时间，达到 0.5s 触发自动冲刺 */
 
 function update(dt) {
   /* 兜底：只对已存在的上下文做 resume，绝不在这里新建——
@@ -892,11 +895,30 @@ function update(dt) {
 
   var axis = getAxis();
 
+  /* ---- 冲刺判定：Shift 按住（键盘）/ 摇杆推满 0.5s 自动进、回落 0.75 以下退出（手机） ---- */
+  var axisMag = Math.hypot(axis.x, axis.y);
+  var sprint = false;
+  if ((keys['shift'] || keys['shiftleft'] || keys['shiftright']) && axisMag > 0) sprint = true;
+  if (touch.active) {
+    if (axisMag > 0.92) {
+      sprintT += dt;
+      if (sprintT >= 0.5) P.autoSprint = true;
+    } else if (axisMag < 0.75) {
+      sprintT = 0;
+      P.autoSprint = false;
+    }
+    if (P.autoSprint) sprint = true;
+  } else {
+    sprintT = 0;
+    P.autoSprint = false;
+  }
+
   /* 目标速度：屏幕方向 → 相对相机的世界方向 */
+  var MOVE_V = sprint ? SPRINT_V : SPEED;
   var fx = -Math.sin(camYaw), fz = -Math.cos(camYaw);
   var rx =  Math.cos(camYaw), rz = -Math.sin(camYaw);
-  var tx = (rx * axis.x - fx * axis.y) * SPEED;
-  var tz = (rz * axis.x - fz * axis.y) * SPEED;
+  var tx = (rx * axis.x - fx * axis.y) * MOVE_V;
+  var tz = (rz * axis.x - fz * axis.y) * MOVE_V;
 
   var prevVX = vel.x, prevVZ = vel.z;
 
@@ -989,7 +1011,10 @@ function update(dt) {
       force = true;
     }
   } else if (sp > 0.3) {
-    nextAnim = sp < 2.6 ? 'walk' : 'run';
+    /* 冲刺优先：目标是冲刺且已加速到接近冲刺速度才切，避免起步阶段来回横跳 */
+    if (sprint && sp > 4.2) nextAnim = 'sprint';
+    else if (ANIM.cur === 'sprint' && sp > 3.8 && sprint) nextAnim = 'sprint';
+    else nextAnim = sp < 2.6 ? 'walk' : 'run';
     nextRate = Math.min(1.6, Math.max(0.6, sp / ANIM_NATIVE[nextAnim]));
   } else {
     nextAnim = 'idle';
