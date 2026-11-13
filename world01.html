@@ -82,7 +82,7 @@
 <button id="runBtn" class="pill">快跑</button>
 <button id="viewBtn" class="pill">第三</button>
 <button id="projBtn" class="pill">透视</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　·　O 正交　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.33</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　·　O 正交　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.34</div>
 <script>
 /**
  * @license
@@ -281,13 +281,26 @@ function addCollider(mesh, w, d, h) {
 }
 window.__colliders = colliders;   /* 诊断用 */
 
+/* ---------------- 出生点小院：一块会被房子占掉的地面 ----------------
+   散石和积木是随机撒的，不避开的话会卡进房子里、落在车道上。
+   院子范围和车道范围在这里定义一次，撒点时统一查。 */
+var YARD = { x0: -9, x1: 7, z0: -24, z1: -9 };
+function inYard(x, z, m) {
+  return x > YARD.x0 - m && x < YARD.x1 + m && z > YARD.z0 - m && z < YARD.z1 + m;
+}
+function inDrive(x, z, m) {           /* 车道在院墙外还延伸一截 */
+  return x > 1.6 - m && x < 4.1 + m && z > -16.5 - m && z < -6 + m;
+}
+
 (function scatter() {
   var i, n = 72;
+  var kept = 0;
   for (i = 0; i < n; i++) {
     var ang = hash(i, 1) * Math.PI * 2;
     var rad = 11 + Math.pow(hash(i, 2), 0.8) * 76;
     var px = Math.cos(ang) * rad;
     var pz = Math.sin(ang) * rad;
+    if (inYard(px, pz, 2) || inDrive(px, pz, 2)) continue;   /* 别把积木撒进新房子里 */
 
     var tall = hash(i, 3);
     var w = 0.7 + hash(i, 4) * 1.9;
@@ -355,27 +368,147 @@ window.__colliders = colliders;   /* 诊断用 */
   place(new THREE.Mesh(new THREE.BoxGeometry(SW, h, 1.7), propMat), t, h, 1.7, SW);
 })();
 
-/* 地面散石：近处可见，远处被雾吃掉，提供移动参照 */
+/* 地面散石 / 车道这类"压在地上"的浅色板：比墙暗一点点，不抢主体 */
 var stoneMat = new THREE.MeshStandardMaterial({ color: 0xeaeff3, roughness: 0.95, metalness: 0 });
 
+/* ---------------- 出生点小屋：僵毁式一层的郊区住宅 ----------------
+   主屋（山墙屋顶）+ 东侧贴着的车库翼 + 门廊 + 车道 + 栅栏小院。
+   布局（x 东 / z 南，出生点在原点，台阶朝 -z）：
+     院子 x∈[2.6, 18.6] z∈[-21, -5]，南墙开两个口：车道（x 3.5–6.2）和院门（x 10.3–11.5）
+     主屋 8×6×3m 山墙顶 +1.45，车库 3.7×5.5×2.7m 山墙顶 +0.95
+   白色世界里只有"开口"用深色：门窗是一块块贴在墙面上的灰面片。 */
+(function house() {
+  var winMat  = new THREE.MeshStandardMaterial({ color: 0x9fabb8, roughness: 0.35, metalness: 0.1 });  /* 窗：微反光当玻璃 */
+  var doorMat = new THREE.MeshStandardMaterial({ color: 0x8f9aa6, roughness: 0.55 });
+  var garMat  = new THREE.MeshStandardMaterial({ color: 0xdde4ea, roughness: 0.85 });
+  /* 屋面和白墙必须差一点点色调：全是纯白的话，从上方看屋顶会糊成一块分不出坡面 */
+  var roofMat = new THREE.MeshStandardMaterial({ color: 0xe7eef5, roughness: 0.95, metalness: 0 });
+  var leafMat = new THREE.MeshStandardMaterial({ color: 0xedf3f8, roughness: 0.95, metalness: 0 });
+
+  function box(w, h, d, x, y, z, mat, opt) {
+    var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat || propMat);
+    m.position.set(x, y, z);
+    m.castShadow = true; m.receiveShadow = true;
+    m.userData.baseMat = m.material;      /* 还原遮挡遮罩时要还回原材质，不能一律刷成 propMat */
+    scene.add(m);
+    if (opt) opt(m);
+    return m;
+  }
+  /* 山墙屋顶：三角截面沿 z 挤出（脊线沿 z），底宽盖过墙顶一点当屋檐 */
+  function gable(w, h, d, x, y, z) {
+    var s = new THREE.Shape();
+    s.moveTo(-w / 2, 0); s.lineTo(w / 2, 0); s.lineTo(0, h); s.closePath();
+    var g = new THREE.ExtrudeGeometry(s, { depth: d, bevelEnabled: false });
+    g.translate(0, 0, -d / 2);
+    var m = new THREE.Mesh(g, roofMat);
+    m.position.set(x, y, z);
+    m.castShadow = true; m.receiveShadow = true;
+    m.userData.baseMat = roofMat;
+    scene.add(m);
+    return m;
+  }
+
+  var HX = -3, HZ = -19.5;            /* 主屋中心：藏在出生点正前方 */
+  var GX = 2.85, GZ = -19.25;         /* 车库中心：贴主屋东墙 */
+
+  /* ---- 主屋 ---- */
+  var mainWall = box(8, 3, 6, HX, 1.5, HZ, propMat, function (m) { addCollider(m, 8, 6, 3); blockers.push(m); });
+  blockers.push(gable(8.8, 1.45, 6.8, HX, 2.96, HZ));    /* 屋顶：够不着（不碰撞），但挡相机 */
+  box(0.55, 1.5, 0.55, HX + 2.3, 3.6, HZ + 1.8);         /* 烟囱 */
+
+  /* ---- 车库翼（贴主屋东墙） ---- */
+  var garWall = box(3.7, 2.7, 5.5, GX, 1.35, GZ, propMat, function (m) { addCollider(m, 3.7, 5.5, 2.7); blockers.push(m); });
+  blockers.push(gable(4.3, 0.8, 6.2, GX, 2.66, GZ));
+
+  /* ---- 门廊：平台 + 雨棚 + 两根柱 ---- */
+  box(2.6, 0.3, 1.6, HX, 0.15, -15.7, propMat, function (m) { addCollider(m, 2.6, 1.6, 0.3); });  /* 0.3 < STEP_UP 直接走上去 */
+  box(2.8, 0.1, 1.4, HX, 2.5, -15.75).rotation.x = -0.07;   /* 单坡雨棚 */
+  box(0.1, 2.35, 0.1, HX - 1.2, 1.175, -15.0);
+  box(0.1, 2.35, 0.1, HX + 1.2, 1.175, -15.0);
+
+  /* ---- 开口（贴墙的深色面片） ----
+     它们贴在墙面上、不在 blockers 里，所以墙体被遮罩换透明时得跟着藏起来，
+     否则会剩几块深灰的方片飘在半空中。 */
+  var trims = [];
+  trims.push(box(1.0, 2.05, 0.06, HX, 1.18, -16.46, doorMat));         /* 前门 */
+  trims.push(box(1.5, 1.1, 0.06, HX - 3.0, 1.7, -16.46, winMat));      /* 南墙两窗 */
+  trims.push(box(1.5, 1.1, 0.06, HX + 3.0, 1.7, -16.46, winMat));
+  trims.push(box(0.06, 1.1, 1.5, HX - 4.03, 1.7, HZ + 1.5, winMat));   /* 西墙 */
+  trims.push(box(1.5, 1.1, 0.06, HX, 1.7, HZ - 3.03, winMat));         /* 北墙 */
+  mainWall.userData.trim = trims;
+  /* 车库门 + 四条横槽（卷帘门的分板） */
+  var gtrims = [box(2.9, 2.1, 0.06, GX, 1.05, -16.46, garMat)];
+  for (var gi = 0; gi < 4; gi++) gtrims.push(box(2.9, 0.06, 0.03, GX, 0.5 + gi * 0.5, -16.42, propMat));
+  garWall.userData.trim = gtrims;
+
+  /* ---- 车道：从车库门向南穿出院门 ---- */
+  box(2.5, 0.06, 10.5, GX, 0.03, -11.25, stoneMat, function (m) { m.castShadow = false; });
+
+  /* ---- 栅栏小院：横板 + 柱，南墙留车道口和院门 ----
+     seg(cx, cz, len, alongX)：一段栅栏，整体登记一个矮墙碰撞体 */
+  function seg(cx, cz, len, alongX) {
+    var i, n = Math.max(2, Math.round(len / 1.7) + 1);
+    for (i = 0; i < n; i++) {
+      var t = (i / (n - 1) - 0.5) * (len - 0.1);
+      box(0.1, 0.95, 0.1, cx + (alongX ? t : 0), 0.475, cz + (alongX ? 0 : t));
+    }
+    box(alongX ? len : 0.06, 0.09, alongX ? 0.06 : len, cx, 0.42, cz);
+    box(alongX ? len : 0.06, 0.09, alongX ? 0.06 : len, cx, 0.78, cz);
+    var wall = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), propMat);   /* 只当碰撞体，不渲染 */
+    wall.position.set(cx, 0.475, cz); wall.rotation.y = alongX ? 0 : Math.PI / 2;
+    addCollider(wall, alongX ? len : 0.2, alongX ? 0.2 : len, 0.95);
+  }
+  var y0 = YARD.z0, y1 = YARD.z1, x0 = YARD.x0, x1 = YARD.x1;
+  seg((x0 - 3.2) / 2, y1, -3.2 - x0, true);                /* 南墙西段（到院门口） */
+  seg((-2.0 + 1.6) / 2, y1, 1.6 + 2.0, true);              /* 南墙中段（院门 ↔ 车道口） */
+  seg((4.1 + x1) / 2, y1, x1 - 4.1, true);                 /* 南墙东段 */
+  seg(x0, (y0 + y1) / 2, y1 - y0, false);                  /* 西墙 */
+  seg((x0 + x1) / 2, y0, x1 - x0, true);                   /* 北墙 */
+  seg(x1, (y0 + y1) / 2, y1 - y0, false);                  /* 东墙 */
+
+  /* ---- 院子里的树和门廊灌木 ----
+     树冠用两层压扁的低多边形球：单个正球在纯白世界里像一颗雪球，加一层小的就有"树"的轮廓 */
+  function tree(x, z) {
+    box(0.3, 2.0, 0.3, x, 1.0, z, propMat, function (m) { addCollider(m, 0.4, 0.4, 2.0); });
+    var c1 = new THREE.Mesh(new THREE.IcosahedronGeometry(1.15, 0), leafMat);
+    c1.position.set(x, 2.75, z); c1.scale.set(1.15, 0.92, 1.15);
+    var c2 = new THREE.Mesh(new THREE.IcosahedronGeometry(0.72, 0), leafMat);
+    c2.position.set(x + 0.2, 3.55, z - 0.15);
+    [c1, c2].forEach(function (c) {
+      c.castShadow = true; c.receiveShadow = true;
+      c.userData.baseMat = leafMat;
+      scene.add(c); blockers.push(c);
+    });
+  }
+  tree(-6.4, -12.4);
+  tree(5.7, -13.2);
+  box(0.8, 0.75, 0.8, HX - 2.1, 0.37, -16.1, propMat);     /* 门廊两侧的灌木 */
+  box(0.8, 0.75, 0.8, HX + 2.1, 0.37, -16.1, propMat);
+})();
+
+/* 地面散石：近处可见，远处被雾吃掉，提供移动参照 */
 (function stones() {
   var N = 240;
   var geo = new THREE.BoxGeometry(1, 1, 1);
-  var inst = new THREE.InstancedMesh(geo, stoneMat, N);
   var dm = new THREE.Object3D();
+  var mats = [];
 
   for (var i = 0; i < N; i++) {
     var ang = hash(i, 11) * Math.PI * 2;
     var u = hash(i, 12);
     var rad = 1.6 + Math.pow(u, 1.15) * 42;
     var sz = 0.06 + hash(i, 13) * 0.18;
+    var sx = Math.cos(ang) * rad, szz = Math.sin(ang) * rad;
+    if (inYard(sx, szz, 0.5) || inDrive(sx, szz, 0.5)) continue;   /* 院子里、车道上不放石头 */
 
-    dm.position.set(Math.cos(ang) * rad, sz * 0.5, Math.sin(ang) * rad);
+    dm.position.set(sx, sz * 0.5, szz);
     dm.scale.set(sz, sz * (0.45 + hash(i, 14) * 1.1), sz * (0.7 + hash(i, 16) * 0.6));
     dm.rotation.set(0, hash(i, 15) * 6.28, 0);
     dm.updateMatrix();
-    inst.setMatrixAt(i, dm.matrix);
+    mats.push(dm.matrix.clone());
   }
+  var inst = new THREE.InstancedMesh(geo, stoneMat, mats.length);
+  for (var k = 0; k < mats.length; k++) inst.setMatrixAt(k, mats[k]);
   inst.instanceMatrix.needsUpdate = true;
   inst.castShadow = true;
   inst.receiveShadow = true;
@@ -916,9 +1049,9 @@ var FRICT = 22;
 var camYaw   = 0;          /* 水平角，0 = 在角色正后方 */
 var camPitch = 0.30;       /* 俯角 */
 var camDist  = 8.6;
-/* 视角模式：0=第一人称 1=第三人称（默认） 2=自由（可旋转 + 可缩放） */
-var viewMode = 1;
-var firstMode = false, freeMode = false;
+/* 视角模式：0=第一人称 1=第三人称 2=自由（默认——进来先给俯视全景，再自己转/缩） */
+var viewMode = 2;
+var firstMode = false, freeMode = true;
 var fpBlend = 0;                 /* 第一/第三之间的平滑量，切换永远是连续曲线 */
 var fpPitch = -0.02;
 /* 轨道枢轴高度：肩点 1.42m。比胸口高、比眼低——挂胸口会让近景镜头卡在肚子上，
@@ -930,8 +1063,9 @@ var PIVOT_H = 1.42;
    它是"看全貌"的入口，进来先给全景，再自己转/缩。 */
 var FREE_PITCH_DEF = 0.66;
 var FREE_DIST_DEF_L = 23, FREE_DIST_DEF_P = 20;
-var freePitch = 0.30, freeDist = 8.6;
+var freePitch = FREE_PITCH_DEF, freeDist = FREE_DIST_DEF_L;   /* 开局就是默认落点（resize 再按横竖屏修正） */
 var freeIntro = 0;                       /* >0 表示还在往默认落点过渡（秒），用户一动就取消 */
+var freeUserZoom = false;                /* 用户自己缩过没有：没缩过就让默认机距跟着横竖屏走 */
 var freeToPitch = 0, freeToDist = 0;
 var FREE_PITCH = 1.45, FREE_DIST_MIN = 1.5, FREE_DIST_MAX = 60;
 var orthoMode = false;                   /* 自由视角里切：false 透视 / true 正交 */
@@ -990,6 +1124,7 @@ function toggleView() {
     freeToPitch = FREE_PITCH_DEF;
     freeToDist = PORTRAIT ? FREE_DIST_DEF_P : FREE_DIST_DEF_L;
     freeIntro = 0.55;
+    freeUserZoom = false;
   } else {
     freeIntro = 0;
   }
@@ -1025,9 +1160,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里右侧双指缩放、正交键切投影　·　v0.11.33';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里右侧双指缩放、正交键切投影　·　v0.11.34';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/自由）· 自由视角里滚轮缩放、O 切透视/正交　·　v0.11.33';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/自由）· 自由视角里滚轮缩放、O 切透视/正交　·　v0.11.34';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1058,6 +1193,7 @@ runBtn.addEventListener('pointerdown', function (e) {
    只在自由视角里生效——第一/第三的距离是视角身份的一部分，不该被随手改。 */
 function zoomFree(k) {
   freeIntro = 0;                 /* 用户开始自己缩放了，默认落点的过渡立刻让位 */
+  freeUserZoom = true;           /* 之后转屏不再改机距，尊重用户调的那个值 */
   freeDist *= k;
   if (freeDist < FREE_DIST_MIN) freeDist = FREE_DIST_MIN;
   else if (freeDist > FREE_DIST_MAX) freeDist = FREE_DIST_MAX;
@@ -1156,6 +1292,7 @@ window.addEventListener('pointermove', function (e) {
   if (pinch.on && (e.pointerId === pinch.a || e.pointerId === pinch.b)) {
     /* 按"起始距离 × 起始指距/当前指距"直接设值，不要反复累乘 */
     freeIntro = 0;                /* 捏合 = 用户自己在调距离 */
+    freeUserZoom = true;
     var nd = pinch.dist0 * (pinch.d0 / pd(pinch.a, pinch.b));
     freeDist = nd < FREE_DIST_MIN ? FREE_DIST_MIN : (nd > FREE_DIST_MAX ? FREE_DIST_MAX : nd);
     return;                       /* 注意只拦截这两根手指，摇杆手指的移动照常往下走 */
@@ -1612,9 +1749,17 @@ function update(dt) {
       }
     }
     for (var oi = 0; oi < occluded.length; oi++) {
-      if (keep.indexOf(occluded[oi]) < 0) occluded[oi].material = propMat;
+      if (keep.indexOf(occluded[oi]) < 0) {
+        var ob = occluded[oi];
+        ob.material = ob.userData.baseMat || propMat;      /* 还回原材质：屋顶是 roofMat、树冠是 leafMat */
+        if (ob.userData.trim) for (var ti = 0; ti < ob.userData.trim.length; ti++) ob.userData.trim[ti].visible = true;
+      }
     }
-    for (var ki = 0; ki < keep.length; ki++) keep[ki].material = ghostMat;
+    for (var ki = 0; ki < keep.length; ki++) {
+      var kb = keep[ki];
+      kb.material = ghostMat;
+      if (kb.userData.trim) for (var tj = 0; tj < kb.userData.trim.length; tj++) kb.userData.trim[tj].visible = false;
+    }
     occluded = keep;
   }
   var camBlockK = camBlockGoal < camBlockCur ? 18 : 5;
@@ -1725,6 +1870,9 @@ function resize() {
   FOV_BASE = portrait ? 60 : 48;
   camera.fov = FOV_BASE;
   camDist = portrait ? 9.9 : 8.6;
+  /* 用户没自己缩过，就让自由视角的默认机距跟着横竖屏走（20 / 23）；
+     缩过就锁住不动，别在转屏时把人调好的距离改掉。 */
+  if (!freeUserZoom) freeDist = portrait ? FREE_DIST_DEF_P : FREE_DIST_DEF_L;
   if (!camReady) { camPitch = portrait ? 0.34 : 0.30; camReady = true; }
   camera.updateProjectionMatrix();
 
