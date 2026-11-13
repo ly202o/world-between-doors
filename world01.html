@@ -143,7 +143,7 @@
   <button id="settingsReset" type="button">恢复默认</button>
   <button id="settingsClose" type="button">关闭</button>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳/攀　·　V 切视角　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.11.43</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳/攀　·　V 切视角　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.11.45</div>
 <script>
 /**
  * @license
@@ -1003,6 +1003,7 @@ document.addEventListener('visibilitychange', function () {
   if (document.hidden) {
     /* 切后台：停掉渲染循环省电，回来时重置时间基准，避免卡一大跳 */
     renderPaused = true;
+    resetInput();
   } else {
     renderPaused = false;
     last = performance.now();
@@ -1287,14 +1288,20 @@ function syncSettings() {
   document.getElementById('settingsTheme').value = themeName;
   document.getElementById('settingsCollision').checked = !!colVizOn;
 }
+function resetInput() {
+  keys = Object.create(null);
+  mouse.down = false;
+  touch.active = look.active = false;
+  touch.id = look.id = -1;
+  look.dragging = false;
+  ptrs = {}; pinch.on = false;
+  jumpBufT = 0;
+}
 function showSettings(on) {
   settingsOpen = !!on;
   settingsPanel.hidden = !settingsOpen;
   document.getElementById('settingsBtn').classList.toggle('on', settingsOpen);
-  keys = Object.create(null);
-  mouse.down = false;
-  touch.active = look.active = false;
-  ptrs = {}; pinch.on = false;
+  resetInput();
   if (settingsOpen && document.exitPointerLock) document.exitPointerLock();
   syncSettings();
 }
@@ -1452,11 +1459,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由视角里双指缩放、45°键锁死视角、主题键切主题、碰撞键看碰撞体　·　v0.11.43';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由视角里双指缩放、45°键锁死视角、主题键切主题、碰撞键看碰撞体　·　v0.11.45';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · 自由视角里滚轮缩放、L 锁死 45° 视角 · T 切主题 · C 看碰撞体 · F2 设置 · H 显示/隐藏本说明　·　v0.11.43';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · 自由视角里滚轮缩放、L 锁死 45° 视角 · T 切主题 · C 看碰撞体 · F2 设置 · H 显示/隐藏本说明　·　v0.11.45';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1479,7 +1486,7 @@ window.addEventListener('keydown', function (e) {
 }, { passive: false });
 
 window.addEventListener('keyup', function (e) { keys[e.key.toLowerCase()] = false; }, { passive: true });
-window.addEventListener('blur', function () { keys = Object.create(null); });
+window.addEventListener('blur', resetInput);
 
 /* ---- 快跑切换按钮：只在触屏设备显示，开一次后摇杆推着走就是冲刺 ---- */
 var RUN_TOGGLE = false;
@@ -1501,7 +1508,7 @@ function zoomFree(k) {
   else if (freeDist > FREE_DIST_MAX) freeDist = FREE_DIST_MAX;
 }
 window.addEventListener('wheel', function (e) {
-  if (!freeMode) return;
+  if (settingsOpen || !freeMode) return;
   e.preventDefault();
   zoomFree(Math.exp(e.deltaY * 0.0011));
   hideTip();
@@ -1544,6 +1551,7 @@ function turnBy(dx, dy, sensitivity) {
 }
 
 canvas.addEventListener('pointerdown', function (e) {
+  if (settingsOpen) return;
   if (e.pointerType === 'mouse') {
     mouse.down = true; mouse.px = e.clientX; mouse.py = e.clientY;
     hideTip();
@@ -1596,6 +1604,7 @@ canvas.addEventListener('pointerdown', function (e) {
 }, { passive: false });
 
 window.addEventListener('pointermove', function (e) {
+  if (settingsOpen) return;
   if (e.pointerType === 'mouse') {
     if (plLocked) {
       /* 锁定态：直接用 movement 差值，不需要按住任何键 */
@@ -1656,7 +1665,7 @@ function releasePointer(e) {
     touch.active = false; touch.id = -1;
   }
   if (look.active && e.pointerId === look.id) {
-    if (!look.dragging && performance.now() - look.t0 < 280) {
+    if (!settingsOpen && e.type !== 'pointercancel' && !look.dragging && performance.now() - look.t0 < 280) {
       doJump();
       if (navigator.vibrate) { try { navigator.vibrate(9); } catch (_) {} }
     }
@@ -2529,7 +2538,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.11.44';
+window.__worldVersion = 'v0.11.45';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   motionDebug: motionDebug, footState: footState,
   supportAt: supportAt, bodyClear: bodyClear,
