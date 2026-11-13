@@ -79,6 +79,7 @@
 | v0.11.30 | 自由视角能边走边转视角：捏合判定加"无摇杆手指 + 同半屏"两个前置条件 | 用户报自由视角里右边转不了——实际是双指捏合把"左手摇杆+右手拖动"判成了缩放，两个操作一起作废 |
 | v0.11.31 | 自由视角俯仰方向修正（`+=`）；捏合改"右半屏两指"判定，摇杆不再被禁 | 用户「上下反了」+「希望一边走一边缩放」——v0.11.30 的"有摇杆就不许捏合"矫枉过正 |
 | v0.11.32 | 自由视角遮挡改用半透明（复活 `ghostMat` / `occluded`），机距不再被拉近 | 用户「采用之前俯视视角的做法」——自由视角的机距是用户自己滚的，被塔拽走等于抢控制权 |
+| v0.11.33 | 文件改名（`world01.html` / `backups/versions.html`）+ 自由视角默认落点改旧俯视（0.66 / 23·20）+ 正交投影 + 按钮改 34px 药丸 | 用户「怎么有两个 index.html」「默认高度和之前俯视一样」「加个透视/正交切换」「圆圈太占空间」 |
 | v0.11.8 | 手感五连：跳跃缓冲 0.14s / 落地相机微沉 / 冲刺 FOV+拉远 / 转身惯性 / 减速动画滞后 | 用户授权「完善手感细节和动作细节」 |
 | v0.11.9 | 落地微沉改平滑：幅度减半、两帧追、位置+注视点同沉 | 用户反馈「落地后远景跳一下，更低了」——一帧拽到位+只动位置导致俯仰突变 |
 
@@ -115,7 +116,7 @@
 
 ## 五、代码地图
 
-`index.html` 约 2.07MB，五个 `<script>` 块：Three.js（654KB）+ 角色蒙皮数据 `__RIG`（629KB）+ 动画曲线 `__ANIMS`（577KB）+ 音效 `__SFX`（111KB）+ 游戏本体（27KB）。
+`world01.html` 约 2.07MB，五个 `<script>` 块：Three.js（654KB）+ 角色蒙皮数据 `__RIG`（629KB）+ 动画曲线 `__ANIMS`（577KB）+ 音效 `__SFX`（111KB）+ 游戏本体（27KB）。
 
 区块顺序固定，找东西按这个找：
 
@@ -288,11 +289,11 @@ bake_full.cjs     # 动画 FBX → _anims.js（每骨绝对局部旋转）；跳
 
 ---
 
-### 27. 别用 `sed -i` 改 index.html，它会顺手把整个文件的 CRLF 换成 LF（v0.11.25）
+### 27. 别用 `sed -i` 改 world01.html，它会顺手把整个文件的 CRLF 换成 LF（v0.11.25）
 
 `sed -i 's/v0.11.23/v0.11.24/g'` 只改一行版本号，结果 git diff 显示 1729 行新增 / 1705 行删除——全文件换行符被 GNU sed 重写了一遍。功能没坏（HTML 对 LF 无所谓），但 diff 彻底没法看了。
 
-**改 index.html 只用 Edit 工具**（它保留原换行符）。真要批量替换，先确认 diff 行数合理再提交。
+**改 world01.html 只用 Edit 工具**（它保留原换行符）。真要批量替换，先确认 diff 行数合理再提交。
 
 ### 28. 算"推力"要用意图速度，不能用当前速度（v0.11.26）
 
@@ -321,6 +322,12 @@ bake_full.cjs     # 动画 FBX → _anims.js（每骨绝对局部旋转）；跳
 
 **顺带**：`ghostMat` 必须 `depthWrite = false`，否则半透明的塔会把后面的角色写进深度缓冲，看起来像被裁掉一块。
 
+### 32. 批量改名会误伤"同名但不同义"的字符串（v0.11.33）
+
+`index.html` → `world01.html` 用脚本全局替换，看着干净，实际踩了两处：`backups/index.html` 被先替换成 `backups/versions.html`、再被 `index.html → world01.html` 二次替换成 `backups/versions.world01.html`；`fs.writeFileSync(path.join(BK,'index.html'))` 这种"只是拼路径"的地方也被改成了 `world01.html`，索引页会写到错的文件名。
+
+**教训**：改名别只做一次 `replace`，按**从长到短**的顺序替换（先 `backups/index.html`，再裸 `index.html`），改完 `grep` 一遍残留，再跑一次生成脚本看产物文件名对不对。
+
 ## 七、参数速查
 
 | 项 | 值 |
@@ -338,6 +345,9 @@ bake_full.cjs     # 动画 FBX → _anims.js（每骨绝对局部旋转）；跳
 | 地面网格 | 1 m 强度 0.07 / 5 m 强度 0.10，混向 `#8C99A8`；`fwidth` 定 1px 宽，覆盖率 0.12–0.55 m 与距离 26–78 m 两级衰减 |
 | 第一人称 | 眼高 1.62 m，`fpPitch` ±1.15 rad，`fpBlend > 0.45` 隐藏自身网格 |
 | 自由 | `freePitch` ±1.45 rad，`freeDist` 1.5 – 60 m；滚轮系数 `exp(dY × 0.0011)`；双指 = `dist0 × d0/d`；`freeDist < 0.9` 藏身体；最低俯角 `asin((0.35 − follow.y − 1.42) / dist)` |
+| 自由默认落点 | `FREE_PITCH_DEF` 0.66 / `FREE_DIST_DEF_L` 23 / `FREE_DIST_DEF_P` 20（沿用旧 `TOP_PITCH` / `TOP_DIST`）；`freeIntro` 0.55 s 缓动，用户一动清 0 |
+| 正交 | `orthoCam` 与透视共用位置/朝向；`halfH = tan(fov/2) × effDist`、`halfW = halfH × aspect`；只在 `freeMode && orthoMode && wF < 0.05` 时 `activeCam = orthoCam` |
+| HUD 按钮 | `.pill` 高 34、左右 padding 13、圆角 999、字 12/600；右上 14 起，正交在其下 42；快跑右下 100 |
 | 碰撞 | `PLAYER_R` 0.36、`STEP_UP` 0.35、`STEP_DOWN` 0.40、站立判定放宽 0.28；87 个碰撞体（72 积木 + 11 高塔 + 4 台阶） |
 | 贴墙摩擦 | `WALL_FRIC` 3.5：切向速度每秒衰减 `3.5 × |目标速度·法线|`；0–30° 顶死，45°+ 照常滑；只在 onGround 生效 |
 | fov | 横屏 48 / 竖屏 60 |

@@ -48,32 +48,24 @@
     font: 500 12px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
     color: #8a939b; letter-spacing: .04em; z-index: 200;
   }
-  #runBtn {
-    position: fixed; right: 18px;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 76px);
-    display: none;
-    width: 66px; height: 66px; border-radius: 50%; border: none;
+  /* 手机操作按钮：白色小药丸。
+     原来是 58/66px 的圆，屏幕右上角被吃掉一大块，而里面只有两个字。
+     现在 34px 高、左右 13px 内边距，视觉重量不到原来一半。 */
+  .pill {
+    position: fixed; display: none;
+    height: 34px; padding: 0 13px; border: none; border-radius: 999px;
     background: rgba(255,255,255,.88);
-    box-shadow: 0 2px 12px rgba(120,132,144,.30);
-    font: 600 13px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
-    color: #8a939b; letter-spacing: .1em; z-index: 210;
-    touch-action: none; -webkit-user-select: none; user-select: none;
-    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
-  }
-  #runBtn.on { background: #454d54; color: #ffffff; }
-  #viewBtn {
-    position: fixed; right: 18px;
-    top: calc(env(safe-area-inset-top, 0px) + 54px);
-    display: none;
-    width: 58px; height: 58px; border-radius: 50%; border: none;
-    background: rgba(255,255,255,.88);
-    box-shadow: 0 2px 12px rgba(120,132,144,.30);
+    box-shadow: 0 1px 5px rgba(120,132,144,.20);
     font: 600 12px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
-    color: #8a939b; letter-spacing: .1em; z-index: 210;
+    color: #858e96; letter-spacing: .04em; z-index: 210;
     touch-action: none; -webkit-user-select: none; user-select: none;
     -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
   }
-  #viewBtn.on { background: #454d54; color: #ffffff; }
+  .pill.on { background: #454d54; color: #ffffff; }
+  /* 快跑放在提示文字上方一点：药丸变小了，别和底部那三行提示压在一起 */
+  #runBtn  { right: 14px; bottom: calc(env(safe-area-inset-bottom, 0px) + 100px); }
+  #viewBtn { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 14px); }
+  #projBtn { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 56px); }
   #fps {
     position: fixed; left: 10px; top: 8px;
     font: 400 10px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -87,9 +79,10 @@
 <div id="err"></div>
 <div id="snd">🔇 点这里开声音</div>
 <div id="fps">— FPS</div>
-<button id="runBtn">快跑</button>
-<button id="viewBtn">第三</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.32</div>
+<button id="runBtn" class="pill">快跑</button>
+<button id="viewBtn" class="pill">第三</button>
+<button id="projBtn" class="pill">透视</button>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　·　O 正交　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.33</div>
 <script>
 /**
  * @license
@@ -173,6 +166,10 @@ var FOG = new THREE.Fog(0xf1f5f8, 20, 145);
 scene.fog = FOG;
 
 var camera = new THREE.PerspectiveCamera(48, 1, 0.1, 400);
+/* 正交相机：只在自由视角里可选。渲染时和透视相机共用同一套位置/朝向，
+   区别只在投影方式——视锥半高 = tan(fov/2) × 机距，所以滚轮缩放的手感两档一致。 */
+var orthoCam = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 600);
+var activeCam = camera;
 
 /* ---------------- 光 ---------------- */
 var hemi = new THREE.HemisphereLight(0xffffff, 0xe8edf2, 1.45);
@@ -928,9 +925,16 @@ var fpPitch = -0.02;
    挂眼睛那是第一人称的事。 */
 var PIVOT_H = 1.42;
 /* 自由视角：俯仰不设限、距离可滚轮/双指缩放。
-   最近只到 1.5m：再近镜头就钻进身体了（最短臂长挡着，不靠"拉进眼睛"）。 */
+   最近只到 1.5m：再近镜头就钻进身体了（最短臂长挡着，不靠"拉进眼睛"）。
+   默认落点沿用旧的俯视档——俯角 0.66（约 38°）、机距横屏 23 / 竖屏 20。
+   它是"看全貌"的入口，进来先给全景，再自己转/缩。 */
+var FREE_PITCH_DEF = 0.66;
+var FREE_DIST_DEF_L = 23, FREE_DIST_DEF_P = 20;
 var freePitch = 0.30, freeDist = 8.6;
+var freeIntro = 0;                       /* >0 表示还在往默认落点过渡（秒），用户一动就取消 */
+var freeToPitch = 0, freeToDist = 0;
 var FREE_PITCH = 1.45, FREE_DIST_MIN = 1.5, FREE_DIST_MAX = 60;
+var orthoMode = false;                   /* 自由视角里切：false 透视 / true 正交 */
 var EYE_H = 1.62;              /* 第一人称眼睛高度 */
 var PORTRAIT = false;
 var camRay = new THREE.Raycaster();
@@ -951,23 +955,60 @@ var keys = Object.create(null);
 
 /* ---- 视角切换：手机右上角按钮 / 桌面 V 键，循环：第一人称 → 第三人称 → 自由 ---- */
 var viewBtn = document.getElementById('viewBtn');
+var projBtn = document.getElementById('projBtn');
+var runBtn  = document.getElementById('runBtn');
 var VIEW_NAME = ['第一', '第三', '自由'];
+var PROJ_NAME = ['透视', '正交'];
+
+/* 按钮只有触屏才出现（桌面用键盘/滚轮就够了）；正交按钮再叠一个"只在自由视角" */
+var TOUCH_UI = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+function syncBtns() {
+  var show = TOUCH_UI ? 'block' : 'none';
+  if (runBtn) {
+    runBtn.style.display = show;
+    runBtn.classList.toggle('on', RUN_TOGGLE);
+  }
+  if (viewBtn) {
+    viewBtn.style.display = show;
+    viewBtn.textContent = VIEW_NAME[viewMode];
+  }
+  if (projBtn) {
+    projBtn.style.display = (TOUCH_UI && freeMode) ? 'block' : 'none';
+    projBtn.textContent = PROJ_NAME[orthoMode ? 1 : 0];
+    projBtn.classList.toggle('on', orthoMode);
+  }
+}
+
 function toggleView() {
   viewMode = (viewMode + 1) % 3;
   firstMode = (viewMode === 0);
   freeMode = (viewMode === 2);
-  /* 进自由视角时从当前第三人称取景开始，镜头不会跳 */
-  if (freeMode) { freePitch = camPitch; freeDist = camDist + distKick; }
-  if (viewBtn) {
-    viewBtn.classList.toggle('on', viewMode !== 1);
-    viewBtn.textContent = VIEW_NAME[viewMode];
+  /* 进自由视角：从当前第三人称取景出发，再短缓动到"俯视全景"默认落点。
+     直接硬切会闪一下，所以给 0.55s 的接近；用户一动（转俯仰/缩放）立刻取消，不抢操作。 */
+  if (freeMode) {
+    freePitch = camPitch; freeDist = camDist + distKick;
+    freeToPitch = FREE_PITCH_DEF;
+    freeToDist = PORTRAIT ? FREE_DIST_DEF_P : FREE_DIST_DEF_L;
+    freeIntro = 0.55;
+  } else {
+    freeIntro = 0;
   }
+  if (!freeMode) orthoMode = false;   /* 离开自由视角就回透视，免得下次进来措手不及 */
+  syncBtns();
   hideTip();
 }
 if (viewBtn) {
   viewBtn.addEventListener('pointerdown', function (e) {
     e.stopPropagation(); e.preventDefault();
     toggleView();
+  }, { passive: false });
+}
+if (projBtn) {
+  projBtn.addEventListener('pointerdown', function (e) {
+    e.stopPropagation(); e.preventDefault();
+    orthoMode = !orthoMode;
+    syncBtns();
+    hideTip();
   }, { passive: false });
 }
 var touch = { id: -1, ox: 0, oy: 0, x: 0, y: 0, active: false };
@@ -984,9 +1025,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里右侧双指缩放　·　v0.11.32';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里右侧双指缩放、正交键切投影　·　v0.11.33';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/自由）· 自由视角里滚轮缩放（手机右侧双指）　·　v0.11.32';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/自由）· 自由视角里滚轮缩放、O 切透视/正交　·　v0.11.33';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -995,6 +1036,7 @@ window.addEventListener('keydown', function (e) {
   if (e.repeat) return;
   if (k === ' ' || k === 'spacebar') doJump();
   if (k === 'v') toggleView();
+  if (k === 'o' && freeMode) { orthoMode = !orthoMode; syncBtns(); }   /* 桌面没有按钮，给个键 */
   keys[k] = true;
   hideTip();
 }, { passive: false });
@@ -1003,23 +1045,19 @@ window.addEventListener('keyup', function (e) { keys[e.key.toLowerCase()] = fals
 window.addEventListener('blur', function () { keys = Object.create(null); });
 
 /* ---- 快跑切换按钮：只在触屏设备显示，开一次后摇杆推着走就是冲刺 ---- */
-var runBtn = document.getElementById('runBtn');
 var RUN_TOGGLE = false;
-if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  runBtn.style.display = 'block';
-  viewBtn.style.display = 'block';
-}
-window.__forceTouchUI = function () { runBtn.style.display = 'block'; viewBtn.style.display = 'block'; };  /* 诊断：headless 测按钮用 */
+window.__forceTouchUI = function () { TOUCH_UI = true; syncBtns(); };  /* 诊断：headless 测按钮用 */
 runBtn.addEventListener('pointerdown', function (e) {
   e.stopPropagation(); e.preventDefault();
   RUN_TOGGLE = !RUN_TOGGLE;
-  runBtn.classList.toggle('on', RUN_TOGGLE);
+  syncBtns();
   hideTip();
 }, { passive: false });
 
 /* ---- 自由视角缩放：滚轮 / 双指捏合 ----
    只在自由视角里生效——第一/第三的距离是视角身份的一部分，不该被随手改。 */
 function zoomFree(k) {
+  freeIntro = 0;                 /* 用户开始自己缩放了，默认落点的过渡立刻让位 */
   freeDist *= k;
   if (freeDist < FREE_DIST_MIN) freeDist = FREE_DIST_MIN;
   else if (freeDist > FREE_DIST_MAX) freeDist = FREE_DIST_MAX;
@@ -1052,6 +1090,7 @@ function turnBy(dx, dy) {
   camYaw   -= dx * 0.0062;
   if (firstMode) fpPitch -= dy * 0.0035;       /* 第一人称：上下拖动抬头/低头 */
   else if (freeMode) {                         /* 自由：俯仰不设限，能翻到头顶和脚下 */
+    if (dy) freeIntro = 0;                     /* 用户自己在转俯仰了，别再往默认落点拉 */
     freePitch += dy * 0.0042;                  /* 方向必须和第三人称一致：下拖 = 低头 */
     if (freePitch > FREE_PITCH) freePitch = FREE_PITCH;
     else if (freePitch < -FREE_PITCH) freePitch = -FREE_PITCH;
@@ -1116,6 +1155,7 @@ window.addEventListener('pointermove', function (e) {
   if (ptrs[e.pointerId]) { ptrs[e.pointerId].x = e.clientX; ptrs[e.pointerId].y = e.clientY; }
   if (pinch.on && (e.pointerId === pinch.a || e.pointerId === pinch.b)) {
     /* 按"起始距离 × 起始指距/当前指距"直接设值，不要反复累乘 */
+    freeIntro = 0;                /* 捏合 = 用户自己在调距离 */
     var nd = pinch.dist0 * (pinch.d0 / pd(pinch.a, pinch.b));
     freeDist = nd < FREE_DIST_MIN ? FREE_DIST_MIN : (nd > FREE_DIST_MAX ? FREE_DIST_MAX : nd);
     return;                       /* 注意只拦截这两根手指，摇杆手指的移动照常往下走 */
@@ -1518,6 +1558,19 @@ function update(dt) {
   var wF = fpBlend;                    /* 第一人称权重 */
   var w3 = 1 - wF;                     /* 轨道权重（和恒为 1） */
 
+  /* 进自由视角的过渡：从当前取景平滑滑到"俯视全景"默认落点。
+     用户一动就取消（转俯仰 / 滚轮 / 捏合里各自清 freeIntro），不跟人抢操作。 */
+  if (freeIntro > 0) {
+    if (!freeMode) { freeIntro = 0; }
+    else {
+      freeIntro -= dt;
+      var ki = Math.min(1, dt * 5.2);
+      freePitch += (freeToPitch - freePitch) * ki;
+      freeDist  += (freeToDist  - freeDist)  * ki;
+      if (freeIntro <= 0) { freePitch = freeToPitch; freeDist = freeToDist; }
+    }
+  }
+
   /* 自由视角：直接复用第三人称那套球面轨道，只是俯仰/距离换成自由值，
      所以"缩放 + 任意角度"不用另写一套相机，也不会和第三人称打架。 */
   var orbitPitch = freeMode ? freePitch : camPitch;
@@ -1612,6 +1665,23 @@ function update(dt) {
     camera.updateProjectionMatrix();
   }
 
+  /* 正交取景：只在自由视角里生效。视锥按当前机距反算（半高 = tan(fov/2) × 机距），
+     所以滚轮/双指缩放的手感和透视档完全一致，只是透视收缩没了、远近同大。
+     位置与朝向直接抄透视相机——lookAt 已经落地，不用再算一遍轨道。 */
+  if (freeMode && orthoMode && wF < 0.05) {
+    orthoCam.position.copy(camera.position);
+    orthoCam.quaternion.copy(camera.quaternion);
+    var hh = Math.tan(camera.fov * Math.PI / 360) * effDist;
+    var hw = hh * camera.aspect;
+    orthoCam.left = -hw; orthoCam.right = hw;
+    orthoCam.top = hh;   orthoCam.bottom = -hh;
+    orthoCam.near = 0.1; orthoCam.far = 600;
+    orthoCam.updateProjectionMatrix();
+    activeCam = orthoCam;
+  } else {
+    activeCam = camera;
+  }
+
   window.__camYaw = camYaw;
   window.__camPitch = camPitch;
 }
@@ -1667,6 +1737,7 @@ function resize() {
 window.addEventListener('resize', resize, { passive: true });
 window.addEventListener('orientationchange', function () { setTimeout(resize, 150); }, { passive: true });
 resize();
+syncBtns();
 
 /* ---------------- 主循环 ---------------- */
 var last = performance.now();
@@ -1716,7 +1787,7 @@ function loop(t) {
   driveAnim(dt);
   jumpTDrv = performance.now() - _jd;
   drawStick();
-  renderer.render(scene, camera);
+  renderer.render(scene, activeCam);
   /* 音效在渲染之后播：手机上 <audio> / WebAudio 的调度是同步开销，
      放在起跳那一帧的渲染前会抢主线程（用户感觉「起跳时掉帧」）。 */
   if (pendSfxJump) { pendSfxJump = 0; var _js = performance.now(); sfxJump(); jumpTSfx = performance.now() - _js; }
@@ -1734,7 +1805,7 @@ window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   setYaw: function (v) { camYaw = v; },   /* 诊断用：测试脚本要能摆朝向 */
   get freeDist() { return freeDist; },
   get freePitch() { return freePitch; },
-  setFree: function (pitch, dist) { freePitch = pitch; freeDist = dist; },
+  setFree: function (pitch, dist) { freePitch = pitch; freeDist = dist; freeIntro = 0; },
   get keys() { return keys; },
   get axis() { return getAxis(); },
   get camBlockCur() { return camBlockCur; },
@@ -1746,6 +1817,10 @@ window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   get occludedCount() { return occluded.length; },
   get ghostOpacity() { return ghostMat.opacity; },
   get freeMode() { return freeMode; },
+  get freeIntro() { return freeIntro; },
+  get orthoMode() { return orthoMode; },
+  setOrtho: function (v) { orthoMode = !!v; syncBtns(); },
+  get camIsOrtho() { return activeCam === orthoCam; },
   get fovKick() { return fovKick; } };
 
 setTimeout(function () {

@@ -20,7 +20,7 @@
 
 ## 四条铁律
 
-1. **`index.html` 必须是自包含单文件** —— Three.js 已在里面，禁止任何 `<script src>` / `<link href>` / 外部图片 / CDN / 网络请求。曾经因为依赖目录没跟到手机上，导致整片白屏。
+1. **`world01.html` 必须是自包含单文件** —— Three.js 已在里面，禁止任何 `<script src>` / `<link href>` / 外部图片 / CDN / 网络请求。曾经因为依赖目录没跟到手机上，导致整片白屏。
 2. **不用图片素材** —— 一切视觉由几何体与光照生成。
 3. **改完必须验证**，方式见下。没验证不许说"做好了"。
 4. **每次改动都要留痕** —— 备份 + git 提交 + CHANGELOG 条目，三样缺一不可。
@@ -31,14 +31,14 @@
 
 ```bash
 # 1) 每个 script 块单独语法检查（历史上坏的是库那一块，不是游戏那一块）
-node -e 'const fs=require("fs");const s=fs.readFileSync("index.html","utf8");
+node -e 'const fs=require("fs");const s=fs.readFileSync("world01.html","utf8");
 const m=[...s.matchAll(/<script>([\s\S]*?)<\/script>/g)];
 m.forEach((x,i)=>fs.writeFileSync(".chk_"+i+".js",x[1]));console.log(m.length+" blocks");'
 for f in .chk_*.js; do node --check "$f"; done && rm -f .chk_*.js
 
 # 2) 孤立目录测试（最重要，能暴露一切依赖缺失）
-rm -rf _solo && mkdir _solo && cp index.html _solo/
-# 然后用无头浏览器打开 _solo/index.html 并截图，画面必须正常
+rm -rf _solo && mkdir _solo && cp world01.html _solo/
+# 然后用无头浏览器打开 _solo/world01.html 并截图，画面必须正常
 rm -rf _solo
 ```
 
@@ -51,8 +51,8 @@ rm -rf _solo
 - [ ] `docs/CHANGELOG.md` 新增一条（版本号 + 日期 + 新增/修正/未做）
 - [ ] 触及相关文档的，同步更新 `docs/DESIGN.md` 或 `docs/GAME.md`
 - [ ] 决策或踩坑有变化的，更新 `docs/MEMORY.md`
-- [ ] `bash tools/snapshot.sh <版本号> "<说明>"`（会自动备份 + 刷新 `backups/index.html`）
-  - 用户要看旧版本时：打开 `backups/index.html`，点一行就是那一版，不需要懂 git
+- [ ] `bash tools/snapshot.sh <版本号> "<说明>"`（会自动备份 + 刷新 `backups/versions.html`）
+  - 用户要看旧版本时：打开 `backups/versions.html`，点一行就是那一版，不需要懂 git
 - [ ] 清理临时文件（`_*.png`、`_*.mjs`、`_solo/`、`.chk_*.js`）
 
 ---

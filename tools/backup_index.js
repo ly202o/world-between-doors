@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /* ============================================================
  * WORLD 01 · 备份索引生成器
- *   读出 backups/ 下所有 v*_YYYYMMDD_index.html，加上 docs/CHANGELOG.md
- *   里的版本说明，生成 backups/index.html（可直接用浏览器打开、点进去看旧版）。
+ *   读出 backups/ 下所有 v*_YYYYMMDD.html，加上 docs/CHANGELOG.md
+ *   里的版本说明，生成 backups/versions.html（可直接用浏览器打开、点进去看旧版）。
  *
  *   用法：node tools/backup_index.js
  *   快照脚本会自己调它，平时不用手动跑。
@@ -61,9 +61,9 @@ if (fs.existsSync(MF)) {
 
 /* ---- 扫备份文件 ---- */
 const files = fs.readdirSync(BK)
-  .filter(f => /^v(\d+\.\d+\.\d+)_\d{8}_index\.html$/.test(f))
+  .filter(f => /^v(\d+\.\d+\.\d+)_\d{8}\.html$/.test(f))
   .map(f => {
-    const m = f.match(/^v(\d+\.\d+\.\d+)_(\d{8})_index\.html$/);
+    const m = f.match(/^v(\d+\.\d+\.\d+)_(\d{8})\.html$/);
     const ver = m[1], stamp = m[2];
     const st = fs.statSync(path.join(BK, f));
     const info = notes[ver] || {};
@@ -133,7 +133,7 @@ const html = `<!DOCTYPE html>
   <div class="sub">共 ${files.length} 个版本 · 占用 ${mb} MB · 点任意一行直接打开那一版</div>
 </header>
 
-<a class="cur" href="../index.html">打开当前版本（index.html）<span>最新代码，不在备份列表里</span></a>
+<a class="cur" href="../world01.html">打开当前版本（world01.html）<span>最新代码，不在备份列表里</span></a>
 
 <div class="list">
 ${rows}
@@ -144,5 +144,5 @@ ${rows}
 </html>
 `;
 
-fs.writeFileSync(path.join(BK, 'index.html'), html);
-console.log('索引已刷新: backups/index.html（' + files.length + ' 个版本）');
+fs.writeFileSync(path.join(BK, 'versions.html'), html);
+console.log('索引已刷新: backups/versions.html（' + files.length + ' 个版本）');

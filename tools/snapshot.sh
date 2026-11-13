@@ -22,7 +22,7 @@ if [ -z "$VER" ]; then
 fi
 
 STAMP="$(date +%Y%m%d)"
-DEST="backups/v${VER}_${STAMP}_index.html"
+DEST="backups/v${VER}_${STAMP}.html"
 
 mkdir -p backups
 
@@ -33,18 +33,18 @@ fi
 
 # ---- ⓪ 版本号检查：html 里的版本字符串必须和参数一致 ----
 # （吃过亏：v0.11.8/9 发版时忘了改 tip 里的版本号字符串）
-if ! grep -q "v${VER}" index.html; then
-  echo "!! index.html 里没有找到 \"v${VER}\" —— 先改版本号字符串（#tip + 2 处 tipEl.textContent）再发版"
+if ! grep -q "v${VER}" world01.html; then
+  echo "!! world01.html 里没有找到 \"v${VER}\" —— 先改版本号字符串（#tip + 2 处 tipEl.textContent）再发版"
   exit 1
 fi
 echo "⓪ 版本号字符串 v${VER} 已确认"
 
 # ---- ① 备份主文件 ----
-cp index.html "$DEST"
+cp world01.html "$DEST"
 echo "① 已备份 -> $DEST  ($(wc -c < "$DEST" | tr -d ' ') 字节)"
 
 # ---- ①.5 记一笔说明，并刷新备份索引页 ----
-# 用户要求"能直接看到以前的版本"，所以每发一版都更新 backups/index.html
+# 用户要求"能直接看到以前的版本"，所以每发一版都更新 backups/versions.html
 printf "%s\t%s\t%s\n" "$VER" "$(date +%Y-%m-%d)" "${NOTE:-（无说明）}" >> backups/manifest.tsv
 if command -v node >/dev/null 2>&1; then
   node tools/backup_index.js
@@ -56,7 +56,7 @@ fi
 if command -v node >/dev/null 2>&1; then
   node -e '
     const fs = require("fs");
-    const s = fs.readFileSync("index.html", "utf8");
+    const s = fs.readFileSync("world01.html", "utf8");
     const m = [...s.matchAll(/<script>([\s\S]*?)<\/script>/g)];
     if (!m.length) { console.error("没有找到 script 块"); process.exit(1); }
     m.forEach((x, i) => fs.writeFileSync(".chk_" + i + ".js", x[1]));
