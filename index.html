@@ -633,9 +633,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 右侧拖动 转视角 · 轻点 跳跃';
+  tipEl.textContent = '左侧拖动 移动 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.1';
 } else {
-  tipEl.textContent = 'WASD 移动 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角';
+  tipEl.textContent = 'WASD 移动 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.1';
 }
 
 window.addEventListener('keydown', function (e) {
