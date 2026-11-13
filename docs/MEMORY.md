@@ -44,6 +44,7 @@
 | v0.4.0 | 角色重做，分节骨骼，有膝有肘 | 原来角色是胶囊拼的，侧面一根柱 |
 | v0.8.0 | 角色换成 ALS 原版 AnimMan 网格（UE 命令行导 FBX）+ Lean 倾斜 | 几何体拼的形体不像 ALS |
 | v0.9.0 | 走/跑/跳/落换成 ALS 原版动画曲线（导出 12 个动画烘焙成四元数） | sin 摆姿势和 ALS 差一个方法论 |
+| v0.9.1 | 角色改真蒙皮（68 骨 + 顶点权重），修腰胯/锁骨/脚踝断层 | 刚性绑定一弯就露缝 |
 
 **现在**：角色播放真实动画，能走、能跳、能转视角。**但仍然没有玩法**——没有目标、没有交互、没有痕迹。
 
@@ -77,30 +78,22 @@
 | 光影 | `HemisphereLight` 1.45 + `DirectionalLight` 1.84（跟随角色） |
 | 地面 | `PlaneGeometry(300)` + `Fog(#F1F5F8, 20, 145)` |
 | 道具 | 72 块大积木 / 240 颗实例化散石 / 11 座远处高塔，全部确定性伪随机 |
-| 角色 | ALS AnimMan 网格按骨骼刚性绑定成 13 个关节组（`buildPart` / `buildArm` / `buildLeg`） |
-| 动画 | `ANIM` 状态机 + `samplePose`（帧间 slerp）+ `driveAnim`（写入骨架四元数）+ 0.18s 跨动画混合 |
+| 角色 | 单个 `SkinnedMesh` + 68 根 `THREE.Bone`（数据 `__RIG`），无切块 |
+| 动画 | `ANIM` 状态机 + `samplePose`（帧间 slerp，绝对局部旋转）+ `driveAnim`（写回骨骼）+ 0.18s 跨动画混合 |
 | 状态 | `P`（位置、速度、朝向、lean、落地冲击） |
 | 相机 | `camYaw` / `camPitch` / `camDist` + `follow` 平滑跟随 |
 | 输入 | 键盘 / 鼠标拖动 / 左半屏摇杆 / 右半屏拖动转视角 + 轻点跳 |
 | 更新 | 固定步长 1/120，移动 → 跳跃 → 动画状态机 → 相机 |
 | 绘制 | 摇杆画在独立 2D canvas 覆盖层 |
 
-**角色骨架**（网格数据 `CH.joints` 是 Three 坐标，`parts` 是每个部位的顶点/索引）：
-
-```
-bodyPivot（lean 叠加层）
-└── hipsJ(pelvis 四元数 + 骨盆 bob)
-    ├── spineJ(spine_01·02·03 连乘)
-    │   ├── headJ(neck_01·head 连乘)
-    │   └── armFix L/R(upperarm_*) → elbow(lowerarm_*) → hand(hand_*)
-    ├── thighL/R(thigh_*) → knee(calf_*) → foot(foot_*)
-```
+**角色骨架**：68 根骨骼就在 `SkinnedMesh` 的 `Skeleton` 里，局部变换来自绑定姿态（`__RIG.bones`），动画覆盖其中 25–32 根。层级：`root → pelvis → spine_01~03 → neck_01 → head`，`clavicle → upperarm → lowerarm → hand`，`thigh → calf → foot → ball`。
 
 **动画工具链**（在 `tools/anim/`，重跑要 UE 工程副本 `D:/temp/als_export`）：
 
 ```
-export_anims.py   # UE 命令行导出动画 FBX 到 D:/temp/als_anim_out
-bake_anims.cjs    # 解析 FBX → tools/anim/_anims.js（再内联进 index.html）
+export_anims.py   # UE 命令行导出动画 FBX 到 D:/temp/als_anim_out（副本工程）
+build_rig.cjs     # AnimMan.fbx → _rig.js（几何 + 蒙皮权重 + 骨骼绑定姿态）
+bake_full.cjs     # 动画 FBX → _anims.js（每骨绝对局部旋转）
 ```
 
 ---
@@ -137,6 +130,7 @@ bake_anims.cjs    # 解析 FBX → tools/anim/_anims.js（再内联进 index.htm
 - **修法**：`forward = (−sin yaw, −cos yaw)`、`right = (cos yaw, −sin yaw)`。
 
 ### 7. 动画接入后角色躺平（FBX 曲线四个连环坑）
+> 补充（v0.9.1）：即便曲线全对，**刚性绑定**也会在关节处露缝。真蒙皮才是正解，别在切块方案上打补丁。
 - **坑 1**：`Properties70` 的 `P` 节点格式是 `[名字, 类型, 标签, 标志, 值×3]`，值要从**末尾**取，从 `props[3]` 取会拿到标志位（字符串 → NaN）。
 - **坑 2**：FBX 属性名带空格（`Lcl Rotation`），比对前要 `replace(/\s+/g,'')`。
 - **坑 3**：`ALS_N_Pose.fbx` 这类资产**不写绑定姿态**，rest 必须从 `ALS_N_Walk_F.fbx` 统一取。
