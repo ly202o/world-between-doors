@@ -89,7 +89,7 @@
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
 <button id="viewBtn">第三</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.26</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.27</div>
 <script>
 /**
  * @license
@@ -923,9 +923,16 @@ var viewMode = 1;
 var firstMode = false, topMode = false, freeMode = false;
 var fpBlend = 0, topBlend = 0;   /* 两个平滑量，三档之间都是连续过渡 */
 var fpPitch = -0.02;
-/* 全视：自由轨道。俯仰不设限、距离可滚轮/双指缩放，等于把前三档的取景范围都包含进来 */
+/* 越肩取景：枢轴在肩点（1.42m），镜头整体右偏，偏多少随机距走（见 SHOULDER_K）。
+   参考主流 TPS 的做法（UE 里就是一个 SpringArm + SocketOffset.y ≈ 55cm）：
+   枢轴挂在肩而不是胸口/眼睛——眼睛归第一人称，胸口会让人被"卡在肚子"。 */
+var PIVOT_H = 1.42;
+var SHOULDER_K = 0.12, SHOULDER_MIN = 0.22, SHOULDER_MAX = 3.0;
+/* 全视：自由轨道。俯仰不设限、距离可滚轮/双指缩放，等于把前三档的取景范围都包含进来。
+   最近只到 1.5m：再近镜头就钻进身体了（成熟项目也都是靠最短臂长挡住，不靠"拉进眼睛"，
+   第一人称是独立模式，不该由缩放连续过渡而来）。 */
 var freePitch = 0.30, freeDist = 8.6;
-var FREE_PITCH = 1.45, FREE_DIST_MIN = 0.7, FREE_DIST_MAX = 60;
+var FREE_PITCH = 1.45, FREE_DIST_MIN = 1.5, FREE_DIST_MAX = 60;
 var EYE_H = 1.62;              /* 第一人称眼睛高度 */
 var TOP_PITCH = 0.66;          /* 俯视俯角：约 38°，能看见方块侧面又不被遮死 */
 var TOP_DIST_L = 23, TOP_DIST_P = 20;   /* 俯视机距：横屏 / 竖屏 */
@@ -982,9 +989,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/俯视/全视 · 右侧拖动 转视角 · 轻点 跳跃 · 全视里双指缩放　·　v0.11.26';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/俯视/全视 · 右侧拖动 转视角 · 轻点 跳跃 · 全视里双指缩放　·　v0.11.27';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/俯视/全视）· 全视里滚轮缩放　·　v0.11.26';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/俯视/全视）· 全视里滚轮缩放　·　v0.11.27';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1507,14 +1514,23 @@ function update(dt) {
   var blendDist = effDist + (topDist - effDist) * wT;
   var cP = Math.cos(orbitPitch), sP = Math.sin(orbitPitch);
 
-  /* ---- 相机防穿模：从角色胸口向相机方向打射线，被挡住就拉近。
+  /* 越肩偏移（右向量 = (cos yaw, 0, −sin yaw)）。射线和机位都要用它，所以先算。
+     偏移量随机距成比例，角色在画面里始终偏左同一个角度；不做成固定值是因为
+     全视能拉到 1.5m，固定 1m 的偏移在贴脸时会把角色推出画面。 */
+  var shoulder = effDist * SHOULDER_K;
+  if (shoulder < SHOULDER_MIN) shoulder = SHOULDER_MIN;
+  else if (shoulder > SHOULDER_MAX) shoulder = SHOULDER_MAX;
+  var shx = Math.cos(camYaw) * shoulder;
+  var shz = -Math.sin(camYaw) * shoulder;
+
+  /* ---- 相机防穿模：从角色肩点向相机方向打射线，被挡住就拉近。
      每 100ms 算一次（手机上 raycast 也不能每帧做），收缩快、恢复慢，避免抽晃。
      俯视不拉近（拉近就没俯瞰感了），改用下面的半透明遮罩；第一人称不需要。 ---- */
   camRayT -= dt;
   if (camRayT <= 0 || camBlockCur > effDist) {
     camRayT = 0.1;
     var rcp = Math.cos(blendPitch), rsp = Math.sin(blendPitch);
-    _rayO.set(P.pos.x, P.pos.y + 1.35, P.pos.z);
+    _rayO.set(P.pos.x + shx, P.pos.y + PIVOT_H, P.pos.z + shz);
     _rayD.set(Math.sin(camYaw) * rcp, rsp, Math.cos(camYaw) * rcp);
     camRay.set(_rayO, _rayD);
     camRay.far = blendDist + 0.2;
@@ -1522,8 +1538,9 @@ function update(dt) {
 
     /* 只在第三人称里改机距；俯视/第一人称都不用管 */
     if (wT < 0.05 && wF < 0.05) {
-      /* 拉近的下限不能超过当前机距：全视可能已经贴到 0.7m，再按 2.0 算反而是把镜头推远 */
-      var pullMin = Math.min(2.0, effDist);
+      /* 极限拉近 0.9m：再近就钻进身体了。比全视的缩放下限（1.5）更小，
+         因为这里是被墙逼的，宁可贴脸也不能穿墙。 */
+      var pullMin = Math.min(0.9, effDist);
       camBlockGoal = hits.length ? Math.max(pullMin, hits[0].distance - 0.35) : effDist;
     } else {
       camBlockGoal = effDist;
@@ -1556,11 +1573,14 @@ function update(dt) {
     occluded = [];
   }
 
-  /* 第三人称的球面轨道位置 */
-  var tpX = follow.x + Math.sin(camYaw) * cP * effDist;
-  var tpY = follow.y + sP * effDist + 0.95 - camKickV;
-  var tpZ = follow.z + Math.cos(camYaw) * cP * effDist;
-  var tpTX = follow.x, tpTY = follow.y + 1.05 - camKickV, tpTZ = follow.z;
+  /* 第三人称 / 全视的球面轨道位置
+     越肩视角（over-the-shoulder，Gears / TLOU / UE 的 SpringArm + SocketOffset 都是这么摆的）：
+     枢轴抬到肩点 PIVOT_H，再整体向右偏 SHOULDER——角色落在画面左侧、正前方不被自己挡住。
+     偏移同时加到机位和注视点，所以是"整个取景框右移"，不是把镜头歪着对准人。 */
+  var tpX = follow.x + Math.sin(camYaw) * cP * effDist + shx;
+  var tpY = follow.y + PIVOT_H + sP * effDist - camKickV;
+  var tpZ = follow.z + Math.cos(camYaw) * cP * effDist + shz;
+  var tpTX = follow.x + shx, tpTY = follow.y + PIVOT_H - camKickV, tpTZ = follow.z + shz;
 
   /* 俯视：抬高 + 拉远，俯角固定、水平角可转 */
   var tcp = Math.cos(TOP_PITCH), tsp = Math.sin(TOP_PITCH);
@@ -1590,7 +1610,7 @@ function update(dt) {
   /* 全视能转到地平线以下，但不能钻到地面底下：按当前机距反算"最低俯角"，
      比直接裁 camera.y 更自然——机距越大允许越低，拉近了自然抬起来。 */
   if (freeMode) {
-    var yMin = 0.35 - follow.y - 0.95;
+    var yMin = 0.35 - follow.y - PIVOT_H;
     var pMin = (yMin <= -freeDist) ? -FREE_PITCH : Math.asin(yMin / freeDist);
     if (freePitch < pMin) freePitch = pMin;
     if (camera.position.y < 0.35) camera.position.y = 0.35;   /* 兜底 */
