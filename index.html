@@ -68,7 +68,7 @@
 <div id="err"></div>
 <div id="snd">🔇 点这里开声音</div>
 <button id="runBtn">快跑</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.6</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.7</div>
 <script>
 /**
  * @license
@@ -726,8 +726,7 @@ var P = {
   leanFB: 0,     /* 前后倾斜，对应 ALS 的 LeanAmount.FB */
   jumpAnim: 'jumpWalkL',  /* 本次起跳用的片段 */
   lead: 0,        /* 起跳领先脚，0=左 1=右，每次起跳交替 */
-  landLock: 0,    /* 落地动作的最短占用时间，之后立刻交还给移动状态 */
-  autoSprint: false /* 手机摇杆推满触发的自动冲刺，松手回落 */
+  landLock: 0     /* 落地动作的最短占用时间，之后立刻交还给移动状态 */
 };
 
 var GRAV = 21;
@@ -766,9 +765,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 / 推满 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.6';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.7';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.6';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.7';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -912,7 +911,6 @@ function getAxis() {
 /* ---------------- 更新 ---------------- */
 var vel = new THREE.Vector3();
 var tmp = new THREE.Vector3();
-var sprintT = 0;   /* 摇杆推满累计时间，达到 0.5s 触发自动冲刺 */
 
 function update(dt) {
   /* 兜底：只对已存在的上下文做 resume，绝不在这里新建——
@@ -926,23 +924,10 @@ function update(dt) {
 
   var axis = getAxis();
 
-  /* ---- 冲刺判定：Shift 按住 / 快跑按钮开着（键盘）/ 摇杆推满 0.5s 自动进、回落 0.75 以下退出（手机） ---- */
+  /* ---- 冲刺判定：Shift 按住（键盘）/ 快跑按钮点亮（手机）。没有自动冲刺——按钮是唯一入口 ---- */
   var axisMag = Math.hypot(axis.x, axis.y);
   var sprint = false;
   if ((keys['shift'] || keys['shiftleft'] || keys['shiftright'] || RUN_TOGGLE) && axisMag > 0) sprint = true;
-  if (touch.active) {
-    if (axisMag > 0.92) {
-      sprintT += dt;
-      if (sprintT >= 0.5) P.autoSprint = true;
-    } else if (axisMag < 0.75) {
-      sprintT = 0;
-      P.autoSprint = false;
-    }
-    if (P.autoSprint) sprint = true;
-  } else {
-    sprintT = 0;
-    P.autoSprint = false;
-  }
 
   /* 目标速度：屏幕方向 → 相对相机的世界方向 */
   var MOVE_V = sprint ? SPRINT_V : SPEED;
