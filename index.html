@@ -873,7 +873,8 @@ window.addEventListener('pointercancel', releasePointer, { passive: true });
    doJump 只记 0.14s 输入缓冲（空中点按也能落地即跳），真跳在 update 里消费。 */
 var JUMP_BUF = 0.14;
 var jumpBufT = 0;
-var camKickV = 0;   /* 落地相机微沉的瞬时量 */
+var camKickV = 0;   /* 落地相机微沉：实际位移 */
+var camKickT = 0;   /* 落地相机微沉：目标位移（平滑逼近，不能一帧拽到位，否则远景会"跳一下"） */
 var fovKick = 0;    /* 冲刺速度感的动态扩展量 */
 var distKick = 0;
 var FOV_BASE = 48;  /* resize 里按横竖屏写入 */
@@ -991,7 +992,7 @@ function update(dt) {
         P.landLock = 0.55;
         setAnim(P.land > 0.55 ? 'landHeavy' : 'landLight', 1.35, true);
       }
-      camKickV = Math.min(0.38, camKickV + P.land * 0.30);   /* 相机微沉：重量感 */
+      camKickT = Math.min(0.15, camKickT + P.land * 0.10);   /* 相机微沉：目标量，实际值平滑追 */
       sfxLand(P.land);
     }
   }
@@ -1091,17 +1092,18 @@ function update(dt) {
   follow.y += (P.pos.y * 0.4 - follow.y) * kf;
   follow.z += (P.pos.z - follow.z) * kf;
 
-  camKickV *= Math.pow(0.0005, dt);
-  if (camKickV < 0.002) camKickV = 0;
+  camKickT *= Math.pow(0.004, dt);                          /* 目标衰减：~0.25s 归零 */
+  camKickV += (camKickT - camKickV) * Math.min(1, dt * 22); /* 实际值 2~3 帧平滑追上 */
 
   var effDist = camDist + distKick;
   var cP = Math.cos(camPitch), sP = Math.sin(camPitch);
+  /* 位置和注视点一起下沉：画面整体点头，不改变俯仰角（只动位置会让远景跳变） */
   camera.position.set(
     follow.x + Math.sin(camYaw) * cP * effDist,
     follow.y + sP * effDist + 0.95 - camKickV,
     follow.z + Math.cos(camYaw) * cP * effDist
   );
-  camera.lookAt(follow.x, follow.y + 1.05, follow.z);
+  camera.lookAt(follow.x, follow.y + 1.05 - camKickV, follow.z);
 
   /* 冲刺速度感：FOV 微扩 + 相机拉远，平滑过渡 */
   var spdFeel = (sprint && sp > 5.2 && P.onGround) ? 1 : 0;
@@ -1195,6 +1197,7 @@ requestAnimationFrame(loop);
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   get jumpBufT() { return jumpBufT; },
   get camKickV() { return camKickV; },
+  get camKickT() { return camKickT; },
   get fovKick() { return fovKick; } };
 
 setTimeout(function () {
