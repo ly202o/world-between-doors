@@ -84,7 +84,7 @@
 <button id="viewBtn" class="pill">自由</button>
 <button id="projBtn" class="pill">透视</button>
 <button id="lockBtn" class="pill">俯仰</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　·　O 正交　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.35</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　·　O 正交　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.36</div>
 <script>
 /**
  * @license
@@ -376,9 +376,15 @@ var stoneMat = new THREE.MeshStandardMaterial({ color: 0xeaeff3, roughness: 0.95
 /* ---------------- 出生点小屋：僵毁式一层的郊区住宅 ----------------
    主屋（山墙屋顶）+ 东侧贴着的车库翼 + 门廊 + 车道 + 栅栏小院。
    布局（x 东 / z 南，出生点在原点，台阶朝 -z）：
-     院子 x∈[2.6, 18.6] z∈[-21, -5]，南墙开两个口：车道（x 3.5–6.2）和院门（x 10.3–11.5）
-     主屋 8×6×3m 山墙顶 +1.45，车库 3.7×5.5×2.7m 山墙顶 +0.95
-   白色世界里只有"开口"用深色：门窗是一块块贴在墙面上的灰面片。 */
+     院子 x∈[-9, 7] z∈[-24, -9]，南墙开两个口：院门（x -3.2–-2.0）和车道（x 1.6–4.1）
+     主屋 8×6×3m 山墙顶 +1.45，车库 3.7×5.5×2.7m 山墙顶 +0.8
+   白色世界里只有"开口"用深色：门窗是一块块贴在墙面上的灰面片。
+
+   ★ 性能（v0.11.36）：栅栏柱、横板、门廊、烟囱、树干这些小方块全走 InstancedMesh。
+     每个独立 Mesh 算一次 draw call，还要再进一遍阴影贴图——v0.11.34 把它们逐个 new
+     出来，每帧 draw call 从 39 涨到 190，手机上走路明显掉帧。现在只有「遮挡射线要
+     单独换材质/挂 trim」的对象（两片墙、两片屋顶、四块树冠、门窗面片）保持独立，
+     其余合并成一两次提交。 */
 (function house() {
   var winMat  = new THREE.MeshStandardMaterial({ color: 0x9fabb8, roughness: 0.35, metalness: 0.1 });  /* 窗：微反光当玻璃 */
   var doorMat = new THREE.MeshStandardMaterial({ color: 0x8f9aa6, roughness: 0.55 });
@@ -387,14 +393,40 @@ var stoneMat = new THREE.MeshStandardMaterial({ color: 0xeaeff3, roughness: 0.95
   var roofMat = new THREE.MeshStandardMaterial({ color: 0xe7eef5, roughness: 0.95, metalness: 0 });
   var leafMat = new THREE.MeshStandardMaterial({ color: 0xedf3f8, roughness: 0.95, metalness: 0 });
 
-  function box(w, h, d, x, y, z, mat, opt) {
+  var unitBox = new THREE.BoxGeometry(1, 1, 1);
+  var batch = [];                        /* 所有"不需要单独身份"的白色小方块 */
+  function part(w, h, d, x, y, z, rx) {
+    batch.push({ w: w, h: h, d: d, x: x, y: y, z: z, rx: rx || 0 });
+  }
+  function instance(arr, mat, cast) {
+    var inst = new THREE.InstancedMesh(unitBox, mat, arr.length);
+    var dm = new THREE.Object3D();
+    for (var i = 0; i < arr.length; i++) {
+      var b = arr[i];
+      dm.position.set(b.x, b.y, b.z);
+      dm.rotation.set(b.rx, 0, 0);
+      dm.scale.set(b.w, b.h, b.d);
+      dm.updateMatrix();
+      inst.setMatrixAt(i, dm.matrix);
+    }
+    inst.instanceMatrix.needsUpdate = true;
+    inst.castShadow = !!cast; inst.receiveShadow = true;
+    inst.frustumCulled = false;          /* 实例散布整块院子，整体包围盒没意义 */
+    scene.add(inst);
+    return inst;
+  }
+  /* 独立网格：只给遮挡射线要按对象换材质 / 挂 userData.trim 的用 */
+  function box(w, h, d, x, y, z, mat, noShadow) {
     var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat || propMat);
     m.position.set(x, y, z);
-    m.castShadow = true; m.receiveShadow = true;
-    m.userData.baseMat = m.material;      /* 还原遮挡遮罩时要还回原材质，不能一律刷成 propMat */
+    m.castShadow = !noShadow; m.receiveShadow = true;
+    m.userData.baseMat = m.material;    /* 还原遮挡遮罩时要还回原材质，不能一律刷成 propMat */
     scene.add(m);
-    if (opt) opt(m);
     return m;
+  }
+  /* 碰撞体只读 position / rotation.y，没必要为此造一个不渲染的 Mesh */
+  function collider(x, y, z, yaw, w, d, h) {
+    addCollider({ position: { x: x, y: y, z: z }, rotation: { y: yaw } }, w, d, h);
   }
   /* 山墙屋顶：三角截面沿 z 挤出（脊线沿 z），底宽盖过墙顶一点当屋檐 */
   function gable(w, h, d, x, y, z) {
@@ -414,37 +446,44 @@ var stoneMat = new THREE.MeshStandardMaterial({ color: 0xeaeff3, roughness: 0.95
   var GX = 2.85, GZ = -19.25;         /* 车库中心：贴主屋东墙 */
 
   /* ---- 主屋 ---- */
-  var mainWall = box(8, 3, 6, HX, 1.5, HZ, propMat, function (m) { addCollider(m, 8, 6, 3); blockers.push(m); });
+  var mainWall = box(8, 3, 6, HX, 1.5, HZ, propMat);
+  addCollider(mainWall, 8, 6, 3); blockers.push(mainWall);
   blockers.push(gable(8.8, 1.45, 6.8, HX, 2.96, HZ));    /* 屋顶：够不着（不碰撞），但挡相机 */
-  box(0.55, 1.5, 0.55, HX + 2.3, 3.6, HZ + 1.8);         /* 烟囱 */
+  part(0.55, 1.5, 0.55, HX + 2.3, 3.6, HZ + 1.8);        /* 烟囱 */
 
   /* ---- 车库翼（贴主屋东墙） ---- */
-  var garWall = box(3.7, 2.7, 5.5, GX, 1.35, GZ, propMat, function (m) { addCollider(m, 3.7, 5.5, 2.7); blockers.push(m); });
+  var garWall = box(3.7, 2.7, 5.5, GX, 1.35, GZ, propMat);
+  addCollider(garWall, 3.7, 5.5, 2.7); blockers.push(garWall);
   blockers.push(gable(4.3, 0.8, 6.2, GX, 2.66, GZ));
 
   /* ---- 门廊：平台 + 雨棚 + 两根柱 ---- */
-  box(2.6, 0.3, 1.6, HX, 0.15, -15.7, propMat, function (m) { addCollider(m, 2.6, 1.6, 0.3); });  /* 0.3 < STEP_UP 直接走上去 */
-  box(2.8, 0.1, 1.4, HX, 2.5, -15.75).rotation.x = -0.07;   /* 单坡雨棚 */
-  box(0.1, 2.35, 0.1, HX - 1.2, 1.175, -15.0);
-  box(0.1, 2.35, 0.1, HX + 1.2, 1.175, -15.0);
+  part(2.6, 0.3, 1.6, HX, 0.15, -15.7);                  /* 0.3 < STEP_UP 直接走上去 */
+  collider(HX, 0.15, -15.7, 0, 2.6, 1.6, 0.3);
+  part(2.8, 0.1, 1.4, HX, 2.5, -15.75, -0.07);           /* 单坡雨棚 */
+  part(0.1, 2.35, 0.1, HX - 1.2, 1.175, -15.0);
+  part(0.1, 2.35, 0.1, HX + 1.2, 1.175, -15.0);
 
   /* ---- 开口（贴墙的深色面片） ----
      它们贴在墙面上、不在 blockers 里，所以墙体被遮罩换透明时得跟着藏起来，
-     否则会剩几块深灰的方片飘在半空中。 */
+     否则会剩几块深灰的方片飘在半空中。薄面片不投影：背后就是墙，投了也看不见。 */
   var trims = [];
-  trims.push(box(1.0, 2.05, 0.06, HX, 1.18, -16.46, doorMat));         /* 前门 */
-  trims.push(box(1.5, 1.1, 0.06, HX - 3.0, 1.7, -16.46, winMat));      /* 南墙两窗 */
-  trims.push(box(1.5, 1.1, 0.06, HX + 3.0, 1.7, -16.46, winMat));
-  trims.push(box(0.06, 1.1, 1.5, HX - 4.03, 1.7, HZ + 1.5, winMat));   /* 西墙 */
-  trims.push(box(1.5, 1.1, 0.06, HX, 1.7, HZ - 3.03, winMat));         /* 北墙 */
+  trims.push(box(1.0, 2.05, 0.06, HX, 1.18, -16.46, doorMat, true));        /* 前门 */
+  trims.push(box(1.5, 1.1, 0.06, HX - 3.0, 1.7, -16.46, winMat, true));    /* 南墙两窗 */
+  trims.push(box(1.5, 1.1, 0.06, HX + 3.0, 1.7, -16.46, winMat, true));
+  trims.push(box(0.06, 1.1, 1.5, HX - 4.03, 1.7, HZ + 1.5, winMat, true)); /* 西墙 */
+  trims.push(box(1.5, 1.1, 0.06, HX, 1.7, HZ - 3.03, winMat, true));       /* 北墙 */
   mainWall.userData.trim = trims;
-  /* 车库门 + 四条横槽（卷帘门的分板） */
-  var gtrims = [box(2.9, 2.1, 0.06, GX, 1.05, -16.46, garMat)];
-  for (var gi = 0; gi < 4; gi++) gtrims.push(box(2.9, 0.06, 0.03, GX, 0.5 + gi * 0.5, -16.42, propMat));
-  garWall.userData.trim = gtrims;
+
+  /* 车库门 + 四条横槽（卷帘门的分板）：横槽合成一个 InstancedMesh，整组一起隐藏 */
+  var garDoor = box(2.9, 2.1, 0.06, GX, 1.05, -16.46, garMat, true);
+  var strips = [];
+  for (var gi = 0; gi < 4; gi++) {
+    strips.push({ w: 2.9, h: 0.06, d: 0.03, x: GX, y: 0.5 + gi * 0.5, z: -16.42, rx: 0 });
+  }
+  garWall.userData.trim = [garDoor, instance(strips, propMat, false)];
 
   /* ---- 车道：从车库门向南穿出院门 ---- */
-  box(2.5, 0.06, 10.5, GX, 0.03, -11.25, stoneMat, function (m) { m.castShadow = false; });
+  box(2.5, 0.06, 10.5, GX, 0.03, -11.25, stoneMat, true);
 
   /* ---- 栅栏小院：横板 + 柱，南墙留车道口和院门 ----
      seg(cx, cz, len, alongX)：一段栅栏，整体登记一个矮墙碰撞体 */
@@ -452,13 +491,12 @@ var stoneMat = new THREE.MeshStandardMaterial({ color: 0xeaeff3, roughness: 0.95
     var i, n = Math.max(2, Math.round(len / 1.7) + 1);
     for (i = 0; i < n; i++) {
       var t = (i / (n - 1) - 0.5) * (len - 0.1);
-      box(0.1, 0.95, 0.1, cx + (alongX ? t : 0), 0.475, cz + (alongX ? 0 : t));
+      part(0.1, 0.95, 0.1, cx + (alongX ? t : 0), 0.475, cz + (alongX ? 0 : t));
     }
-    box(alongX ? len : 0.06, 0.09, alongX ? 0.06 : len, cx, 0.42, cz);
-    box(alongX ? len : 0.06, 0.09, alongX ? 0.06 : len, cx, 0.78, cz);
-    var wall = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), propMat);   /* 只当碰撞体，不渲染 */
-    wall.position.set(cx, 0.475, cz); wall.rotation.y = alongX ? 0 : Math.PI / 2;
-    addCollider(wall, alongX ? len : 0.2, alongX ? 0.2 : len, 0.95);
+    part(alongX ? len : 0.06, 0.09, alongX ? 0.06 : len, cx, 0.42, cz);
+    part(alongX ? len : 0.06, 0.09, alongX ? 0.06 : len, cx, 0.78, cz);
+    collider(cx, 0.475, cz, alongX ? 0 : Math.PI / 2,
+             alongX ? len : 0.2, alongX ? 0.2 : len, 0.95);
   }
   var y0 = YARD.z0, y1 = YARD.z1, x0 = YARD.x0, x1 = YARD.x1;
   seg((x0 - 3.2) / 2, y1, -3.2 - x0, true);                /* 南墙西段（到院门口） */
@@ -471,7 +509,8 @@ var stoneMat = new THREE.MeshStandardMaterial({ color: 0xeaeff3, roughness: 0.95
   /* ---- 院子里的树和门廊灌木 ----
      树冠用两层压扁的低多边形球：单个正球在纯白世界里像一颗雪球，加一层小的就有"树"的轮廓 */
   function tree(x, z) {
-    box(0.3, 2.0, 0.3, x, 1.0, z, propMat, function (m) { addCollider(m, 0.4, 0.4, 2.0); });
+    part(0.3, 2.0, 0.3, x, 1.0, z);
+    collider(x, 1.0, z, 0, 0.4, 0.4, 2.0);
     var c1 = new THREE.Mesh(new THREE.IcosahedronGeometry(1.15, 0), leafMat);
     c1.position.set(x, 2.75, z); c1.scale.set(1.15, 0.92, 1.15);
     var c2 = new THREE.Mesh(new THREE.IcosahedronGeometry(0.72, 0), leafMat);
@@ -484,8 +523,11 @@ var stoneMat = new THREE.MeshStandardMaterial({ color: 0xeaeff3, roughness: 0.95
   }
   tree(-6.4, -12.4);
   tree(5.7, -13.2);
-  box(0.8, 0.75, 0.8, HX - 2.1, 0.37, -16.1, propMat);     /* 门廊两侧的灌木 */
-  box(0.8, 0.75, 0.8, HX + 2.1, 0.37, -16.1, propMat);
+  part(0.8, 0.75, 0.8, HX - 2.1, 0.37, -16.1);             /* 门廊两侧的灌木 */
+  part(0.8, 0.75, 0.8, HX + 2.1, 0.37, -16.1);
+
+  /* 一次性提交：栅栏 + 门廊 + 烟囱 + 树干 + 灌木，全部同材质 → 1 次 draw call（阴影再 1 次） */
+  instance(batch, propMat, true);
 })();
 
 /* 地面散石：近处可见，远处被雾吃掉，提供移动参照 */
@@ -1191,9 +1233,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里双指缩放、正交键切投影、45°键锁俯角　·　v0.11.35';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里双指缩放、正交键切投影、45°键锁俯角　·　v0.11.36';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角 · 自由视角里滚轮缩放、O 切透视/正交、L 锁 45° 俯角　·　v0.11.35';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角 · 自由视角里滚轮缩放、O 切透视/正交、L 锁 45° 俯角　·　v0.11.36';
 }
 
 window.addEventListener('keydown', function (e) {
