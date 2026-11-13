@@ -5,6 +5,40 @@
 
 ---
 
+## v0.8.0 — 2026-11-13
+
+**角色换成 ALS 原版 AnimMan 的真实网格**
+
+不再是几何体拼的。直接把 ALS 项目里 `AnimMan.uasset` 的网格拿出来做角色。
+
+### 怎么拿到的
+
+`.uasset` 里的顶点是 16 位压缩存储，纯解析拿不到。改用本机的 **UE 5.8 命令行**导出：
+
+```
+UnrealEditor-Cmd.exe <project> -ExecutePythonScript="export_meshes.py" -unattended -nosplash
+```
+
+脚本里调 `unreal.SkeletalMeshExporterFBX()`。注意：`-run=pythonscript`（commandlet 模式）会因为没有渲染资源触发 `MeshObject` 断言崩溃，必须用 `-ExecutePythonScript` 让编辑器完整启动。
+
+### 新增
+
+- 角色网格：AnimMan，10269 顶点 / 16544 三角面 / 68 根骨骼。
+- 用 FBX 的 Skin Cluster（顶点索引 + 权重）做刚性绑定：每个顶点归给权重最大的骨骼，按 15 个部位分组，各挂一根 pivot，沿用原来的走跑落动画。
+- 手臂从 A-pose 转成自然下垂（外层 `rotation.z` 修正 0.66 弧度，内层做摆动）。
+
+### 变更
+
+- `index.html` 从 690 KB 涨到 **1.12 MB**（多出 417 KB 角色数据）。
+- 材质仍是哑光灰，`#8f93a8`。
+
+### 未做 / 已知问题
+
+- 刚性绑定导致关节处有分块接缝：躯干能看到胸 / 腹 / 胯三块的边界，腿臂同理。真正的平滑需要骨骼蒙皮（`SkinnedMesh` + 权重插值），当前是每块独立刚体。
+- 脚部没有落地 IK，踩地时可能轻微穿插。
+
+---
+
 ## v0.7.0 — 2026-11-13
 
 **用 SK_Mannequin 的原始 FBX 顶点数据校准了角色比例**
@@ -213,4 +247,4 @@
 
 ---
 
-_本文件由每次更新维护。最后更新：v0.7.0_
+_本文件由每次更新维护。最后更新：v0.8.0_
