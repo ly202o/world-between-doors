@@ -89,7 +89,7 @@
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
 <button id="viewBtn">第三</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.31</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.32</div>
 <script>
 /**
  * @license
@@ -254,6 +254,14 @@ function hash(i, s) {
 var propMat = new THREE.MeshStandardMaterial({ color: 0xf4f7fa, roughness: 0.92, metalness: 0 });
 var blockers = [];   /* 会挡住相机的实体（积木 + 高塔），散石太小不参与 */
 window.__blockers = blockers;   /* 诊断用 */
+
+/* 自由视角的遮挡遮罩：挡住角色的物体换成这个半透明材质，而不是把相机拉近。
+   自由视角的距离是用户自己定的，被墙一拉近就"丢了自己设的距离"。 */
+var ghostMat = propMat.clone();
+ghostMat.transparent = true;
+ghostMat.opacity = 0.26;
+ghostMat.depthWrite = false;
+var occluded = [];
 
 /* ---------------- 碰撞体 ----------------
    所有积木/高塔都是竖直棱柱（BoxGeometry 绕 Y 旋转），所以碰撞可以用 2.5D：
@@ -976,9 +984,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里右侧双指缩放　·　v0.11.31';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里右侧双指缩放　·　v0.11.32';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/自由）· 自由视角里滚轮缩放（手机右侧双指）　·　v0.11.31';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/自由）· 自由视角里滚轮缩放（手机右侧双指）　·　v0.11.32';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1516,8 +1524,13 @@ function update(dt) {
   if (freeMode) effDist = freeDist;
   var cP = Math.cos(orbitPitch), sP = Math.sin(orbitPitch);
 
-  /* ---- 相机防穿模：从角色肩点向相机方向打射线，被挡住就拉近。
-     每 100ms 算一次（手机上 raycast 也不能每帧做），收缩快、恢复慢，避免抽晃。 ---- */
+  /* ---- 相机防穿模：从角色肩点向相机方向打射线。
+     每 100ms 算一次（手机上 raycast 也不能每帧做），收缩快、恢复慢，避免抽晃。
+     两档处理方式不同：
+       · 第三人称——被挡住就把相机拉近（机距是系统定的，拉近不丢信息）；
+       · 自由视角——被挡住的物体换半透明材质，机距一动不动。
+         自由视角的距离是用户自己调出来的，被墙拽走会很难受；
+         这套做法沿用 v0.11.29 删掉的俯视遮罩（`ghostMat`）。 ---- */
   camRayT -= dt;
   if (camRayT <= 0 || camBlockCur > effDist) {
     camRayT = 0.1;
@@ -1527,13 +1540,29 @@ function update(dt) {
     camRay.far = effDist + 0.2;
     var hits = camRay.intersectObjects(blockers, false);
 
-    if (wF < 0.05) {
-      /* 极限拉近 0.9m：被墙逼的，宁可贴脸也不能穿墙 */
+    if (freeMode && wF < 0.05) {
+      /* 自由视角：不拉近，把挡在中间的东西变半透明 */
+      camBlockGoal = effDist;
+    } else if (wF < 0.05) {
+      /* 第三人称：极限拉近 0.9m，被墙逼的，宁可贴脸也不能穿墙 */
       var pullMin = Math.min(0.9, effDist);
       camBlockGoal = hits.length ? Math.max(pullMin, hits[0].distance - 0.35) : effDist;
     } else {
       camBlockGoal = effDist;          /* 第一人称不用管 */
     }
+
+    /* 遮罩只在自由视角里挂；换回来的时候把材质还回去 */
+    var keep = [];
+    if (freeMode && wF < 0.05) {
+      for (var hi = 0; hi < hits.length; hi++) {
+        if (keep.indexOf(hits[hi].object) < 0) keep.push(hits[hi].object);
+      }
+    }
+    for (var oi = 0; oi < occluded.length; oi++) {
+      if (keep.indexOf(occluded[oi]) < 0) occluded[oi].material = propMat;
+    }
+    for (var ki = 0; ki < keep.length; ki++) keep[ki].material = ghostMat;
+    occluded = keep;
   }
   var camBlockK = camBlockGoal < camBlockCur ? 18 : 5;
   camBlockCur += (camBlockGoal - camBlockCur) * Math.min(1, dt * camBlockK);
@@ -1714,6 +1743,9 @@ window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   get fpBlend() { return fpBlend; },
   get fpPitch() { return fpPitch; },
   get skinVisible() { return skinMesh.visible; },
+  get occludedCount() { return occluded.length; },
+  get ghostOpacity() { return ghostMat.opacity; },
+  get freeMode() { return freeMode; },
   get fovKick() { return fovKick; } };
 
 setTimeout(function () {
