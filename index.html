@@ -75,7 +75,7 @@
 <div id="snd">🔇 点这里开声音</div>
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.17</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.18</div>
 <script>
 /**
  * @license
@@ -139,6 +139,14 @@ try {
   return;
 }
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+/* 手机切后台、显存不足、长时间运行都可能丢上下文，表现为黑屏但页面还在。
+   不拦这个事件的话用户只会看到一片白，不知道发生了什么。 */
+canvas.addEventListener('webglcontextlost', function (e) {
+  e.preventDefault();
+  renderPaused = true;
+  fail('画面渲染中断了（浏览器回收了显存）。\n刷新页面即可继续。');
+}, false);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -821,9 +829,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.17';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.18';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.17';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.18';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1146,6 +1154,11 @@ function update(dt) {
 
   if (camYaw > Math.PI * 2) camYaw -= Math.PI * 2;
   else if (camYaw < -Math.PI * 2) camYaw += Math.PI * 2;
+
+  /* 地面跟随角色：视觉上无限延伸，不会跑着跑着踩空。
+     （世界的"边界形态"还没定，这里先只保证不穿帮；遇远远用雾遮掉） */
+  ground.position.x = P.pos.x;
+  ground.position.z = P.pos.z;
 
   /* 相机：平滑跟随角色位置 + 球面偏移 + 落地微沉 + 冲刺拉远 */
   var kf = Math.min(1, dt * 4.2);
