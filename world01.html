@@ -84,7 +84,7 @@
 <button id="viewBtn" class="pill">自由</button>
 <button id="projBtn" class="pill">透视</button>
 <button id="lockBtn" class="pill">俯仰</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　·　O 正交　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.36</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　·　O 正交　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.37</div>
 <script>
 /**
  * @license
@@ -1113,11 +1113,12 @@ var freeUserZoom = false;                /* 用户自己缩过没有：没缩过
 var freeToPitch = 0, freeToDist = 0;
 var FREE_PITCH = 1.45, FREE_DIST_MIN = 1.5, FREE_DIST_MAX = 60;
 var orthoMode = false;                   /* 自由视角里切：false 透视 / true 正交 */
-/* 45° 俯角锁定（僵毁式取景）：俯角焊死，水平照转、缩放照常。
-   僵毁经典相机本身就是"固定俯角 + 只能 90° 步进转"，官方没公布精确角度，
-   社区普遍按 45° 理解；配合正交按钮就是经典的斜 45° 等距。 */
+/* 45° 视角锁定：俯角焊死 π/4，水平角焊死在按下按钮那一刻（lockYaw）。
+   僵毁那类等距生存游戏的相机本来就是世界朝向固定的，角色怎么转镜头都不跟。
+   注意只在 freeMode 生效——切到第一/第三人称仍然要能正常转视角。 */
 var freeLock = false;
 var LOCK_PITCH = Math.PI / 4;
+var lockYaw = 0;
 var EYE_H = 1.62;              /* 第一人称眼睛高度 */
 var PORTRAIT = false;
 var camRay = new THREE.Raycaster();
@@ -1190,9 +1191,8 @@ function toggleView() {
 }
 function toggleLock() {
   freeLock = !freeLock;
-  /* 锁定时俯角由每帧的 easing 拉到 45°（见相机段），不用 intro——intro 会被缩放取消，
-     俯角就卡在半路了 */
-  if (freeLock) freeIntro = 0;
+  /* 锁在按下那一刻的朝向：不跳镜头；之后无论拖动、Q/E、切视角回来，都会平滑回到这个角度 */
+  if (freeLock) { lockYaw = camYaw; freeIntro = 0; }
   syncBtns();
   hideTip();
 }
@@ -1233,9 +1233,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里双指缩放、正交键切投影、45°键锁俯角　·　v0.11.36';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里双指缩放、正交键切投影、45°键锁死视角　·　v0.11.37';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角 · 自由视角里滚轮缩放、O 切透视/正交、L 锁 45° 俯角　·　v0.11.36';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角 · 自由视角里滚轮缩放、O 切透视/正交、L 锁死 45° 视角　·　v0.11.37';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1297,7 +1297,8 @@ function rightIds() {
 }
 
 function turnBy(dx, dy) {
-  camYaw   -= dx * 0.0062;
+  var locked = (freeMode && freeLock);
+  if (!locked) camYaw -= dx * 0.0062;          /* 锁定 45° 视角时水平也不动 */
   if (firstMode) fpPitch -= dy * 0.0035;       /* 第一人称：上下拖动抬头/低头 */
   else if (freeMode) {                         /* 自由：俯仰不设限，能翻到头顶和脚下 */
     if (freeLock) { /* 45° 锁定：上下拖动不再改俯仰（僵毁的相机也不能俯仰） */ }
@@ -1741,9 +1742,11 @@ function update(dt) {
   sun.target.position.set(P.pos.x, 0, P.pos.z);
   sun.target.updateMatrixWorld();
 
-  /* 键盘转视角 */
-  if (keys['q']) camYaw += dt * 1.9;
-  if (keys['e']) camYaw -= dt * 1.9;
+  /* 键盘转视角（锁定的自由视角里连 Q/E 也不动，否则"固定"名不副实） */
+  if (!(freeMode && freeLock)) {
+    if (keys['q']) camYaw += dt * 1.9;
+    if (keys['e']) camYaw -= dt * 1.9;
+  }
 
   if (camYaw > Math.PI * 2) camYaw -= Math.PI * 2;
   else if (camYaw < -Math.PI * 2) camYaw += Math.PI * 2;
@@ -1784,10 +1787,16 @@ function update(dt) {
       if (freeIntro <= 0) { freePitch = freeToPitch; freeDist = freeToDist; }
     }
   }
-  /* 45° 锁定：俯角持续向 LOCK_PITCH 收敛。不用 intro 是因为缩放会取消 intro，
-     俯角会卡在半路；每帧小步逼近则怎么打断都能回到 45°。 */
+  /* 45° 视角锁定：俯角收敛到 LOCK_PITCH、水平角收敛到 lockYaw。
+     不用 intro 是因为缩放会取消 intro，角度会卡在半路；每帧小步逼近则怎么打断都能回来。
+     yaw 差要归一到 ±π，否则跨 ±2π 边界时会绕远路整圈转回来。 */
   if (freeLock && freeMode && wF < 0.5) {
-    freePitch += (LOCK_PITCH - freePitch) * Math.min(1, dt * 6);
+    var lk = Math.min(1, dt * 6);
+    freePitch += (LOCK_PITCH - freePitch) * lk;
+    var dyaw = lockYaw - camYaw;
+    while (dyaw > Math.PI) dyaw -= Math.PI * 2;
+    while (dyaw < -Math.PI) dyaw += Math.PI * 2;
+    camYaw += dyaw * lk;
   }
 
   /* 自由视角：直接复用第三人称那套球面轨道，只是俯仰/距离换成自由值，
@@ -2051,7 +2060,8 @@ window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   get orthoMode() { return orthoMode; },
   setOrtho: function (v) { orthoMode = !!v; syncBtns(); },
   get freeLock() { return freeLock; },
-  setLock: function (v) { freeLock = !!v; if (freeLock) freeIntro = 0; syncBtns(); },
+  get lockYaw() { return lockYaw; },
+  setLock: function (v) { freeLock = !!v; if (freeLock) { lockYaw = camYaw; freeIntro = 0; } syncBtns(); },
   get camIsOrtho() { return activeCam === orthoCam; },
   get fovKick() { return fovKick; } };
 
