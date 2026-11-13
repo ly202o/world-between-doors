@@ -48,13 +48,27 @@
     font: 500 12px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
     color: #8a939b; letter-spacing: .04em; z-index: 200;
   }
+  #runBtn {
+    position: fixed; right: 18px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 76px);
+    display: none;
+    width: 66px; height: 66px; border-radius: 50%; border: none;
+    background: rgba(255,255,255,.88);
+    box-shadow: 0 2px 12px rgba(120,132,144,.30);
+    font: 600 13px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #8a939b; letter-spacing: .1em; z-index: 210;
+    touch-action: none; -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+  }
+  #runBtn.on { background: #454d54; color: #ffffff; }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="err"></div>
 <div id="snd">🔇 点这里开声音</div>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.5</div>
+<button id="runBtn">快跑</button>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.6</div>
 <script>
 /**
  * @license
@@ -283,7 +297,10 @@ skinMesh.bind(new THREE.Skeleton(boneList));
    播放从 ALS 项目导出烘焙的真实动画（每骨绝对局部旋转）。
    走/跑/跳/落/待机状态机 + 0.18s 姿态混合。 */
 var AN = window.__ANIMS;
-var ANIM_NATIVE = { walk: 1.7, run: 3.75, sprint: 6.5 }; /* 各动画原生步速 m/s（播放速率 = 实际速度 / 原生） */
+/* 各动画原生步速 m/s（播放速率 = 实际速度 / 原生）。
+   取 ALS 源码的移动基准：Walk 150 / Run 350 / Sprint 600 cm/s。
+   填错了脚就会滑：身体速度 ≠ 脚动画设计的贴地速度。 */
+var ANIM_NATIVE = { walk: 1.5, run: 3.5, sprint: 6.0 };
 var ANIM = { cur: 'idle', t: 0, rate: 1, prev: null, prevT: 0, blend: 1, oneShot: false, blendDur: 0.18 };
 var ANIM_BLEND = 0.18;
 
@@ -749,9 +766,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 推满 自动快跑 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.5';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 / 推满 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.6';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.5';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.6';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -765,6 +782,20 @@ window.addEventListener('keydown', function (e) {
 
 window.addEventListener('keyup', function (e) { keys[e.key.toLowerCase()] = false; }, { passive: true });
 window.addEventListener('blur', function () { keys = Object.create(null); });
+
+/* ---- 快跑切换按钮：只在触屏设备显示，开一次后摇杆推着走就是冲刺 ---- */
+var runBtn = document.getElementById('runBtn');
+var RUN_TOGGLE = false;
+if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
+  runBtn.style.display = 'block';
+}
+window.__forceTouchUI = function () { runBtn.style.display = 'block'; };  /* 诊断：headless 测按钮用 */
+runBtn.addEventListener('pointerdown', function (e) {
+  e.stopPropagation(); e.preventDefault();
+  RUN_TOGGLE = !RUN_TOGGLE;
+  runBtn.classList.toggle('on', RUN_TOGGLE);
+  hideTip();
+}, { passive: false });
 
 function turnBy(dx, dy) {
   camYaw   -= dx * 0.0062;
@@ -895,10 +926,10 @@ function update(dt) {
 
   var axis = getAxis();
 
-  /* ---- 冲刺判定：Shift 按住（键盘）/ 摇杆推满 0.5s 自动进、回落 0.75 以下退出（手机） ---- */
+  /* ---- 冲刺判定：Shift 按住 / 快跑按钮开着（键盘）/ 摇杆推满 0.5s 自动进、回落 0.75 以下退出（手机） ---- */
   var axisMag = Math.hypot(axis.x, axis.y);
   var sprint = false;
-  if ((keys['shift'] || keys['shiftleft'] || keys['shiftright']) && axisMag > 0) sprint = true;
+  if ((keys['shift'] || keys['shiftleft'] || keys['shiftright'] || RUN_TOGGLE) && axisMag > 0) sprint = true;
   if (touch.active) {
     if (axisMag > 0.92) {
       sprintT += dt;
