@@ -88,8 +88,8 @@
 <div id="snd">🔇 点这里开声音</div>
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
-<button id="viewBtn">视角</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.19</div>
+<button id="viewBtn">第三</button>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.20</div>
 <script>
 /**
  * @license
@@ -169,9 +169,13 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 var SKY = 0xffffff;
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY);
-scene.fog = new THREE.Fog(0xf1f5f8, 20, 145);
+var FOG = new THREE.Fog(0xf1f5f8, 20, 145);
+scene.fog = FOG;
 
 var camera = new THREE.PerspectiveCamera(48, 1, 0.1, 400);
+/* 俯视用正交相机：轴测投影，平行线不收敛（僵毁那种感觉）。
+   包围盒在 resize 里按屏幕比例重算。 */
+var camOrtho = new THREE.OrthographicCamera(-13, 13, 13, -13, 0.1, 400);
 
 /* ---------------- 光 ---------------- */
 var hemi = new THREE.HemisphereLight(0xffffff, 0xe8edf2, 1.45);
@@ -821,13 +825,14 @@ var FRICT = 22;
 var camYaw   = 0;          /* 水平角，0 = 在角色正后方 */
 var camPitch = 0.30;       /* 俯角 */
 var camDist  = 8.6;
-/* 视角模式：0=第三人称 1=上帝视角（俯视）2=第一人称；两个 blend 做平滑过渡（互斥） */
-var viewMode = 0;
-var godMode = false, godBlend = 0;
-var fpMode = false, fpBlend = 0, fpPitch = -0.02;
-var GOD_PITCH = 1.15;          /* 约 66°，接近俯视 */
-var GOD_DIST_L = 15, GOD_DIST_P = 18;   /* 上帝视角距离：横屏 / 竖屏 */
+/* 视角模式：0=第一人称 1=第三人称（默认） 2=俯视（正交轴测，可旋转） */
+var viewMode = 1;
+var firstMode = false, topMode = false;
+var fpBlend = 0, fpPitch = -0.02;
 var EYE_H = 1.62;              /* 第一人称眼睛高度 */
+var TOP_PITCH = 0.66;          /* 俯视俯角：约 38°，能看见方块侧面又不被遮死 */
+var ORTHO_D = 90;              /* 正交相机摆多远：正交不看距离，只影响裁剪 */
+var ORTHO_HALF = 9.5;          /* 俯视可见半高（米），横屏按它定竖向 */
 var PORTRAIT = false;
 var camRay = new THREE.Raycaster();
 var camRayT = 0;          /* 射线计时器：100ms 一次 */
@@ -845,15 +850,18 @@ function clampPitch() {
 /* ---------------- 输入 ---------------- */
 var keys = Object.create(null);
 
-/* ---- 视角切换：手机右上角按钮 / 桌面 V 键，三档循环：三人称 → 上帝 → 第一人称 ---- */
+/* ---- 视角切换：手机右上角按钮 / 桌面 V 键，循环：第一人称 → 第三人称 → 俯视 ---- */
 var viewBtn = document.getElementById('viewBtn');
+var VIEW_NAME = ['第一', '第三', '俯视'];
 function toggleView() {
   viewMode = (viewMode + 1) % 3;
-  godMode = (viewMode === 1);
-  fpMode = (viewMode === 2);
+  firstMode = (viewMode === 0);
+  topMode = (viewMode === 2);
+  /* 俯视是正交相机，远处没有透视雾该有的层次，还是一片白——干脆关掉雾让方块清楚 */
+  scene.fog = topMode ? null : FOG;
   if (viewBtn) {
-    viewBtn.classList.toggle('on', viewMode !== 0);
-    viewBtn.textContent = viewMode === 1 ? '俯瞰' : (viewMode === 2 ? '第一' : '视角');
+    viewBtn.classList.toggle('on', viewMode !== 1);
+    viewBtn.textContent = VIEW_NAME[viewMode];
   }
   hideTip();
 }
@@ -877,9 +885,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切俯瞰 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.19';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切第一/第三/俯视 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.20';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角　·　v0.11.19';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/俯视）　·　v0.11.20';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -912,8 +920,8 @@ runBtn.addEventListener('pointerdown', function (e) {
 
 function turnBy(dx, dy) {
   camYaw   -= dx * 0.0062;
-  if (fpMode) fpPitch -= dy * 0.0035;          /* 第一人称：上下拖动抬头/低头 */
-  else if (!godMode) camPitch += dy * 0.0042;  /* 上帝视角俯仰固定，拖动只转水平 */
+  if (firstMode) fpPitch -= dy * 0.0035;      /* 第一人称：上下拖动抬头/低头 */
+  else if (!topMode) camPitch += dy * 0.0042; /* 俯视：轴测角固定，拖动只转水平 */
   if (fpPitch > 1.15) fpPitch = 1.15; else if (fpPitch < -1.15) fpPitch = -1.15;
   clampPitch();
 }
@@ -1219,7 +1227,7 @@ function update(dt) {
   ground.position.z = P.pos.z;
 
   /* 相机：平滑跟随角色位置（落地微沉、冲刺拉远都叠在这上面） */
-  var kf = Math.min(1, dt * 4.2);
+  var kf = Math.min(1, dt * (topMode ? 8 : 4.2));   /* 俯视是战术视角，跟得紧一点 */
   follow.x += (P.pos.x - follow.x) * kf;
   follow.y += (P.pos.y * 0.4 - follow.y) * kf;
   follow.z += (P.pos.z - follow.z) * kf;
@@ -1227,46 +1235,44 @@ function update(dt) {
   camKickT *= Math.pow(0.004, dt);                          /* 目标衰减：~0.25s 归零 */
   camKickV += (camKickT - camKickV) * Math.min(1, dt * 22); /* 实际值 2~3 帧平滑追上 */
 
-  /* ---- 视角混合：第三人称 ↔ 上帝视角 ↔ 第一人称 ---- */
+  /* ---- 视角：第一人称 ↔ 第三人称 靠 fpBlend 插值；俯视是正交相机，直接切换 ---- */
   var effDist = camDist + distKick;      /* 第三人称的目标机距 */
-  var gk = Math.min(1, dt * 3.2);
-  godBlend += ((godMode ? 1 : 0) - godBlend) * gk;
-  if (godBlend < 0.001) godBlend = 0;
-  if (godBlend > 0.999) godBlend = 1;
-  fpBlend += ((fpMode ? 1 : 0) - fpBlend) * Math.min(1, dt * 3.6);
+  fpBlend += ((firstMode ? 1 : 0) - fpBlend) * Math.min(1, dt * 3.6);
   if (fpBlend < 0.001) fpBlend = 0;
   if (fpBlend > 0.999) fpBlend = 1;
-  var usePitch = camPitch + (GOD_PITCH - camPitch) * godBlend;
-  var godDist = PORTRAIT ? GOD_DIST_P : GOD_DIST_L;
-  var useDist = effDist + (godDist - effDist) * godBlend;
+  var usePitch = camPitch;
+  var useDist = effDist;
   var cP = Math.cos(usePitch), sP = Math.sin(usePitch);
 
   /* ---- 相机防穿模：从角色胸口向相机方向打射线，被挡住就拉近。
      每 100ms 算一次（手机上 raycast 也不能每帧做），收缩快、恢复慢，避免抽晃。
-     上帝视角不拉近（拉近就没俯瞰感了），改用下面的半透明遮罩；第一人称不需要。 ---- */
+     俯视不拉近（正交投影拉近只是改变裁剪），改用下面的半透明遮罩；第一人称不需要。 ---- */
   camRayT -= dt;
   if (camRayT <= 0 || camBlockCur > effDist) {
     camRayT = 0.1;
+    /* 俯视的射线要跟正交相机的朝向一致，否则遮罩对不上画面 */
+    var rp = topMode ? TOP_PITCH : usePitch;
+    var rcp = Math.cos(rp), rsp = Math.sin(rp);
     _rayO.set(P.pos.x, P.pos.y + 1.35, P.pos.z);
-    _rayD.set(Math.sin(camYaw) * cP, sP, Math.cos(camYaw) * cP);
+    _rayD.set(Math.sin(camYaw) * rcp, rsp, Math.cos(camYaw) * rcp);
     camRay.set(_rayO, _rayD);
-    camRay.far = Math.max(useDist, effDist) + 0.2;
+    camRay.far = (topMode ? ORTHO_D : effDist) + 0.2;
     var hits = camRay.intersectObjects(blockers, false);
 
-    /* 只在第三人称里改机距；上帝视角拉近就没俯瞰感了，第一人称本来就在眼睛里 */
-    if (godBlend < 0.05 && fpBlend < 0.05) {
+    /* 只在第三人称里改机距；俯视/第一人称都不用管 */
+    if (!topMode && fpBlend < 0.05) {
       camBlockGoal = hits.length ? Math.max(2.0, hits[0].distance - 0.35) : effDist;
     } else {
       camBlockGoal = effDist;
     }
 
-    /* 上帝视角：相机与角色之间的所有物体做成半透明遮罩（“柱子挡人”就靠这个）。
-       只在上帝视角里换材质，否则第三人称下被射线扫到的积木会变成全透明。 */
+    /* 俯视：角色与相机之间的物体做成半透明遮罩（“柱子挡人”就靠这个）。
+       只在俯视里换材质，否则第三人称下被射线扫到的积木会变成全透明。 */
     if (ghostMat) {
       var keep = [];
-      if (godBlend > 0.02) {
+      if (topMode) {
         for (var hi = 0; hi < hits.length; hi++) {
-          if (hits[hi].distance < useDist - 0.2 && keep.indexOf(hits[hi].object) < 0) keep.push(hits[hi].object);
+          if (keep.indexOf(hits[hi].object) < 0) keep.push(hits[hi].object);
         }
       }
       for (var oi = 0; oi < occluded.length; oi++) {
@@ -1278,20 +1284,31 @@ function update(dt) {
   }
   var camBlockK = camBlockGoal < camBlockCur ? 18 : 5;
   camBlockCur += (camBlockGoal - camBlockCur) * Math.min(1, dt * camBlockK);
-  if (camBlockCur < effDist) effDist += (camBlockCur - effDist) * (1 - godBlend) * (1 - fpBlend);
+  if (camBlockCur < effDist) effDist += (camBlockCur - effDist) * (1 - fpBlend);
 
-  /* 遮罩透明度随视角模式淡入淡出；回到第三人称时把材质还回去 */
-  if (ghostMat) ghostMat.opacity = 0.26 * godBlend;
-  if (godBlend < 0.02 && occluded.length) {
+  /* 遮罩只属于俯视；切走时把材质还回去 */
+  if (ghostMat) ghostMat.opacity = topMode ? 0.26 : 0;
+  if (!topMode && occluded.length) {
     for (var ci = 0; ci < occluded.length; ci++) occluded[ci].material = propMat;
     occluded = [];
   }
 
-  /* 第三人称/上帝视角的球面轨道位置 */
+  /* 第三人称的球面轨道位置 */
   var tpX = follow.x + Math.sin(camYaw) * cP * useDist;
   var tpY = follow.y + sP * useDist + 0.95 - camKickV;
   var tpZ = follow.z + Math.cos(camYaw) * cP * useDist;
   var tpTX = follow.x, tpTY = follow.y + 1.05 - camKickV, tpTZ = follow.z;
+
+  /* 俯视：正交相机摆在远上方，朝向角色（俯角固定、水平角可转） */
+  if (topMode) {
+    var tcp = Math.cos(TOP_PITCH), tsp = Math.sin(TOP_PITCH);
+    camOrtho.position.set(
+      follow.x + Math.sin(camYaw) * tcp * ORTHO_D,
+      follow.y + tsp * ORTHO_D + 0.6,
+      follow.z + Math.cos(camYaw) * tcp * ORTHO_D
+    );
+    camOrtho.lookAt(follow.x, follow.y + 1.0, follow.z);
+  }
 
   /* 第一人称：眼睛位置 + 视线方向（camYaw 水平、fpPitch 俯仰） */
   var fpEyeX = P.pos.x, fpEyeY = P.pos.y + EYE_H, fpEyeZ = P.pos.z;
@@ -1369,6 +1386,15 @@ function resize() {
   if (!camReady) { camPitch = portrait ? 0.34 : 0.30; camReady = true; }
   camera.updateProjectionMatrix();
 
+  /* 俯视的正交包围盒：先保证竖向 2×ORTHO_HALF，宽屏横向自然变宽；
+     竖屏横向会窄到看不见路，所以横向不足 2×9 米时反过来撑高 */
+  var aspect = w / h;
+  var halfH = ORTHO_HALF, halfW = ORTHO_HALF * aspect;
+  if (halfW < 8) { halfW = 8; halfH = 8 / aspect; }
+  camOrtho.left = -halfW; camOrtho.right = halfW;
+  camOrtho.top = halfH; camOrtho.bottom = -halfH;
+  camOrtho.updateProjectionMatrix();
+
   UD = Math.min(window.devicePixelRatio || 1, 2);
   ui.width = Math.round(w * UD);
   ui.height = Math.round(h * UD);
@@ -1426,7 +1452,7 @@ function loop(t) {
   driveAnim(dt);
   jumpTDrv = performance.now() - _jd;
   drawStick();
-  renderer.render(scene, camera);
+  renderer.render(scene, topMode ? camOrtho : camera);
   /* 音效在渲染之后播：手机上 <audio> / WebAudio 的调度是同步开销，
      放在起跳那一帧的渲染前会抢主线程（用户感觉「起跳时掉帧」）。 */
   if (pendSfxJump) { pendSfxJump = 0; var _js = performance.now(); sfxJump(); jumpTSfx = performance.now() - _js; }
@@ -1442,9 +1468,11 @@ window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   get camKickV() { return camKickV; },
   get camKickT() { return camKickT; },
   get camBlockCur() { return camBlockCur; },
-  get godBlend() { return godBlend; },
-  get godMode() { return godMode; },
+  get topMode() { return topMode; },
   get viewMode() { return viewMode; },
+  get orthoPos() { return camOrtho.position.toArray(); },
+  get orthoHalf() { return camOrtho.top; },
+  get fogOn() { return !!scene.fog; },
   get fpBlend() { return fpBlend; },
   get fpPitch() { return fpPitch; },
   get skinVisible() { return skinMesh.visible; },
