@@ -89,7 +89,7 @@
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
 <button id="viewBtn">第三</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.21</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.22</div>
 <script>
 /**
  * @license
@@ -262,6 +262,26 @@ ghostMat.opacity = 0;
 ghostMat.depthWrite = false;
 var occluded = [];
 
+/* ---------------- 碰撞体 ----------------
+   所有积木/高塔都是竖直棱柱（BoxGeometry 绕 Y 旋转），所以碰撞可以用 2.5D：
+   水平当"圆 vs 旋转矩形"解算，垂直只查脚下支撑高度。
+   reach 是粗筛半径（半对角线 + 角色半径），逐帧先用它挡掉远处的盒子。 */
+var colliders = [];
+var PLAYER_R = 0.36;      /* 角色碰撞半径 */
+var STEP_UP = 0.35;       /* 能直接迈上去的台阶高度 */
+var STEP_DOWN = 0.40;     /* 走下这个高度以内的小落差直接踩下去，不算坠落 */
+function addCollider(mesh, w, d, h) {
+  var yaw = mesh.rotation.y;
+  colliders.push({
+    x: mesh.position.x, z: mesh.position.z,
+    hw: w / 2, hd: d / 2,
+    c: Math.cos(yaw), s: Math.sin(yaw),
+    top: mesh.position.y + h / 2,
+    reach: Math.sqrt(w * w + d * d) / 2 + PLAYER_R + 0.6
+  });
+}
+window.__colliders = colliders;   /* 诊断用 */
+
 (function scatter() {
   var i, n = 72;
   for (i = 0; i < n; i++) {
@@ -282,6 +302,7 @@ var occluded = [];
     m.receiveShadow = true;
     scene.add(m);
     blockers.push(m);
+    addCollider(m, w, d, h);
   }
 })();
 
@@ -292,13 +313,15 @@ var occluded = [];
     var rad = 42 + hash(i, 22) * 46;
     var w = 1.4 + hash(i, 23) * 3.2;
     var h = 6 + hash(i, 24) * 9;
-    var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, w * (0.7 + hash(i, 25) * 0.8)), propMat);
+    var d = w * (0.7 + hash(i, 25) * 0.8);
+    var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), propMat);
     m.position.set(Math.cos(ang) * rad, h / 2, Math.sin(ang) * rad);
     m.rotation.y = hash(i, 26) * 1.2;
     m.castShadow = false;
     m.receiveShadow = true;
     scene.add(m);
     blockers.push(m);
+    addCollider(m, w, d, h);
   }
 })();
 
@@ -921,9 +944,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切第一/第三/俯视 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.21';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切第一/第三/俯视 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.22';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/俯视）　·　v0.11.21';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/俯视）　·　v0.11.22';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1087,6 +1110,70 @@ function getAxis() {
 var vel = new THREE.Vector3();
 var tmp = new THREE.Vector3();
 
+/* ---------------- 碰撞解算（2.5D：圆柱 vs 竖直棱柱） ----------------
+   盒子是绕 Y 旋转的矩形，所以把角色位置转到盒子局部坐标里做"圆 vs 矩形"，
+   推出后再转回世界坐标；速度沿法线方向的分量清零 = 贴着墙滑而不是卡住。 */
+function collideXZ() {
+  var feet = P.pos.y;
+  /* 站在地上时允许迈上矮台阶（直接走进去，由 supportAt 抬起来）；空中不许，免得跳起来穿模 */
+  var stepAllow = P.onGround ? STEP_UP : 0.08;
+  for (var i = 0; i < colliders.length; i++) {
+    var col = colliders[i];
+    if (col.top - feet <= stepAllow) continue;     /* 能踩上去的就不挡 */
+    var dx = P.pos.x - col.x, dz = P.pos.z - col.z;
+    if (dx > col.reach || dx < -col.reach || dz > col.reach || dz < -col.reach) continue;
+
+    var lx = dx * col.c - dz * col.s;
+    var lz = dx * col.s + dz * col.c;
+    var bx = lx < -col.hw ? -col.hw : (lx > col.hw ? col.hw : lx);
+    var bz = lz < -col.hd ? -col.hd : (lz > col.hd ? col.hd : lz);
+    var ex = lx - bx, ez = lz - bz;
+    var d2 = ex * ex + ez * ez;
+    if (d2 >= PLAYER_R * PLAYER_R) continue;       /* 没接触 */
+
+    var nx, nz;
+    if (d2 > 1e-9) {
+      var dl = Math.sqrt(d2), push = PLAYER_R - dl;
+      nx = ex / dl; nz = ez / dl;
+      lx += nx * push; lz += nz * push;
+    } else {
+      /* 圆心已经在盒子里（被推入/传送）：沿穿透最浅的一侧弹出去 */
+      var penX = col.hw - Math.abs(lx), penZ = col.hd - Math.abs(lz);
+      if (penX < penZ) { nx = lx >= 0 ? 1 : -1; nz = 0; lx += nx * (penX + PLAYER_R); }
+      else             { nx = 0; nz = lz >= 0 ? 1 : -1; lz += nz * (penZ + PLAYER_R); }
+    }
+
+    /* 回世界坐标 */
+    P.pos.x = col.x + lx * col.c + lz * col.s;
+    P.pos.z = col.z - lx * col.s + lz * col.c;
+
+    /* 去掉朝墙里去的速度分量 */
+    var wx = nx * col.c + nz * col.s;
+    var wz = -nx * col.s + nz * col.c;
+    var vn = vel.x * wx + vel.z * wz;
+    if (vn < 0) { vel.x -= vn * wx; vel.z -= vn * wz; }
+    if (window.__colTrace && window.__colTrace.length < 20) {
+      window.__colTrace.push({ lx: +lx.toFixed(2), lz: +lz.toFixed(2), n: [+nx.toFixed(2), +nz.toFixed(2)], vn: +vn.toFixed(2), v: [+vel.x.toFixed(2), +vel.z.toFixed(2)] });
+    }
+  }
+}
+
+/* 脚下支撑高度：地面 0 与"覆盖当前位置、且顶面在可迈高度内的盒子"取最高 */
+function supportAt(px, pz, feet) {
+  var best = 0, limit = feet + STEP_UP + 0.02;
+  for (var i = 0; i < colliders.length; i++) {
+    var col = colliders[i];
+    if (col.top <= best || col.top > limit) continue;
+    var dx = px - col.x, dz = pz - col.z;
+    if (dx > col.reach || dx < -col.reach || dz > col.reach || dz < -col.reach) continue;
+    var lx = dx * col.c - dz * col.s;
+    var lz = dx * col.s + dz * col.c;
+    /* 站立判定往外放宽 0.28：踩在边缘上也算站住，不会在缝隙里抖 */
+    if (Math.abs(lx) <= col.hw + 0.28 && Math.abs(lz) <= col.hd + 0.28) best = col.top;
+  }
+  return best;
+}
+
 function update(dt) {
   /* 兜底：只对已存在的上下文做 resume，绝不在这里新建——
      非手势创建的 AudioContext 在手机上救不回来。 */
@@ -1112,13 +1199,15 @@ function update(dt) {
 
   var prevVX = vel.x, prevVZ = vel.z;
 
+  /* 加速度按"向量长度"截断，不要分轴截断：
+     分轴截断时两个轴各自最多走 ACC·dt，合起来的方向会在 45° 附近偏，
+     被墙不断把速度清零之后这点偏差会累积成沿墙滑动的侧移。 */
+  var dvx = tx - vel.x, dvz = tz - vel.z;
   var dvMax = ACC * dt;
   /* 空中操控减弱，保留水平惯性（起跳后不会突然刹停） */
   if (!P.onGround) dvMax *= 0.3;
-  var dvx = tx - vel.x;
-  var dvz = tz - vel.z;
-  if (dvx > dvMax) dvx = dvMax; else if (dvx < -dvMax) dvx = -dvMax;
-  if (dvz > dvMax) dvz = dvMax; else if (dvz < -dvMax) dvz = -dvMax;
+  var dvl = Math.hypot(dvx, dvz);
+  if (dvl > dvMax) { var dk = dvMax / dvl; dvx *= dk; dvz *= dk; }
   vel.x += dvx;
   vel.z += dvz;
 
@@ -1133,14 +1222,25 @@ function update(dt) {
 
   P.pos.x += vel.x * dt;
   P.pos.z += vel.z * dt;
+  collideXZ();                       /* 水平推出去（贴着墙滑） */
 
-  /* 跳跃与重力 */
-  if (!P.onGround) {
+  /* 跳跃与重力：脚下有方块就以方块顶面当地面 */
+  var support = supportAt(P.pos.x, P.pos.z, P.pos.y);
+  if (P.onGround) {
+    if (support > P.pos.y) {
+      P.pos.y = support;             /* 自动迈上矮台阶（高的刚才已经被挡住，走不进来） */
+    } else if (P.pos.y - support > STEP_DOWN) {
+      P.onGround = false;            /* 走出边缘，开始下落 */
+      P.vy = 0;
+    } else {
+      P.pos.y = support;             /* 小落差直接踩下去，不触发落地音效 */
+    }
+  } else {
     P.vy -= GRAV * dt;
     P.pos.y += P.vy * dt;
-    if (P.pos.y <= 0) {
+    if (P.vy <= 0 && P.pos.y <= support) {
       P.land = Math.min(1, Math.abs(P.vy) / 7.5);
-      P.pos.y = 0;
+      P.pos.y = support;
       P.vy = 0;
       P.onGround = true;
       var spd = Math.hypot(vel.x, vel.z);
@@ -1499,6 +1599,9 @@ window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   get jumpBufT() { return jumpBufT; },
   get camKickV() { return camKickV; },
   get camKickT() { return camKickT; },
+  setYaw: function (v) { camYaw = v; },   /* 诊断用：测试脚本要能摆朝向 */
+  get keys() { return keys; },
+  get axis() { return getAxis(); },
   get camBlockCur() { return camBlockCur; },
   get topMode() { return topMode; },
   get viewMode() { return viewMode; },
