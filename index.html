@@ -75,7 +75,7 @@
 <div id="snd">🔇 点这里开声音</div>
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.11</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.12</div>
 <script>
 /**
  * @license
@@ -779,9 +779,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.11';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.12';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.11';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.12';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1070,7 +1070,8 @@ function update(dt) {
   }
   if (force) { ANIM.oneShot = false; setAnim(nextAnim, nextRate); }      /* 空中换段：强制打断起跳片段 */
   else if (!ANIM.oneShot) setAnim(nextAnim, nextRate);                   /* 一次性动画（落地）播完前不被覆盖 */
-  driveAnim(dt);
+  /* driveAnim 不在这里跑：物理循环 1/120，每渲染帧会跑两次，手机上混合期采样翻倍掉帧。
+   移到 loop 里按渲染帧调一次。 */
 
   /* lean + 前倾：动画之外叠加（ALS 的 Additive Lean） */
   bodyPivot.rotation.x = P.leanFB * 0.30;
@@ -1212,6 +1213,8 @@ function loop(t) {
   }
   if (acc > FIXED * 12) acc = 0;
 
+  /* 动画采样按渲染帧一次（60Hz 足够平滑），不再随物理步长跑 120Hz */
+  driveAnim(dt);
   drawStick();
   renderer.render(scene, camera);
   fpsTick(t);
