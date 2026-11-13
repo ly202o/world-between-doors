@@ -54,7 +54,7 @@
 <canvas id="c"></canvas>
 <div id="err"></div>
 <div id="snd">🔇 点这里开声音</div>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.1</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.2</div>
 <script>
 /**
  * @license
@@ -359,7 +359,9 @@ function audioInit() {
   var C = window.AudioContext || window.webkitAudioContext;
   if (!C) return null;
   try { AC = new C(); } catch (e) { return null; }
-  AC.onstatechange = function () { if (AC && AC.state === 'running') sndHint(false); };
+  AC.onstatechange = function () {
+    if (AC && AC.state === 'running') { _sndTried = 0; sndHint(false); }
+  };
   AM = AC.createGain();
   AM.gain.value = 1.0;
   /* 压缩器当限幅用：手机喇叭动态范围小，压一压既能提响度又不至于爆音。
@@ -381,8 +383,10 @@ function audioInit() {
   return AC;
 }
 
-/* 每次用户操作都尝试解锁：手机浏览器要求在手势回调里同步 resume。
+/* 每次用户操作都尝试解锁：手机浏览器要求在手势回调里同步创建并 resume。
    只有真手势（带 event 参数）才计入"失败计数"，后台兜底调用不算。 */
+var _acInGesture = false;   /* 这个 AudioContext 是不是在手势里创建的 */
+
 function audioUnlock(ev) {
   var gesture = !!(ev && ev.type);
   /* iOS 的 WebAudio 默认走"环境"音频会话，会被侧边静音拨片直接掐掉。
@@ -393,27 +397,34 @@ function audioUnlock(ev) {
     }
   } catch (e) {}
 
-  /* 试了一轮还是起不来，就把上下文整个重建（有些 webview 的第一次实例是坏的） */
-  if (AC && AC.state !== 'running' && _sndTried >= 2) {
+  /* 关键：AudioContext 必须在手势里创建。
+     非手势创建的实例，在 iOS 上后续 resume() 经常永远起不来——只能丢掉重建。 */
+  if (gesture && AC && !_acInGesture) {
+    try { AC.close(); } catch (e) {}
+    AC = null; AM = null; ANA = null; NOISE = null; AUDIO_ON = false;
+  }
+  /* 试了两轮还是起不来，也重建一次（有些 webview 的第一个实例是坏的） */
+  if (gesture && AC && AC.state !== 'running' && _sndTried >= 2) {
     try { AC.close(); } catch (e) {}
     AC = null; AM = null; ANA = null; NOISE = null; AUDIO_ON = false;
   }
 
   audioInit();
+  if (gesture) _acInGesture = true;
   if (!AC) { if (gesture) sndHint(true); return; }
   if (AC.state !== 'running' && AC.resume) {
     var p = AC.resume();
     if (p && p.catch) p.catch(function () {});
   }
   /* iOS 的老规矩：光 resume 不响，得在同一个手势里真播一次空 buffer */
-  if (gesture) {
+  if (gesture && AC.state !== 'running') {
     try {
       var s = AC.createBufferSource();
       s.buffer = AC.createBuffer(1, 1, AC.sampleRate);
       s.connect(AC.destination);
       s.start(0);
     } catch (e) {}
-    setTimeout(sndCheck, 500);
+    setTimeout(sndCheck, 400);
   }
 }
 
@@ -427,17 +438,29 @@ function sndHint(show) {
 function sndCheck() {
   if (!AC) { sndHint(true); return; }
   if (AC.state === 'running') { sndHint(false); _sndTried = 0; return; }
-  /* 连续三次手势还是没起来，才认为真的失败了，避免误报 */
-  if (++_sndTried >= 2) sndHint(true);
+  /* 连续两次手势还是没起来，才认为真的失败了，避免误报 */
+  if (++_sndTried >= 2) {
+    sndHint(true);
+    if (sndEl) sndEl.textContent = '🔇 声音被挡住了（' + AC.state + '）· 点这里再试';
+  }
 }
 
 window.addEventListener('pointerdown', audioUnlock, true);
+window.addEventListener('pointerup', audioUnlock, true);
 window.addEventListener('mousedown', audioUnlock, true);
 window.addEventListener('touchstart', audioUnlock, { passive: true, capture: true });
+window.addEventListener('touchend', audioUnlock, { passive: true, capture: true });
 window.addEventListener('click', audioUnlock, true);
 window.addEventListener('keydown', audioUnlock, true);
 /* 微信内置浏览器：安卓版要等 JSBridge 就绪后 resume 才有效 */
 document.addEventListener('WeixinJSBridgeReady', function () { audioUnlock({ type: 'weixin' }); }, false);
+/* 从后台切回来，有些浏览器会把上下文挂起 */
+document.addEventListener('visibilitychange', function () {
+  if (!document.hidden && AC && AC.state !== 'running' && AC.resume) {
+    var p = AC.resume();
+    if (p && p.catch) p.catch(function () {});
+  }
+}, false);
 
 /* 提示条被点：再试一次解锁，成功就立刻放一声脚步，让人确认真的响了 */
 (function () {
@@ -448,10 +471,10 @@ document.addEventListener('WeixinJSBridgeReady', function () { audioUnlock({ typ
     function hit(e) {
       if (e && e.stopPropagation) e.stopPropagation();
       if (e && e.preventDefault) e.preventDefault();
-      audioUnlock();
+      audioUnlock(e);
       setTimeout(function () {
         if (AC && AC.state === 'running') { sfxStep(1); sndHint(false); }
-        else if (el) el.textContent = '🔇 浏览器拦住了声音，请检查系统音量 / 静音键';
+        else if (el) el.textContent = '🔇 还是没起来（' + (AC ? AC.state : '无上下文') + '）· 松开静音键 / 提高媒体音量再点';
       }, 150);
     }
     el.addEventListener('touchstart', hit, { passive: false });
@@ -526,9 +549,9 @@ function playThump(t0, f0, f1, dur, peak) {
   o.start(t0); o.stop(t0 + dur + 0.03);
 }
 
-/* 需要出声时确保上下文是 running；被浏览器挂起就立刻尝试恢复 */
+/* 需要出声时确保上下文是 running；被浏览器挂起就立刻尝试恢复。
+   注意：这里绝不新建上下文——非手势创建的实例在 iOS 上救不回来。 */
 function audioReady() {
-  if (!AC) audioInit();
   if (!AC) return false;
   if (AC.state !== 'running' && AC.resume) {
     var p = AC.resume();
@@ -633,9 +656,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.1';
+  tipEl.textContent = '左侧拖动 移动 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.2';
 } else {
-  tipEl.textContent = 'WASD 移动 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.1';
+  tipEl.textContent = 'WASD 移动 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.2';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -766,9 +789,13 @@ var vel = new THREE.Vector3();
 var tmp = new THREE.Vector3();
 
 function update(dt) {
-  /* 兜底解锁：有些环境里用户手势没落到 window 上，只要上下文还没 running 就继续试 */
+  /* 兜底：只对已存在的上下文做 resume，绝不在这里新建——
+     非手势创建的 AudioContext 在手机上救不回来。 */
   if (AC && AC.state !== 'running') {
-    if ((_acTry = (_acTry | 0) + 1) % 20 === 0) audioUnlock();
+    if ((_acTry = (_acTry | 0) + 1) % 60 === 0 && AC.resume) {
+      var _pr = AC.resume();
+      if (_pr && _pr.catch) _pr.catch(function () {});
+    }
   }
 
   var axis = getAxis();

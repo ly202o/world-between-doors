@@ -5,6 +5,26 @@
 
 ---
 
+## v0.11.2 — 2026-11-13
+
+**手机上提示「声音被挡住了」——找到真正的原因了**
+
+`AudioContext` 是在**非用户手势**的上下文里创建的：`update()` 的兜底解锁在页面第一帧就把上下文建了出来。Chrome 允许事后 `resume()`，但 iOS Safari（以及多数 webview）对"不是在手势里创建的实例"经常永远起不来，`resume()` 返回成功、状态却一直是 `suspended`。
+
+### 改了什么
+
+- **上下文只允许在手势里创建**。`audioReady()` 和 `update()` 的兜底都不再新建实例，只对已存在的实例 `resume()`
+- 如果检测到手里的实例是"非手势创建的"，第一次真手势时直接关掉重建
+- 连续两轮手势仍不 `running` 也重建一次（有些 webview 的首个实例是坏的）
+- 手势监听覆盖 `pointerdown / pointerup / mousedown / touchstart / touchend / click / keydown`，另加 `visibilitychange`（从后台切回来要重新 resume）和 `WeixinJSBridgeReady`
+- 提示条会显示实际的上下文状态，例如「🔇 声音被挡住了（suspended）· 点这里再试」，方便判断卡在哪一层
+
+### 验证
+
+手势前 `__audioState().state === 'none'`（不再提前建上下文），模拟触摸后立刻变 `running`，跑动峰值 0.64。
+
+---
+
 ## v0.11.1 — 2026-11-13
 
 **手机上仍然没声音 / 落地仍然滑 —— 再修一轮**

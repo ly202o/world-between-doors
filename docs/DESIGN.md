@@ -170,12 +170,12 @@ LeanAmount.LR = InterpTo(当前, RelativeAcceleration.Y, dt, 4.0)   // 左右
 
 **解锁路径**（手机不出声几乎都是这一层的问题，不是合成的问题）：
 
-1. 每个手势里都 `resume()`
+1. **`AudioContext` 只能在手势里创建**——非手势创建的实例，iOS 上 `resume()` 会返回成功但状态永远停在 `suspended`。所以 `audioReady()` / `update()` 兜底一律不新建实例，只 `resume`；发现实例不是手势建的，第一次真手势时关掉重建
 2. 手势里真播一次 1 帧空 buffer（iOS 光 resume 不响）
 3. `navigator.audioSession.type = 'playback'`（绕开 iOS 侧边静音拨片）
-4. `WeixinJSBridgeReady` 后再试一次（微信内置浏览器）
+4. `WeixinJSBridgeReady` 后再试一次（微信内置浏览器）+ `visibilitychange` 切回前台时重新 resume
 5. 连续两次手势仍不 running → 关掉重建 `AudioContext`
-6. 真起不来才在右下角显示「🔇 点这里开声音」，正常时这块 DOM 不显示
+6. 真起不来才在右下角显示提示，并把实际的 `state` 写进去（如 `suspended`），正常时这块 DOM 不显示
 
 **脚步时机**：不靠计时器拍脑袋，烘焙动画时用 FK 算 `foot_l`/`foot_r` 每帧世界 Y，取局部极小值（阈值 = 最小值 + 8% 幅度、间隔 <0.16s 合并、首尾跨循环去重）作为触地事件，写进动画数据的 `steps` 数组。运行时按动画时间轴跨事件点触发，与播放速率、循环回绕都解耦。
 
