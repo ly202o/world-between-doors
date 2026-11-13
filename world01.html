@@ -122,7 +122,7 @@
 <button id="viewBtn" class="pill">自由</button>
 <button id="lockBtn" class="pill">俯仰</button>
 <button id="themeBtn" class="pill">深色</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.39</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳/攀　·　V 切视角　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.11.40</div>
 <script>
 /**
  * @license
@@ -1329,11 +1329,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里双指缩放、45°键锁死视角、主题键切深色/白色　·　v0.11.39';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由视角里双指缩放、45°键锁死视角、主题键切深色/白色　·　v0.11.40';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角 · 自由视角里滚轮缩放、L 锁死 45° 视角 · T 切深色/白色主题 · H 显示/隐藏本说明　·　v0.11.39';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 拖动鼠标 转视角 · V 切视角 · 自由视角里滚轮缩放、L 锁死 45° 视角 · T 切深色/白色主题 · H 显示/隐藏本说明　·　v0.11.40';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1536,7 +1536,86 @@ var fovKick = 0;    /* 冲刺速度感的动态扩展量 */
 var distKick = 0;
 var FOV_BASE = 48;  /* resize 里按横竖屏写入 */
 
-function doJump() { jumpBufT = JUMP_BUF; }
+/* ---------------- 攀爬：靠近 1m 左右障碍按跳跃 → 撑上去 ----------------
+   素材是 ALS_N_Mantle_1m_RH（1.5333s / 47 帧），烘焙在 __ANIMS.mantle。
+   动画只有骨骼旋转、没有 root motion：位置由 advanceClimb() 用 smoothstep 从起点
+   插值到障碍顶面；攀爬期间 update() 的整段物理冻结，避免重力/碰撞把人拽回去。 */
+var climb = null;
+var CLIMB_MIN_H = 0.45, CLIMB_MAX_H = 1.25;   /* 低于下限自动迈台阶就够，高于上限爬不上 */
+var CLIMB_MIN_FOOT = 0.30;                     /* 顶面至少能站住一只脚；栅栏这种薄片排除 */
+
+function insideCol(col, x, z, margin) {
+  var dx = x - col.x, dz = z - col.z;
+  if (dx > col.reach || dx < -col.reach || dz > col.reach || dz < -col.reach) return false;
+  var lx = dx * col.c - dz * col.s;
+  var lz = dx * col.s + dz * col.c;
+  return Math.abs(lx) <= col.hw - margin && Math.abs(lz) <= col.hd - margin;
+}
+
+function tryClimb() {
+  if (climb || !P.onGround) return false;
+  var dirX = Math.sin(P.face), dirZ = Math.cos(P.face);
+  var hitCol = null, hitS = 0;
+
+  /* 沿角色朝向探 0.30–1.20m，找第一个高度合适、顶面够宽的碰撞体 */
+  for (var s = 0.30; s <= 1.20; s += 0.05) {
+    var px = P.pos.x + dirX * s, pz = P.pos.z + dirZ * s;
+    for (var i = 0; i < colliders.length; i++) {
+      var col = colliders[i];
+      var h = col.top - P.pos.y;
+      if (h < CLIMB_MIN_H || h > CLIMB_MAX_H) continue;
+      if (col.hw < CLIMB_MIN_FOOT || col.hd < CLIMB_MIN_FOOT) continue;
+      if (insideCol(col, px, pz, 0)) { hitCol = col; hitS = s; break; }
+    }
+    if (hitCol) break;
+  }
+  if (!hitCol) return false;
+
+  /* 从命中点继续往里走，找最后一个还在顶面上的位置；再回退一点，别站在最边缘。
+     注意这里不能用安全边距做判据——命中点本来就在边缘，一加上边距就立刻"站不住"了。 */
+  var sEnd = hitS;
+  for (var s2 = hitS + 0.05; s2 <= hitS + 0.85; s2 += 0.05) {
+    if (insideCol(hitCol, P.pos.x + dirX * s2, P.pos.z + dirZ * s2, 0)) sEnd = s2;
+    else break;
+  }
+  if (sEnd - hitS < 0.15) return false;         /* 顶面太窄，站不住 */
+  sEnd = Math.max(hitS + 0.15, sEnd - 0.10);
+
+  climb = {
+    t: 0, dur: AN.mantle.dur, face: P.face,
+    x0: P.pos.x, y0: P.pos.y, z0: P.pos.z,
+    x1: P.pos.x + dirX * sEnd, y1: hitCol.top, z1: P.pos.z + dirZ * sEnd
+  };
+  vel.x = vel.z = 0; P.vy = 0;
+  jumpBufT = 0; P.landLock = 0;
+  setAnim('mantle', 1, true);
+  return true;
+}
+
+function advanceClimb(dt) {
+  climb.t += dt;
+  var u = Math.min(1, climb.t / (climb.dur * 0.82));
+  var s = u * u * (3 - 2 * u);                  /* smoothstep：撑上去有起步和收势 */
+  P.pos.set(
+    climb.x0 + (climb.x1 - climb.x0) * s,
+    climb.y0 + (climb.y1 - climb.y0) * s,
+    climb.z0 + (climb.z1 - climb.z0) * s
+  );
+  vel.x = vel.z = 0; P.vy = 0; P.onGround = true;
+  P.faceTarget = climb.face;
+  if (climb.t >= climb.dur) {
+    P.pos.set(climb.x1, climb.y1, climb.z1);
+    climb = null;
+    ANIM.oneShot = false;
+    pendSfxLand = 0.35;                         /* 站上去时轻轻一声 */
+  }
+}
+
+function doJump() {
+  if (climb) return;                            /* 攀爬中再按不排队起跳 */
+  if (tryClimb()) return;                       /* 面前有能撑上去的障碍就爬，不起跳 */
+  jumpBufT = JUMP_BUF;
+}
 
 function realJump() {
   P.vy = JUMP_V;
@@ -1674,6 +1753,12 @@ function update(dt) {
     }
   }
 
+  /* 攀爬中冻结整段物理：位置只由 advanceClimb() 驱动，重力 / 碰撞 / 起跳缓冲都不参与。
+     下面这些变量在物理段之后（朝向、倾斜、动画状态机）还要用，先给默认值。 */
+  var sp = 0, prevVX = vel.x, prevVZ = vel.z, sprint = false, tx = 0, tz = 0;
+  if (climb) {
+    advanceClimb(dt);
+  } else {
   var axis = getAxis();
   /* ---- 冲刺判定：Shift 按住（键盘）/ 快跑按钮点亮（手机）。没有自动冲刺——按钮是唯一入口 ---- */
   var axisMag = Math.hypot(axis.x, axis.y);
@@ -1752,6 +1837,7 @@ function update(dt) {
   }
 
   P.squash += (1 - P.squash) * Math.min(1, dt * 11);
+  }
 
   /* 朝向：速度越快转身插值越慢（冲刺转弯带惯性弧线，不再是瞬间的硬转） */
   var sp = Math.hypot(vel.x, vel.z);
@@ -2142,6 +2228,8 @@ window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   get freeLock() { return freeLock; },
   get lockYaw() { return lockYaw; },
   setLock: function (v) { freeLock = !!v; if (freeLock) { lockYaw = camYaw; freeIntro = 0; } syncBtns(); },
+  get climbing() { return !!climb; },
+  tryClimb: function () { return tryClimb(); },
   get theme() { return themeName; },
   setTheme: function (n) { applyTheme(n); },
   get fovKick() { return fovKick; } };

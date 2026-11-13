@@ -86,6 +86,7 @@
 | v0.11.37 | 45° 固定视角补全：**水平朝向也焊死**（`lockYaw` = 按下时的 `camYaw`），`Q`/`E` 同步禁用 | 用户「只固定了上下旋转，左右旋转也要固定」——v0.11.35 只锁俯角不叫固定视角 |
 | v0.11.38 | PC 操作说明改按 `H` 展开/收起，右上角只常驻一个 22px `H` 徽标；触屏路径不变 | 用户「pc端那个操作说明，可以快捷键显示隐藏，快捷键的提示一直常驻一个字母」 |
 | v0.11.39 | 删正交（整套）；加深色主题并**默认深色**，保留白色可切（`T` 键 / 主题按钮）；导出并内联 ALS `mantle` 动画数据（攀爬备用） | 用户「再做个深色主题，默认深色，删除正交。把攀爬做一下」+ 追问后答「去als项目里找啊」「靠近障碍按跳跃」 |
+| v0.11.40 | 攀爬接上：`doJump` 先 `tryClimb`，命中播 ALS Mantle + smoothstep 位移到障碍顶面，`update` 物理整段冻结 | 同上；用户确认用 ALS 素材、靠近障碍按跳跃触发 |
 | v0.11.8 | 手感五连：跳跃缓冲 0.14s / 落地相机微沉 / 冲刺 FOV+拉远 / 转身惯性 / 减速动画滞后 | 用户授权「完善手感细节和动作细节」 |
 | v0.11.9 | 落地微沉改平滑：幅度减半、两帧追、位置+注视点同沉 | 用户反馈「落地后远景跳一下，更低了」——一帧拽到位+只动位置导致俯仰突变 |
 
@@ -349,6 +350,12 @@ UE 命令行：`/d/app/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe D:/temp
 
 **教训**：只要做"临时替换某个属性、之后再恢复"，恢复用的值就必须是**记下来的**，不能是"我以为是默认的那个"。
 
+### 35. 边缘命中 + 安全边距 = 永远判「站不住」（v0.11.40）
+
+攀爬检测的命中点本来就在碰撞体边缘（沿射线第一个进盒的采样点）。落点检查写成 `insideCol(..., margin=0.10)`，从边缘往里第一二步都还在 10 cm 边距里，循环立刻 break，`sEnd - hitS = 0` → `tryClimb()` 永远返回 false，按跳跃只会普通起跳。
+
+**修法**：先按 `margin=0` 找最深可站点，判完宽度后再回退 10 cm。**坑的通用形**：几何判定里，"命中条件"和"安全条件"要分开，别把安全边距塞进命中循环。
+
 ### 34. 逐个 new Mesh 会把 draw call 翻五倍（v0.11.36）
 
 建房子时给每根栅栏柱、每条横板、每扇窗都 `new THREE.Mesh()`，还全开 `castShadow = true`。每个独立 Mesh 主画面提交一次、**2048² 阴影贴图再提交一次**；实测每帧 draw call 从 39（没房子）涨到 190，用户报「走路都掉帧」。无头浏览器帧时间看不出来（软件渲染约 105 fps），是 hook `WebGLRenderingContext.prototype.drawElements/drawArrays` 数出来的。
@@ -377,7 +384,8 @@ UE 命令行：`/d/app/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe D:/temp
 | 自由 | `freePitch` ±1.45 rad，`freeDist` 1.5 – 60 m；滚轮系数 `exp(dY × 0.0011)`；双指 = `dist0 × d0/d`；`freeDist < 0.9` 藏身体；最低俯角 `asin((0.35 − follow.y − 1.42) / dist)` |
 | 自由默认落点 | `FREE_PITCH_DEF` 0.66 / `FREE_DIST_DEF_L` 23 / `FREE_DIST_DEF_P` 20（沿用旧 `TOP_PITCH` / `TOP_DIST`）；`freeIntro` 0.55 s 缓动，用户一动清 0 |
 | 主题（默认深色） | `THEMES.light/dark` + `applyTheme()`；`T` 键 / `#themeBtn`；CSS 变量走 `<html data-theme>`；深色 hemi+sun = 0.62+0.80（白档 1.45+1.84）；`HOUSE_MATS` 注册房子内部材质；地面网格线色是 uniform `uGridColor` |
-| 动画 | `__ANIMS` 13 段；v0.11.39 加 `mantle`（ALS_N_Mantle_1m_RH，1.5333s / 47 帧 / 32 骨），**尚未接玩法** |
+| 动画 | `__ANIMS` 13 段；`mantle` = ALS_N_Mantle_1m_RH（1.5333s / 47 帧 / 32 骨），v0.11.40 接攀爬 |
+| 攀爬 | `climb` / `tryClimb()` / `advanceClimb()`；高 0.45–1.25m、顶面 hw·hd ≥ 0.30；沿 `P.face` 探 0.30–1.20m；smoothstep 前 82% 完成位移；`update` 物理段包在 `if(climb)…else…` 内 |
 | 45° 锁定 | `LOCK_PITCH = π/4`、`lockYaw` = 按下时的 `camYaw`；锁定时 `turnBy` 忽略 `dx`/`dy`、禁 `Q`/`E`；每帧 `k=min(1,dt×6)` 同时收敛俯角与 yaw（`dyaw` 归一到 ±π）；跨视角保留，重进自由时落点取 `LOCK_PITCH` |
 | HUD 按钮 | `.pill` 高 34、左右 padding 13、圆角 999、字 12/600；右上 14 / 56 / 98 依次是 视角 / 45° / 主题（v0.11.39 删正交后 45° 上移）；快跑右下 100 |
 | 操作说明 | 桌面：`#tip` 默认 `opacity 0`，按 `H` 切（0.18s 过渡），右上角 `#helpBadge` 显示 `H`、展开时点亮；`hideTip()` 桌面直接 return。触屏：开局 opacity 1、9s 淡出、徽标不显示 |

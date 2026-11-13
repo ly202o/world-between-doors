@@ -448,6 +448,18 @@ k = (1 - smoothstep(0.12, 0.55, pxSize)) × (1 - smoothstep(26, 78, dist));
 - **房子专用材质在 `house()` 内部**，注册到 `HOUSE_MATS` 才能被 `applyTheme()` 访问；地面网格线的颜色做成 shader uniform `uGridColor`，切主题只改 Color 对象、不重编译。
 - `ghostMat` 是 `propMat.clone()`，两档透明度分别 0.26 / 0.30；还原遮罩用 `userData.baseMat`，所以切主题后被遮物体也不会掉色。
 
+
+#### 3.54 攀爬：ALS Mantle + 代码位移（v0.11.40）
+
+素材直接在 ALS 工程里找，不自己摆姿势：`Actions/ALS_N_Mantle_1m_RH`，烘焙成 `__ANIMS.mantle`（1.5333 s / 47 帧 / 32 骨）。
+
+- **触发**：`doJump()` 先 `tryClimb()`，命中就不进起跳缓冲。键盘空格和手机轻点都走 `doJump()`，两端共用一条判定，没新增按键。
+- **判定**：沿 `P.face` 探 0.30–1.20 m，找 `top − feet ∈ [0.45, 1.25]` 且 `hw/hd ≥ 0.30` 的碰撞体。下界避开"自动迈台阶"，上界是 1m 撑上动作的合理上限，最小顶面尺寸把栅栏这类薄片排除（站不住）。
+- **落点**：沿朝向继续走，取最后一个仍在顶面的位置，再回退 10 cm。**不能用安全边距当判据**——命中点本身就在盒子边缘，一加边距就永远「站不住」，这是这版踩的坑。
+- **位移**：ALS 动画只带骨骼旋转，没有 root motion。`advanceClimb()` 用 smoothstep 在动画前 82% 时间内把 `P.pos` 从起点插到顶面落点，水平和垂直同步，结束时钉在落点。
+- **物理冻结**：`update()` 的物理整段包进 `if (climb) advanceClimb(dt); else { … }`。否则重力会把上升中的角色拽回地面、`collideXZ` 会把他从盒子里推出去。朝向/倾斜/动画状态机等公共部分留在 `if` 外照常跑；相关的 `sp / prevVX / prevVZ / sprint / tx / tz` 在开头先给默认值。
+- **动画交接**：`setAnim('mantle', 1, true)` 用现成的 `ANIM.oneShot`，播放期间状态机不抢；`driveAnim` 只对 walk/run/sprint 触发脚步音，mantle 不会误播。
+
 ---
 
 ## 四、关键取舍与理由
