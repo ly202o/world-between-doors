@@ -75,7 +75,7 @@
 <div id="snd">🔇 点这里开声音</div>
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.10</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.11</div>
 <script>
 /**
  * @license
@@ -398,7 +398,7 @@ function audioInit() {
   if (!C) return null;
   try { AC = new C(); } catch (e) { return null; }
   AC.onstatechange = function () {
-    if (AC && AC.state === 'running') { _sndTried = 0; sndHint(false); }
+    if (AC && AC.state === 'running') { _sndTried = 0; _audioGood = true; sndHint(false); }
   };
   AM = AC.createGain();
   AM.gain.value = 1.0;
@@ -434,11 +434,16 @@ function decodeSfx() {
 }
 
 /* 每次用户操作都尝试解锁：手机浏览器要求在手势回调里同步创建并 resume。
-   只有真手势（带 event 参数）才计入"失败计数"，后台兜底调用不算。 */
+   只有真手势（带 event 参数）才计入"失败计数"，后台兜底调用不算。
+   注意：一次轻点会触发 5 个手势事件（pointerdown/touchstart/pointerup/touchend/click），
+   音频一切正常时必须立刻早退，否则每个事件都跑一遍解锁/播放，手机上直接掉帧。 */
 var _acInGesture = false;   /* 这个 AudioContext 是不是在手势里创建的 */
+var _audioGood = false;     /* WebAudio 已确认能响 */
 
 function audioUnlock(ev) {
   var gesture = !!(ev && ev.type);
+  /* 一切都在跑：什么都不做 */
+  if (gesture && _audioGood && AC && AC.state === 'running') return;
   /* iOS 的 WebAudio 默认走"环境"音频会话，会被侧边静音拨片直接掐掉。
      Safari 16.4+ 允许显式声明成 playback，必须在手势里设。 */
   try {
@@ -483,7 +488,6 @@ function audioUnlock(ev) {
     wavUnlock();
   }
 }
-
 /* 声音没起来才显示提示；起来了就不占画面 */
 var sndEl = null, _sndTried = 0;
 function sndHint(show) {
@@ -494,7 +498,7 @@ function sndHint(show) {
 function sndCheck() {
   if (_wavOk) { sndHint(false); return; }
   if (!AC) { sndHint(true); initWavFallback(); return; }
-  if (AC.state === 'running') { sndHint(false); _sndTried = 0; return; }
+  if (AC.state === 'running') { sndHint(false); _sndTried = 0; _audioGood = true; return; }
   /* 连续两次手势还是没起来，才认为真的失败了，避免误报 */
   if (++_sndTried >= 2) {
     sndHint(true);
@@ -548,9 +552,12 @@ function wavPlay(kind) {
   } catch (e) { return false; }
 }
 
-/* 手势里先把 <audio> 也"解锁"一次，之后游戏循环里调用就不用每次都点 */
+/* 手势里先把 <audio> 也"解锁"一次，之后游戏循环里调用就不用每次都点。
+   只做一次：play/pause 启停媒体管线在手机上是同步大开销，反复做会掉帧。 */
+var _wavUnlocked = false;
 function wavUnlock() {
-  if (!WAV_READY) return;
+  if (_wavUnlocked || !WAV_READY) return;
+  _wavUnlocked = true;
   var arr = WAV_POOL.step;
   if (!arr || !arr.length) return;
   try {
@@ -772,9 +779,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.10';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.11';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.10';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.11';
 }
 
 window.addEventListener('keydown', function (e) {
