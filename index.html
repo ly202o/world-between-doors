@@ -38,12 +38,23 @@
     font: 500 13px/2.1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
     color: #7d858d; background: #ffffff; letter-spacing: .05em; z-index: 999;
   }
+  /* 声音没起来时才出现的提示，正常播放时不存在 */
+  #snd {
+    position: fixed; right: 14px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+    display: none; padding: 8px 12px;
+    border-radius: 999px; background: rgba(255,255,255,.92);
+    box-shadow: 0 2px 10px rgba(120,132,144,.22);
+    font: 500 12px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #8a939b; letter-spacing: .04em; z-index: 200;
+  }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="err"></div>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃</div>
+<div id="snd">🔇 点这里开声音</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.1</div>
 <script>
 /**
  * @license
@@ -348,11 +359,13 @@ function audioInit() {
   var C = window.AudioContext || window.webkitAudioContext;
   if (!C) return null;
   try { AC = new C(); } catch (e) { return null; }
+  AC.onstatechange = function () { if (AC && AC.state === 'running') sndHint(false); };
   AM = AC.createGain();
   AM.gain.value = 1.0;
-  /* 压缩器当限幅用：手机喇叭动态范围小，压一压既能提响度又不至于爆音 */
+  /* 压缩器当限幅用：手机喇叭动态范围小，压一压既能提响度又不至于爆音。
+     阈值别设太低——压太狠会把脚步这种短促的声音直接压没。 */
   var comp = AC.createDynamicsCompressor();
-  comp.threshold.value = -16; comp.knee.value = 8; comp.ratio.value = 8;
+  comp.threshold.value = -9; comp.knee.value = 6; comp.ratio.value = 4;
   comp.attack.value = 0.003; comp.release.value = 0.14;
   AM.connect(comp); comp.connect(AC.destination);
   /* 诊断用分析节点（也方便量化"到底有没有出声"） */
@@ -368,30 +381,105 @@ function audioInit() {
   return AC;
 }
 
-/* 每次用户操作都尝试解锁：手机浏览器要求在手势回调里同步 resume */
-function audioUnlock() {
+/* 每次用户操作都尝试解锁：手机浏览器要求在手势回调里同步 resume。
+   只有真手势（带 event 参数）才计入"失败计数"，后台兜底调用不算。 */
+function audioUnlock(ev) {
+  var gesture = !!(ev && ev.type);
+  /* iOS 的 WebAudio 默认走"环境"音频会话，会被侧边静音拨片直接掐掉。
+     Safari 16.4+ 允许显式声明成 playback，必须在手势里设。 */
+  try {
+    if (navigator.audioSession && navigator.audioSession.type !== 'playback') {
+      navigator.audioSession.type = 'playback';
+    }
+  } catch (e) {}
+
+  /* 试了一轮还是起不来，就把上下文整个重建（有些 webview 的第一次实例是坏的） */
+  if (AC && AC.state !== 'running' && _sndTried >= 2) {
+    try { AC.close(); } catch (e) {}
+    AC = null; AM = null; ANA = null; NOISE = null; AUDIO_ON = false;
+  }
+
   audioInit();
-  if (AC && AC.state !== 'running' && AC.resume) {
+  if (!AC) { if (gesture) sndHint(true); return; }
+  if (AC.state !== 'running' && AC.resume) {
     var p = AC.resume();
     if (p && p.catch) p.catch(function () {});
   }
+  /* iOS 的老规矩：光 resume 不响，得在同一个手势里真播一次空 buffer */
+  if (gesture) {
+    try {
+      var s = AC.createBufferSource();
+      s.buffer = AC.createBuffer(1, 1, AC.sampleRate);
+      s.connect(AC.destination);
+      s.start(0);
+    } catch (e) {}
+    setTimeout(sndCheck, 500);
+  }
 }
+
+/* 声音没起来才显示提示；起来了就不占画面 */
+var sndEl = null, _sndTried = 0;
+function sndHint(show) {
+  if (!sndEl) sndEl = document.getElementById('snd');
+  if (!sndEl) return;
+  sndEl.style.display = show ? 'block' : 'none';
+}
+function sndCheck() {
+  if (!AC) { sndHint(true); return; }
+  if (AC.state === 'running') { sndHint(false); _sndTried = 0; return; }
+  /* 连续三次手势还是没起来，才认为真的失败了，避免误报 */
+  if (++_sndTried >= 2) sndHint(true);
+}
+
 window.addEventListener('pointerdown', audioUnlock, true);
 window.addEventListener('mousedown', audioUnlock, true);
 window.addEventListener('touchstart', audioUnlock, { passive: true, capture: true });
 window.addEventListener('click', audioUnlock, true);
 window.addEventListener('keydown', audioUnlock, true);
+/* 微信内置浏览器：安卓版要等 JSBridge 就绪后 resume 才有效 */
+document.addEventListener('WeixinJSBridgeReady', function () { audioUnlock({ type: 'weixin' }); }, false);
+
+/* 提示条被点：再试一次解锁，成功就立刻放一声脚步，让人确认真的响了 */
+(function () {
+  var el = null;
+  function bind() {
+    el = document.getElementById('snd');
+    if (!el) return;
+    function hit(e) {
+      if (e && e.stopPropagation) e.stopPropagation();
+      if (e && e.preventDefault) e.preventDefault();
+      audioUnlock();
+      setTimeout(function () {
+        if (AC && AC.state === 'running') { sfxStep(1); sndHint(false); }
+        else if (el) el.textContent = '🔇 浏览器拦住了声音，请检查系统音量 / 静音键';
+      }, 150);
+    }
+    el.addEventListener('touchstart', hit, { passive: false });
+    el.addEventListener('mousedown', hit);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+})();
 
 /* 诊断：window.__audioState() 返回上下文状态与当前输出电平 */
 window.__audioState = function () {
-  var rms = 0;
+  var rms = 0, peak = 0;
   if (ANA) {
     ANA.getFloatTimeDomainData(ANA_BUF);
     var s = 0;
-    for (var i = 0; i < ANA_BUF.length; i++) s += ANA_BUF[i] * ANA_BUF[i];
+    for (var i = 0; i < ANA_BUF.length; i++) {
+      var v = ANA_BUF[i];
+      s += v * v;
+      if (v < 0) v = -v;
+      if (v > peak) peak = v;
+    }
     rms = Math.sqrt(s / ANA_BUF.length);
   }
-  return { state: AC ? AC.state : 'none', on: AUDIO_ON, rms: +rms.toFixed(4), t: AC ? +AC.currentTime.toFixed(2) : 0 };
+  return {
+    state: AC ? AC.state : 'none', on: AUDIO_ON,
+    rms: +rms.toFixed(4), peak: +peak.toFixed(4),
+    t: AC ? +AC.currentTime.toFixed(2) : 0
+  };
 };
 window.__testStep = function (n) { for (var i = 0; i < (n||1); i++) sfxStep(1); return "ok"; };
 window.__testLand = function () { sfxLand(1); return "ok"; };
@@ -455,26 +543,26 @@ function sfxStep(gait) {
   if (!audioReady()) return;
   var t = AC.currentTime + 0.001;
   var hard = 0.6 + gait * 0.2;
-  playNoise(t, 0.062 + gait * 0.02, 1800 + gait * 500, 0.9, 0.50 * hard, 'bandpass');   /* 鞋底高频：手机喇叭唯一能发出来的部分 */
-  playNoise(t + 0.003, 0.085 + gait * 0.02, 520, 0.7, 0.40 * hard, 'bandpass');         /* 中频"咚" */
-  playThump(t, 150 - gait * 10, 82, 0.10, 0.38 * hard);                                 /* 低频重量：给耳机 */
+  playNoise(t, 0.062 + gait * 0.02, 1800 + gait * 500, 0.9, 0.62 * hard, 'bandpass');   /* 鞋底高频：手机喇叭唯一能发出来的部分 */
+  playNoise(t + 0.003, 0.085 + gait * 0.02, 520, 0.7, 0.48 * hard, 'bandpass');         /* 中频"咚" */
+  playThump(t, 150 - gait * 10, 82, 0.10, 0.45 * hard);                                 /* 低频重量：给耳机 */
 }
 
 function sfxJump() {
   if (!audioReady()) return;
   var t = AC.currentTime + 0.001;
-  playNoise(t, 0.20, 950, 0.8, 0.30, 'bandpass');
-  playNoise(t + 0.01, 0.12, 500, 0.7, 0.24, 'bandpass');
-  playThump(t, 180, 110, 0.11, 0.30);
+  playNoise(t, 0.20, 950, 0.8, 0.42, 'bandpass');
+  playNoise(t + 0.01, 0.12, 500, 0.7, 0.32, 'bandpass');
+  playThump(t, 180, 110, 0.11, 0.38);
 }
 
 function sfxLand(impact) {
   if (!audioReady()) return;
   var t = AC.currentTime + 0.001;
   var imp = Math.min(1, Math.max(0, impact));
-  playThump(t, 140, 70, 0.18 + imp * 0.08, 0.50 + imp * 0.25);
-  playNoise(t, 0.16 + imp * 0.06, 430, 0.7, 0.36 * (0.6 + imp * 0.4), 'bandpass');
-  playNoise(t + 0.006, 0.10, 1700, 0.9, 0.24 * (0.5 + imp * 0.5), 'bandpass');
+  playThump(t, 140, 70, 0.18 + imp * 0.08, 0.60 + imp * 0.20);
+  playNoise(t, 0.16 + imp * 0.06, 430, 0.7, 0.46 * (0.6 + imp * 0.4), 'bandpass');
+  playNoise(t + 0.006, 0.10, 1700, 0.9, 0.32 * (0.5 + imp * 0.5), 'bandpass');
 }
 
 /* 动画里的脚步事件：跨过事件时刻就触发一次（含循环回绕） */
@@ -718,9 +806,19 @@ function update(dt) {
       P.pos.y = 0;
       P.vy = 0;
       P.onGround = true;
-      P.squash = 1.14;
-      P.landLock = 0.32;   /* 落地动作只占 0.32s，之后马上能被走/跑接管，避免"落地了还在滑" */
-      setAnim(P.land > 0.55 ? 'landHeavy' : 'landLight', 1.35, true);
+      var spd = Math.hypot(vel.x, vel.z);
+      if (spd > 1.8) {
+        /* 跑跳落地：腿本来就在跑，硬塞一个"脚钉在地上"的落地姿势必然滑。
+           所以不放落地片段，交给跑步循环继续，靠压扁 + 音效表达冲击。 */
+        P.squash = 1.2;
+        P.landLock = 0;
+        ANIM.oneShot = false;
+      } else {
+        /* 原地/慢速落地：脚是真的踩住了，可以完整播落地姿势 */
+        P.squash = 1.14;
+        P.landLock = 0.55;
+        setAnim(P.land > 0.55 ? 'landHeavy' : 'landLight', 1.35, true);
+      }
       sfxLand(P.land);
     }
   }
