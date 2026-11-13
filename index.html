@@ -75,7 +75,7 @@
 <div id="snd">🔇 点这里开声音</div>
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.12</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.13</div>
 <script>
 /**
  * @license
@@ -337,8 +337,8 @@ function setAnim(name, rate, oneShot) {
   ANIM.blend = 0; ANIM.oneShot = !!oneShot;
   /* 起跳 → 下落这一下手臂摆幅很大，混合时间给长一点，免得像被"拽"下来 */
   ANIM.blendDur = (name === 'fall' || name === 'fallFast') ? 0.30 : ANIM_BLEND;
-  for (var k in _poseCur) delete _poseCur[k];
-  for (var k2 in _posePrev) delete _posePrev[k2];
+  /* 不清空 _poseCur/_posePrev：四元数对象复用，driveAnim 按当前动画的骨集合判断归属。
+     以前每次切换都 delete 重建 64 个对象，连续跳跃就变成 GC 尖峰（手机"卡顿"的主因之一）。 */
 }
 
 function driveAnim(dt) {
@@ -353,14 +353,18 @@ function driveAnim(dt) {
   }
 
   var bobCur = samplePose(ANIM.cur, ANIM.t, _poseCur);
+  var bonesCur = AN[ANIM.cur].bones;
   var bob;
 
   if (ANIM.blend < 1 && ANIM.prev) {
     var bobPrev = samplePose(ANIM.prev, ANIM.prevT, _posePrev);
+    var bonesPrev = AN[ANIM.prev].bones;
     ANIM.prevT += dt * ANIM.rate;
     for (var i = 0; i < boneList.length; i++) {
       var bn = boneList[i].name;
-      var qa = _posePrev[bn] || BINDQ[bn], qc = _poseCur[bn] || BINDQ[bn];
+      /* 字典里可能残留上一个动画的骨，只认当前动画自己声明的骨 */
+      var qa = (bonesPrev[bn] && _posePrev[bn]) || BINDQ[bn];
+      var qc = (bonesCur[bn] && _poseCur[bn]) || BINDQ[bn];
       _qt.copy(qa).slerp(qc, ANIM.blend);
       boneList[i].quaternion.copy(_qt);
     }
@@ -368,7 +372,7 @@ function driveAnim(dt) {
   } else {
     for (var j = 0; j < boneList.length; j++) {
       var bn3 = boneList[j].name;
-      var qc2 = _poseCur[bn3];
+      var qc2 = bonesCur[bn3] ? _poseCur[bn3] : null;
       if (qc2) boneList[j].quaternion.copy(qc2);
       else boneList[j].quaternion.copy(BINDQ[bn3]);
     }
@@ -442,8 +446,13 @@ var _audioGood = false;     /* WebAudio 已确认能响 */
 
 function audioUnlock(ev) {
   var gesture = !!(ev && ev.type);
-  /* 一切都在跑：什么都不做 */
-  if (gesture && _audioGood && AC && AC.state === 'running') return;
+  /* 已在响：什么都不做。
+     WebAudio 正常（_audioGood + running）或备用 <audio> 已确认能响（_wavOk），都直接早退——
+     否则手机上一轻点 5 个手势事件全跑一遍解锁，持续跳跃就持续堆积卡顿。 */
+  if (gesture) {
+    if (_audioGood && AC && AC.state === 'running') return;
+    if (_wavOk) return;
+  }
   /* iOS 的 WebAudio 默认走"环境"音频会话，会被侧边静音拨片直接掐掉。
      Safari 16.4+ 允许显式声明成 playback，必须在手势里设。 */
   try {
@@ -779,9 +788,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.12';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 右侧拖动 转视角 · 轻点 跳跃　·　v0.11.13';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.12';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · Q E 转视角　·　v0.11.13';
 }
 
 window.addEventListener('keydown', function (e) {
