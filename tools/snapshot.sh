@@ -43,6 +43,15 @@ echo "⓪ 版本号字符串 v${VER} 已确认"
 cp index.html "$DEST"
 echo "① 已备份 -> $DEST  ($(wc -c < "$DEST" | tr -d ' ') 字节)"
 
+# ---- ①.5 记一笔说明，并刷新备份索引页 ----
+# 用户要求"能直接看到以前的版本"，所以每发一版都更新 backups/index.html
+printf "%s\t%s\t%s\n" "$VER" "$(date +%Y-%m-%d)" "${NOTE:-（无说明）}" >> backups/manifest.tsv
+if command -v node >/dev/null 2>&1; then
+  node tools/backup_index.js
+else
+  echo "①.5 跳过索引刷新（未找到 node）"
+fi
+
 # ---- ② 语法校验：每个 script 块单独检查 ----
 if command -v node >/dev/null 2>&1; then
   node -e '

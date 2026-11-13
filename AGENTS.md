@@ -51,7 +51,8 @@ rm -rf _solo
 - [ ] `docs/CHANGELOG.md` 新增一条（版本号 + 日期 + 新增/修正/未做）
 - [ ] 触及相关文档的，同步更新 `docs/DESIGN.md` 或 `docs/GAME.md`
 - [ ] 决策或踩坑有变化的，更新 `docs/MEMORY.md`
-- [ ] `bash tools/snapshot.sh <版本号> "<说明>"`
+- [ ] `bash tools/snapshot.sh <版本号> "<说明>"`（会自动备份 + 刷新 `backups/index.html`）
+  - 用户要看旧版本时：打开 `backups/index.html`，点一行就是那一版，不需要懂 git
 - [ ] 清理临时文件（`_*.png`、`_*.mjs`、`_solo/`、`.chk_*.js`）
 
 ---
