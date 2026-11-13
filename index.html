@@ -89,7 +89,7 @@
 <div id="fps">— FPS</div>
 <button id="runBtn">快跑</button>
 <button id="viewBtn">第三</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.29</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.30</div>
 <script>
 /**
  * @license
@@ -976,9 +976,9 @@ function hideTip() {
 setTimeout(hideTip, 9000);
 
 if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里双指缩放　·　v0.11.29';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里双指缩放　·　v0.11.30';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/自由）· 自由视角里滚轮缩放　·　v0.11.29';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角（第一/第三/自由）· 自由视角里滚轮缩放　·　v0.11.30';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1045,6 +1045,18 @@ function turnBy(dx, dy) {
   clampPitch();
 }
 
+/* 判断所有落下的手指是否都在同一半屏：只有同侧才当捏合。
+   一边左半屏推摇杆、一边右半屏转视角，是两种操作，不是缩放。 */
+function allOnSameSide() {
+  var half = null;
+  for (var k in ptrs) {
+    var isLeft = ptrs[k].x < window.innerWidth * 0.5;
+    if (half === null) half = isLeft;
+    else if (half !== isLeft) return false;
+  }
+  return true;
+}
+
 canvas.addEventListener('pointerdown', function (e) {
   if (e.pointerType === 'mouse') {
     mouse.down = true; mouse.px = e.clientX; mouse.py = e.clientY;
@@ -1054,8 +1066,11 @@ canvas.addEventListener('pointerdown', function (e) {
   e.preventDefault();
   hideTip();
   ptrs[e.pointerId] = { x: e.clientX, y: e.clientY };
-  if (freeMode && ptrCount() >= 2) {
-    /* 第二根手指落下：进捏合，单指状态全部作废 */
+  /* 双指捏合的前置条件：没有手指在推摇杆，且所有手指在同一半屏。
+     「边走边转视角」（左手摇杆 + 右手拖动）是常用操作，只要看到"两根手指"就进捏合，
+     这个操作会被掐掉——摇杆和转视角同时失效，等于自由视角里不能一边走一边看。 */
+  if (freeMode && ptrCount() >= 2 && !touch.active && allOnSameSide()) {
+    /* 进捏合，单指状态全部作废 */
     pinch.on = true;
     pinch.d0 = pinchDist();
     pinch.dist0 = freeDist;
@@ -1120,7 +1135,22 @@ function releasePointer(e) {
     return;
   }
   delete ptrs[e.pointerId];
-  if (pinch.on && ptrCount() < 2) pinch.on = false;
+  if (pinch.on && ptrCount() < 2) {
+    pinch.on = false;
+    /* 捏合结束后剩下那根手指接着当"转视角"用，不用抬手重按 */
+    if (ptrCount() === 1 && !touch.active) {
+      for (var pk in ptrs) {
+        var pd = ptrs[pk];
+        if (pd.x >= window.innerWidth * 0.5) {
+          look.active = true; look.id = +pk;
+          look.dragging = true;    /* 置 true：免得抬手被当成"轻点"触发跳跃 */
+          look.sx = pd.x; look.sy = pd.y;
+          look.px = pd.x; look.py = pd.y;
+          look.t0 = performance.now();
+        }
+      }
+    }
+  }
   if (touch.active && e.pointerId === touch.id) {
     touch.active = false; touch.id = -1;
   }
