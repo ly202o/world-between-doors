@@ -26,11 +26,23 @@
     font: 500 11.5px/1.9 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
     letter-spacing: .16em; color: #c3c9cf;
     padding: 0 22px; box-sizing: border-box;
-    pointer-events: none; transition: opacity 1s ease;
+    pointer-events: none; opacity: 0; transition: opacity 1s ease;
   }
   @media (max-width: 560px) {
     #tip { font-size: 11px; letter-spacing: .08em; }
   }
+  /* 桌面：说明默认收起，右上角只常驻一个字母。手机不显示（那里说明会自动淡出） */
+  #helpBadge {
+    position: fixed; right: 14px;
+    top: calc(env(safe-area-inset-top, 0px) + 14px);
+    display: none; width: 22px; height: 22px; border-radius: 6px;
+    background: rgba(255,255,255,.90);
+    box-shadow: 0 1px 5px rgba(120,132,144,.20);
+    font: 600 11px/22px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    text-align: center; color: #a8b0b8; letter-spacing: 0;
+    pointer-events: none; z-index: 200;
+  }
+  #helpBadge.on { background: #454d54; color: #ffffff; }
   #err {
     position: fixed; inset: 0; display: none;
     align-items: center; justify-content: center;
@@ -80,11 +92,12 @@
 <div id="err"></div>
 <div id="snd">🔇 点这里开声音</div>
 <div id="fps">— FPS</div>
+<div id="helpBadge" title="按 H 显示 / 隐藏操作说明">H</div>
 <button id="runBtn" class="pill">快跑</button>
 <button id="viewBtn" class="pill">自由</button>
 <button id="projBtn" class="pill">透视</button>
 <button id="lockBtn" class="pill">俯仰</button>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　·　O 正交　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.37</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　空格 跳跃　·　V 切视角　·　O 正交　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳跃　·　v0.11.38</div>
 <script>
 /**
  * @license
@@ -1223,25 +1236,42 @@ var touch = { id: -1, ox: 0, oy: 0, x: 0, y: 0, active: false };
 var look  = { id: -1, active: false, dragging: false, sx: 0, sy: 0, px: 0, py: 0, t0: 0 };
 var mouse = { down: false, px: 0, py: 0 };
 
+/* ---------------- 操作说明 ----------------
+   手机：一开始就摊开，9 秒后自动淡出（屏幕小，不常占地方）。
+   桌面：默认收起，右上角只留一个 H 徽标，按 H 展开 / 收起。
+         「说明」本身该由人决定什么时候看，不该靠计时器替他关掉。 */
 var tipEl = document.getElementById('tip');
-var tipGone = false;
+var helpBadge = document.getElementById('helpBadge');
+var tipGone = false;      /* 触屏自动淡出只做一次 */
+var tipShown = false;     /* 桌面 H 切换的当前状态 */
+
+function setTip(on) {
+  tipShown = on;
+  tipEl.style.opacity = on ? '1' : '0';
+  if (helpBadge) helpBadge.classList.toggle('on', on);
+}
 function hideTip() {
+  if (!TOUCH_UI) return;              /* 桌面完全交给 H，别的操作不碰说明 */
   if (tipGone) return;
   tipGone = true;
   tipEl.style.opacity = '0';
 }
-setTimeout(hideTip, 9000);
 
-if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里双指缩放、正交键切投影、45°键锁死视角　·　v0.11.37';
+if (TOUCH_UI) {
+  tipEl.style.opacity = '1';
+  setTimeout(hideTip, 9000);
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳跃 · 自由视角里双指缩放、正交键切投影、45°键锁死视角　·　v0.11.38';
 } else {
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角 · 自由视角里滚轮缩放、O 切透视/正交、L 锁死 45° 视角　·　v0.11.37';
+  tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
+  helpBadge.style.display = 'block';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳跃 · 拖动鼠标 转视角 · V 切视角 · 自由视角里滚轮缩放、O 切透视/正交、L 锁死 45° 视角 · H 显示/隐藏本说明　·　v0.11.38';
 }
 
 window.addEventListener('keydown', function (e) {
   var k = e.key.toLowerCase();
   if (k === ' ' || k === 'spacebar' || k.indexOf('arrow') === 0) e.preventDefault();
   if (e.repeat) return;
+  if (k === 'h' && !TOUCH_UI) { setTip(!tipShown); return; }   /* 桌面：一个键管显示与隐藏 */
   if (k === ' ' || k === 'spacebar') doJump();
   if (k === 'v') toggleView();
   if (k === 'o' && freeMode) toggleProj();           /* 桌面没有按钮，给个键 */
