@@ -151,7 +151,7 @@
   <button id="settingsReset" type="button">恢复默认</button>
   <button id="settingsClose" type="button">关闭</button>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.16.0</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.17.0</div>
 <script>
 /**
  * @license
@@ -1793,9 +1793,10 @@ var FRICT = 22;
 var camYaw   = 0;          /* 水平角，0 = 在角色正后方 */
 var camPitch = 0.30;       /* 俯角 */
 var camDist  = 8.6;
-/* 视角模式：0=第一人称 1=第三人称 2=自由（默认——进来先给俯视全景，再自己转/缩） 3=等距 */
-var viewMode = 2;
-var firstMode = false, freeMode = true, isoMode = false;
+/* 视角模式：0=第一人称 1=第三人称 2=自由 3=等距（默认——v0.17.0 起开局就是等距，
+   进来第一眼看到的是完整的村子，不是角色的后背） */
+var viewMode = 3;
+var firstMode = false, freeMode = false, isoMode = true;
 var fpBlend = 0;                 /* 第一/第三之间的平滑量，切换永远是连续曲线 */
 var fpPitch = -0.02;
 /* 轨道枢轴高度：肩点 1.42m。比胸口高、比眼低——挂胸口会让近景镜头卡在肚子上，
@@ -1872,11 +1873,21 @@ function isoZoom(k) {
   if (isoViewH < ISO_VIEW_H_MIN) isoViewH = ISO_VIEW_H_MIN;
   else if (isoViewH > ISO_VIEW_H_MAX) isoViewH = ISO_VIEW_H_MAX;
 }
+/* 一次性把等距的三个状态对齐（仰角/方位/机距），不做缓动。
+   只在开局用：默认档是等距，如果还走"每帧小步逼近"，加载后第一秒镜头会
+   从自由视角的 0.30 rad 慢慢转到 35.264°，看着像卡了一下才进入状态。
+   必须放在第一次 resize() 之后——机距要从 isoViewH 和 FOV_BASE 反算，
+   这两个值都由 resize 按横竖屏定。 */
+function isoSnap() {
+  camYaw = ISO_YAW_BASE + isoYawIdx * ISO_YAW_STEP;
+  camPitch = ISO_PITCH;
+  isoDistCur = isoDistTarget();
+}
 
 /* ---------------- 输入 ---------------- */
 var keys = Object.create(null);
 
-/* ---- 视角切换：手机右上角按钮 / 桌面 V 键，循环：第一人称 → 第三人称 → 自由 ---- */
+/* ---- 视角切换：手机右上角按钮 / 桌面 V 键，循环：第一 → 第三 → 自由 → 等距 ---- */
 var viewBtn  = document.getElementById('viewBtn');
 var lockBtn  = document.getElementById('lockBtn');
 var themeBtn = document.getElementById('themeBtn');
@@ -2165,11 +2176,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角　·　v0.16.0';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角　·　v0.17.0';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.16.0';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.17.0';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -3457,6 +3468,7 @@ function adaptResolution(dt) {
 window.addEventListener('resize', resize, { passive: true });
 window.addEventListener('orientationchange', function () { setTimeout(resize, 150); }, { passive: true });
 resize();
+isoSnap();        /* 默认档是等距：resize 定完横竖屏参数后，把机位一次性落到等距该在的地方 */
 applyTheme(settings.theme);
 
 /* ---------------- 碰撞体积可视化（调试，按 C 切换） ----------------
@@ -3721,7 +3733,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.16.0';
+window.__worldVersion = 'v0.17.0';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
