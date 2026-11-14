@@ -167,7 +167,7 @@
   <button id="settingsReset" type="button">恢复默认</button>
   <button id="settingsClose" type="button">关闭</button>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.12.3</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.12.4</div>
 <script>
 /**
  * @license
@@ -358,6 +358,7 @@ var WALL_FRIC = 3.5;      /* 贴墙摩擦系数：减速度 = WALL_FRIC × 压�
 function addCollider(mesh, w, d, h) {
   var yaw = mesh.rotation.y;
   colliders.push({
+    mesh: mesh,
     x: mesh.position.x, z: mesh.position.z,
     hw: w / 2, hd: d / 2,
     c: Math.cos(yaw), s: Math.sin(yaw),
@@ -365,6 +366,132 @@ function addCollider(mesh, w, d, h) {
     top: mesh.position.y + h / 2,
     reach: Math.sqrt(w * w + d * d) / 2 + PLAYER_R + 0.6
   });
+}
+/* ---------------- 网格 ↔ 碰撞 登记与自检（v0.12.4） ----------------
+   用户要求"所有可见网格都要有碰撞，不要漏"。这里不逐个 new 碰撞体——
+   那会把 draw call 和逐帧遍历都拖垮——而是【覆盖式登记】：
+     遍历场景里每个网格（含 InstancedMesh 的每个实例），沿碰撞体列表查它的
+     8 个几何角点是否都被某个碰撞体包住；
+     没包住的 → 按包围盒补一个近似碰撞体（kind = auto / leaf / flat / pebble）；
+     不该有碰撞的（角色、枪、调试线框、地面）→ 明确豁免并记录理由。
+   审计结果写进 F2 面板，遗漏数必须是 0，缺一个都能看出来。 */
+var NON_BLOCKING_KIND = { pebble: 1, leaf: 1, flat: 1 };   /* 登记了碰撞，但不挡移动（见下） */
+/* 挡人但不该被"撑上去"的：灌木会踩塌、靶子是道具、碎石太碎。
+   否则跑过去会自动翻上灌木顶站着，和之前站栅栏顶是同一类怪事。 */
+var NON_CLIMB_KIND = { bush: 1, target: 1, stand: 1 };
+var collisionAuditData = null;
+var COL_EXEMPT_ROOTS = [];
+var _cnr = new THREE.Vector3(), _instM = new THREE.Matrix4(), _worldM = new THREE.Matrix4(), _mb = new THREE.Box3();
+
+/* 点是否在碰撞棱柱内（tol 是给贴面/薄面片留的容差） */
+function colHoldsPoint(col, x, y, z, tol) {
+  if (y > col.top + tol || y < col.bottom - tol) return false;
+  var dx = x - col.x, dz = z - col.z;
+  if (Math.abs(dx) > col.reach + tol || Math.abs(dz) > col.reach + tol) return false;
+  var lx = dx * col.c - dz * col.s, lz = dx * col.s + dz * col.c;
+  return Math.abs(lx) <= col.hw + tol && Math.abs(lz) <= col.hd + tol;
+}
+
+/* 8 个角点全被某个碰撞体包住 = 这个网格的碰撞已存在 */
+function meshCovered(localBox, matrix, tol) {
+  for (var k = 0; k < 8; k++) {
+    _cnr.set(k & 1 ? localBox.max.x : localBox.min.x,
+             k & 2 ? localBox.max.y : localBox.min.y,
+             k & 4 ? localBox.max.z : localBox.min.z);
+    _cnr.applyMatrix4(matrix);
+    var hit = false;
+    for (var i = 0; i < colliders.length; i++) {
+      if (colHoldsPoint(colliders[i], _cnr.x, _cnr.y, _cnr.z, tol)) { hit = true; break; }
+    }
+    if (!hit) return false;
+  }
+  return true;
+}
+
+function colExemptReason(mesh) {
+  if (mesh.userData.colExempt) return mesh.userData.colExempt;
+  for (var i = 0; i < COL_EXEMPT_ROOTS.length; i++) {
+    for (var o = mesh; o; o = o.parent) if (o === COL_EXEMPT_ROOTS[i][0]) return COL_EXEMPT_ROOTS[i][1];
+  }
+  return null;
+}
+
+/* 按世界包围盒补一个 AABB 近似碰撞体；返回补的类型 */
+function addMeshCollider(localBox, matrix, mesh, res) {
+  _mb.copy(localBox).applyMatrix4(matrix);
+  var w = Math.max(0.04, _mb.max.x - _mb.min.x);
+  var d = Math.max(0.04, _mb.max.z - _mb.min.z);
+  var h = Math.max(0.02, _mb.max.y - _mb.min.y);
+  var kind = 'auto';
+  var mat = mesh.material;
+  if (mesh.userData.colKind) kind = mesh.userData.colKind;
+  else if (mat && mat === HOUSE_MATS.leaf) kind = 'leaf';
+  else if (_mb.max.y <= 0.12) kind = 'flat';
+  else if (h <= 0.50 && w <= 0.70 && d <= 0.70) kind = 'pebble';
+  addCollider({ position: { x: (_mb.max.x + _mb.min.x) / 2, y: (_mb.max.y + _mb.min.y) / 2, z: (_mb.max.z + _mb.min.z) / 2 },
+              rotation: { y: 0 } }, w, d, h);
+  var c = colliders[colliders.length - 1];
+  c.kind = kind; c.auto = true;
+  res.auto++;
+  res.autoNames[kind] = (res.autoNames[kind] || 0) + 1;
+  return kind;
+}
+
+/* fill=true：顺手把没覆盖的补上；fill=false：只统计（用于复核和面板显示） */
+function collisionAudit(fill) {
+  var res = { meshes: 0, instances: 0, covered: 0, ownMeshes: 0, auto: 0, exempt: 0, missing: 0,
+              byKind: {}, exemptions: {}, autoNames: {}, missingNames: [] };
+  var TOL = 0.16;
+  scene.updateMatrixWorld(true);
+  scene.traverse(function (mesh) {
+    if (!mesh.isMesh) return;
+    var why = colExemptReason(mesh);
+    if (why) { res.exempt++; res.exemptions[why] = (res.exemptions[why] || 0) + 1; return; }
+    var geo = mesh.geometry;
+    if (!geo) return;
+    if (!geo.boundingBox && geo.computeBoundingBox) geo.computeBoundingBox();
+    if (!geo.boundingBox) return;
+    res.meshes++;
+
+    if (mesh.isInstancedMesh) {
+      for (var ii = 0; ii < mesh.count; ii++) {
+        mesh.getMatrixAt(ii, _instM);
+        _worldM.multiplyMatrices(mesh.matrixWorld, _instM);
+        res.instances++;
+        if (meshCovered(geo.boundingBox, _worldM, TOL)) { res.covered++; continue; }
+        if (fill) addMeshCollider(geo.boundingBox, _worldM, mesh, res);
+        else { res.missing++; if (res.missingNames.length < 12) res.missingNames.push(mesh.name || 'instanced#' + ii); }
+      }
+      return;
+    }
+
+    var own = false;
+    for (var ci = 0; ci < colliders.length; ci++) if (colliders[ci].mesh === mesh) { own = true; break; }
+    if (meshCovered(geo.boundingBox, mesh.matrixWorld, TOL)) {
+      if (own) res.ownMeshes++; else res.covered++;
+      return;
+    }
+    if (fill) addMeshCollider(geo.boundingBox, mesh.matrixWorld, mesh, res);
+    else { res.missing++; if (res.missingNames.length < 12) res.missingNames.push(mesh.name || ('mesh#' + res.meshes)); }
+  });
+  for (var i = 0; i < colliders.length; i++) res.byKind[colliders[i].kind] = (res.byKind[colliders[i].kind] || 0) + 1;
+  res.colliders = colliders.length;
+  return res;
+}
+
+/* 一次性补齐并在补完之后复核：复核的 missing 必须为 0 */
+function fillCollisionGaps() {
+  COL_EXEMPT_ROOTS = [
+    [ground, '地面平面：支撑由 supportAt 的 0 高度提供，不需要棱柱'],
+    [pawn, '角色骨骼蒙皮：移动主碰撞是稳定圆柱，骨骼盒只做调试显示'],
+    [heldPistol, '手持枪模'],
+    [fpPistol, '第一人称枪模']
+  ];
+  var added = collisionAudit(true);
+  var verify = collisionAudit(false);
+  collisionAuditData = { added: added, verify: verify };
+  window.__collisionAudit = collisionAuditData;
+  return collisionAuditData;
 }
 window.__colliders = colliders;   /* 诊断用 */
 
@@ -628,6 +755,7 @@ var stoneMat = new THREE.MeshStandardMaterial({ color: 0xeaeff3, roughness: 0.95
     c2.position.set(x + 0.2, 3.55, z - 0.15);
     [c1, c2].forEach(function (c) {
       c.castShadow = true; c.receiveShadow = true;
+      c.userData.colKind = 'leaf';
       c.userData.baseMat = leafMat;
       scene.add(c); blockers.push(c);
     });
@@ -636,6 +764,10 @@ var stoneMat = new THREE.MeshStandardMaterial({ color: 0xeaeff3, roughness: 0.95
   tree(5.7, -13.2);
   part(0.8, 0.75, 0.8, HX - 2.1, 0.37, -16.1);             /* 门廊两侧的灌木 */
   part(0.8, 0.75, 0.8, HX + 2.1, 0.37, -16.1);
+  collider(HX - 2.1, 0.37, -16.1, 0, 0.8, 0.8, 0.75);      /* 灌木是实体，挡人 */
+  colliders[colliders.length - 1].kind = 'bush';
+  collider(HX + 2.1, 0.37, -16.1, 0, 0.8, 0.8, 0.75);
+  colliders[colliders.length - 1].kind = 'bush';
 
   /* 一次性提交：栅栏 + 门廊 + 烟囱 + 树干 + 灌木，全部同材质 → 1 次 draw call（阴影再 1 次） */
   instance(batch, propMat, true);
@@ -675,8 +807,7 @@ var stoneMat = new THREE.MeshStandardMaterial({ color: 0xeaeff3, roughness: 0.95
    块状人（blockout 风格）：每个部位是一个圆角方块，关节是球
    基准：脚底 0 · 踝 0.10 · 膝 0.46 · 胯 0.90 · 肩 1.40 · 头顶 1.80 */
 var MAT = new THREE.MeshStandardMaterial({ color: 0x2b5268, roughness: 0.58, metalness: 0.05 });
-var ACCENT_MAT = new THREE.MeshStandardMaterial({ color: 0xd28b45, roughness: 0.42, metalness: 0.12 });
-var VISOR_MAT = new THREE.MeshStandardMaterial({ color: 0x14202b, roughness: 0.18, metalness: 0.35 });
+/* 蓝灰主体换色，不附加外观几何，不改骨骼动画。 */
 
 var pawn = new THREE.Group();
 var bodyPivot = new THREE.Group();
@@ -714,19 +845,6 @@ skinMesh.castShadow = true;
 skinMesh.receiveShadow = true;
 bodyPivot.add(skinMesh);
 
-/* TPL 自有比例/配件层：不改骨骼网格来源，用肩甲、腰带和面罩改变识别度。 */
-var styleParts = new THREE.Group();
-var shoulderGeo = new THREE.BoxGeometry(0.52, 0.16, 0.34);
-var beltGeo = new THREE.TorusGeometry(0.255, 0.035, 6, 12);
-var visorGeo = new THREE.BoxGeometry(0.24, 0.075, 0.16);
-var shoulderL = new THREE.Mesh(shoulderGeo, ACCENT_MAT), shoulderR = new THREE.Mesh(shoulderGeo, ACCENT_MAT);
-shoulderL.position.set(-0.34, 1.40, 0); shoulderR.position.set(0.34, 1.40, 0);
-shoulderL.rotation.z = -0.08; shoulderR.rotation.z = 0.08;
-styleParts.add(shoulderL); styleParts.add(shoulderR);
-var beltPart = new THREE.Mesh(beltGeo, ACCENT_MAT);
-beltPart.rotation.x = Math.PI / 2; beltPart.position.y = 0.91; styleParts.add(beltPart);
-var visorPart = new THREE.Mesh(visorGeo, VISOR_MAT); visorPart.position.set(0, 1.69, 0.20); styleParts.add(visorPart);
-styleParts.castShadow = true; styleParts.receiveShadow = true; bodyPivot.add(styleParts);
 
 pawn.position.set(0, 0, 0);
 pawn.updateMatrixWorld(true);
@@ -1565,11 +1683,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 射击键 开火 · 换弹键 装填 · 轻点 跳/攀 · 自由视角里双指缩放、45°键锁死视角、主题键切主题、碰撞键看碰撞体　·　v0.12.3';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 射击键 开火 · 换弹键 装填 · 轻点 跳/攀 · 自由视角里双指缩放、45°键锁死视角、主题键切主题、碰撞键看碰撞体　·　v0.12.4';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 左键 射击 · R 换弹 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · 自由视角里滚轮缩放、L 锁死 45° 视角 · T 切主题 · C 看碰撞体 · F2 设置 · H 显示/隐藏本说明　·　v0.12.3';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 左键 射击 · R 换弹 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · 自由视角里滚轮缩放、L 锁死 45° 视角 · T 切主题 · C 看碰撞体 · F2 设置 · H 显示/隐藏本说明　·　v0.12.4';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -1828,6 +1946,7 @@ function insideCol(col, x, z, margin) {
 function bodyClear(x, y, z) {
   for (var i = 0; i < colliders.length; i++) {
     var c = colliders[i];
+    if (NON_BLOCKING_KIND[c.kind]) continue;
     if (y >= colHeight(c, x, z) - 0.015 || y + 1.86 <= c.bottom + 0.01) continue;
     var dx = x - c.x, dz = z - c.z;
     if (Math.abs(dx) > c.reach || Math.abs(dz) > c.reach) continue;
@@ -1848,6 +1967,7 @@ function tryClimb() {
     var px = P.pos.x + dirX * s, pz = P.pos.z + dirZ * s;
     for (var i = 0; i < colliders.length; i++) {
       var col = colliders[i], top = colHeight(col, px, pz), h = top - P.pos.y;
+      if (NON_BLOCKING_KIND[col.kind] || NON_CLIMB_KIND[col.kind]) continue;   /* 树冠/碎石/灌木/靶子不能当攀爬沿 */
       if (h < (P.onGround ? CLIMB_MIN_H : 0.20) || h > CLIMB_MAX_H) continue;
       if (!P.onGround && top - motionDebug.launchY > CLIMB_MAX_H + 0.05) continue;
       if (col.kind === 'roof') continue;
@@ -1999,6 +2119,7 @@ function collideXZ(dt, tx, tz) {
   var stepAllow = P.onGround ? STEP_UP : 0.08;
   for (var i = 0; i < colliders.length; i++) {
     var col = colliders[i];
+    if (NON_BLOCKING_KIND[col.kind]) continue;   /* 碎屑/树叶/薄地砖：不挡移动 */
     var surface = colHeight(col, P.pos.x, P.pos.z);
     if (surface - feet <= stepAllow || P.pos.y + 1.86 <= col.bottom) continue;
     /* 屋面是实心三角棱柱；已在屋面上时允许沿连续坡面行走。 */
@@ -2075,6 +2196,7 @@ function supportAt(px, pz, feet) {
   var best = 0, limit = feet + STEP_UP + 0.02;
   for (var i = 0; i < colliders.length; i++) {
     var col = colliders[i];
+    if (NON_BLOCKING_KIND[col.kind]) continue;   /* 小石子不把人颠起来 */
     var height = colHeight(col, px, pz);
     if (height <= best || height > limit) continue;
     var dx = px - col.x, dz = pz - col.z;
@@ -2159,6 +2281,7 @@ function update(dt) {
       var probeX = P.pos.x + tx / runLength * 0.56, probeZ = P.pos.z + tz / runLength * 0.56;
       for (var approachIndex = 0; approachIndex < colliders.length; approachIndex++) {
         var approachCol = colliders[approachIndex];
+        if (NON_BLOCKING_KIND[approachCol.kind]) continue;
         if (insideCol(approachCol, probeX, probeZ, 0) && colHeight(approachCol, probeX, probeZ) - Math.max(P.pos.y, motionDebug.stepTarget) > STEP_UP + 0.02) {
           P.face = P.faceTarget = Math.atan2(tx, tz);
           if (tryClimb()) break;
@@ -2197,6 +2320,7 @@ function update(dt) {
     if (P.vy > 0) {
       for (var ceilingIndex = 0; ceilingIndex < colliders.length; ceilingIndex++) {
         var ceiling = colliders[ceilingIndex];
+        if (NON_BLOCKING_KIND[ceiling.kind]) continue;
         if (ceiling.bottom > 0.1 && oldHead <= ceiling.bottom + 0.01 && P.pos.y + 1.86 >= ceiling.bottom && insideCol(ceiling, P.pos.x, P.pos.z, -PLAYER_R * 0.7)) {
           P.pos.y = ceiling.bottom - 1.86; P.vy = 0;
         }
@@ -2555,6 +2679,7 @@ function updateBoneViz() {
     if (!a || !b) continue;
     if (!boneViz[i]) {
       boneViz[i] = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshBasicMaterial({color:0xffc66d,wireframe:true,depthTest:false,transparent:true,opacity:0.75}));
+      boneViz[i].userData.colExempt = '骨骼近似盒';
       boneViz[i].renderOrder = 992; boneVizGroup.add(boneViz[i]);
     }
     a.getWorldPosition(boneVA); b.getWorldPosition(boneVB);
@@ -2573,6 +2698,7 @@ function buildColViz() {
   var out = [], colors = [];
   for (var i = 0; i < colliders.length; i++) {
     var c = colliders[i];
+    if (c.kind === 'pebble' || c.kind === 'flat') continue;   /* 碎屑/薄地砖不画：会糊成一片 */
     var w = c.hw * 2, d = c.hd * 2, h = c.top - c.bottom;
     var v = [];
     for (var k = 0; k < 8; k++) {
@@ -2580,7 +2706,8 @@ function buildColViz() {
       v.push([c.x + lx * c.c + lz * c.s, ly, c.z - lx * c.s + lz * c.c]);
       if (c.kind === 'roof' && k >= 4) v[k][1] = c.base;
     }
-    var color = c.kind === 'roof' ? [0.95,0.45,0.85] : (c.kind === 'fence' ? [1,0.7,0.25] : [0.18,0.90,0.63]);
+    var color = c.kind === 'roof' ? [0.95,0.45,0.85] : (c.kind === 'fence' ? [1,0.7,0.25] :
+                (c.kind === 'leaf' ? [0.45,0.80,1] : (c.kind === 'auto' ? [1,0.95,0.45] : [0.18,0.90,0.63])));
     for (var e = 0; e < EDGES.length; e++) {
       var a = v[EDGES[e][0]], b = v[EDGES[e][1]];
       out.push(a[0], a[1], a[2], b[0], b[1], b[2]);
@@ -2598,6 +2725,7 @@ function buildColViz() {
   colViz = new THREE.LineSegments(g, new THREE.LineBasicMaterial({
     vertexColors: true, transparent: true, opacity: 0.9, depthTest: false
   }));
+  colViz.userData.colExempt = '碰撞线框';
   colViz.renderOrder = 990;
   colViz.frustumCulled = false;
   colViz.visible = false;
@@ -2607,6 +2735,7 @@ function buildColViz() {
     new THREE.CylinderGeometry(PLAYER_R, PLAYER_R, 1.86, 12, 1, true),
     new THREE.MeshBasicMaterial({ color: 0x4dd2ff, wireframe: true, transparent: true, opacity: 0.5, depthTest: false })
   );
+  playerViz.userData.colExempt = '角色胶囊线框';
   playerViz.renderOrder = 991;
   playerViz.visible = false;
   scene.add(playerViz);
@@ -2648,7 +2777,10 @@ for (var targetIndex = 0; targetIndex < 3; targetIndex++) {
   addCollider(target, 0.75, 0.16, 1.15); colliders[colliders.length - 1].kind = 'target';
   var stand = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.78, 0.12), gunDark);
   stand.position.set(target.position.x, 0.39, -6); scene.add(stand);
+  addCollider(stand, 0.10, 0.12, 0.78); colliders[colliders.length - 1].kind = 'stand';
 }
+/* 场景全部建好后一次性补齐碰撞并复核（遗漏必须为 0），结果进 F2 面板 */
+fillCollisionGaps();
 var shotOrigin = new THREE.Vector3(), shotDir = new THREE.Vector3(), aimPoint = new THREE.Vector3();
 var shotRay = new THREE.Raycaster(), aimEl = document.getElementById('aim'), weaponHud = document.getElementById('weaponHud');
 function weaponAim() {
@@ -2757,6 +2889,12 @@ function fpsTick(t) {
         '\n位置 ' + P.pos.x.toFixed(2) + ', ' + P.pos.y.toFixed(2) + ', ' + P.pos.z.toFixed(2) +
         '\n朝向 ' + P.face.toFixed(2) + ' → ' + P.faceTarget.toFixed(2) +
         '\n碰撞体 ' + colliders.length + ' / ' + VIEW_NAME[viewMode] +
+        '\n网格 ' + (collisionAuditData ? collisionAuditData.verify.meshes : 0) +
+        ' + 实例 ' + (collisionAuditData ? collisionAuditData.verify.instances : 0) +
+        '（合计 ' + (collisionAuditData ? (collisionAuditData.verify.meshes + collisionAuditData.verify.instances) : 0) + '）' +
+        ' / 已覆盖 ' + (collisionAuditData ? (collisionAuditData.verify.covered + collisionAuditData.verify.ownMeshes + collisionAuditData.verify.auto) : 0) +
+        ' / 豁免 ' + (collisionAuditData ? collisionAuditData.verify.exempt : 0) +
+        ' / 遗漏 ' + (collisionAuditData ? collisionAuditData.verify.missing : 0) +
         '\n模拟倍速 ' + settings.timeScale.toFixed(2) + '× / 诊断按真实时间刷新' +
         '\n抓沿 ' + motionDebug.ledge + ' / 阶段 ' + (climb ? (climb.t / climb.dur < 0.48 ? '接近/撑起' : (climb.t / climb.dur < 0.78 ? '越沿' : '落稳')) : '无') +
         '\n撞墙 ' + motionDebug.wall + ' / 踉跄 ' + motionDebug.stumble.toFixed(2) +
@@ -2812,7 +2950,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.12.3';
+window.__worldVersion = 'v0.12.4';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   weapon: weapon, targets: targets, fire: fireWeapon, reload: reloadWeapon,
   shotCollider: shotCollider, shotOrigin: shotOrigin, shotDir: shotDir,
@@ -2847,6 +2985,8 @@ window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   get colViz() { return colVizOn; },
   setColViz: function (v) { setColViz(v); },
   get climbing() { return !!climb; },
+  collisionAudit: function () { return collisionAudit(false); },
+  get collisionAuditData() { return collisionAuditData; },
   tryClimb: function () { return tryClimb(); },
   get theme() { return themeName; },
   setTheme: function (n) { applyTheme(n); },
