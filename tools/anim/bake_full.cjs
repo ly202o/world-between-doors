@@ -308,7 +308,16 @@ const ANIMS = {
   mantle: 'ALS_N_Mantle_1m_RH.fbx',
   /* 高墙攀爬（v0.12.5）：ALS 的撑上 2m 障碍。按墙高在 1m / 2m 之间选动作，
      不再用 1m 动作硬拉高墙（那会出现"够到了再平移上去"的怪动作）。 */
-  mantle2: 'ALS_N_Mantle_2m.fbx'
+  mantle2: 'ALS_N_Mantle_2m.fbx',
+  /* 原地转身（v0.13.2）：ALS 的 TurnInPlace 左/右 90°。
+     注意这两个动作的"转 90°"是打在上半身+骨盆上的，不是 root motion 位移，
+     所以不需要 WANT_ROOT；播完身体朝向要由 P.face 一起补过去，否则会弹回。 */
+  turnL90: 'ALS_N_TurnIP_L90.fbx',
+  turnR90: 'ALS_N_TurnIP_R90.fbx',
+  /* v0.13.2 试过但没接的两组，留个记录免得以后重复踩：
+     - Stop_L/R_Down：量下来骨盆只起伏 5mm、大腿转 5°，在 ALS 里它是"跑→站的 blend 过渡"，
+       不是独立动作；我们的状态机本来就有 0.18s 姿态混合，硬播 1.58s 反而拖沓。
+     - JumpLoop：起跳片段 0.7s，而上升段最长约 0.5s，永远播不到它。 */
 };
 
 const result = {};
