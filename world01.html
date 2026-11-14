@@ -1263,6 +1263,38 @@ function updateFootContact(dt) {
   pawn.updateMatrixWorld(true);
 }
 
+/* ---------------- 头部视线跟随（v0.13.4） ----------------
+   ALS 的 Rotation 体系里，下半身负责移动方向、上半身和头跟视线。这里只做头。
+   为什么只到 neck/head，不动 spine：脊柱是手臂的父级，一转枪就跟着转，
+   枪口立刻不再指向准星——持枪姿态会被连带破坏。所以上限就是脖子。
+   另外站定时身体本来就会转向视线（朝向 lerp），这一项主要在「边走边转头看」时看得出来。
+   第一人称要关掉：相机不在骨骼上，头转了相机不转，只会把脑袋转进镜头里。 */
+var LOOK = { on: true, max: 1.15, neck: 0.45, head: 0.55, rate: 9, cur: 0 };
+var _lookAX = new THREE.Vector3(0, 1, 0);
+
+function updateLookPose(dt) {
+  var neck = boneByName.neck_01, head = boneByName.head;
+  if (!neck || !head) return;
+  var want = 0;
+  if (LOOK.on && !climb && fpBlend < 0.5 && ANIM.cur !== 'mantle' && ANIM.cur !== 'mantle2' &&
+      motionDebug.stumble <= 0) {
+    /* 相机看的方向（camYaw + π）就是角色的"视线"，和 P.face 是同一个角度约定 */
+    want = camYaw + Math.PI - P.face;
+    while (want > Math.PI) want -= Math.PI * 2;
+    while (want < -Math.PI) want += Math.PI * 2;
+    if (want > LOOK.max) want = LOOK.max;
+    else if (want < -LOOK.max) want = -LOOK.max;
+  }
+  /* 平滑：视线猛地甩到背后时，头不会瞬间折过去 */
+  LOOK.cur += (want - LOOK.cur) * (1 - Math.exp(-LOOK.rate * Math.max(dt, 0.0001)));
+  if (Math.abs(LOOK.cur) < 0.0008) { LOOK.cur = 0; return; }
+  /* 颈 45% + 头 55%：只转颈像落枕，只转头像猫头鹰 */
+  ikRotWorld(neck, _lookAX, LOOK.cur * LOOK.neck);
+  neck.updateWorldMatrix(false, true);
+  ikRotWorld(head, _lookAX, LOOK.cur * LOOK.head);
+  head.updateWorldMatrix(false, true);
+}
+
 pawn.position.set(0, 0, 0);
 scene.add(pawn);
 
@@ -2954,7 +2986,9 @@ function update(dt) {
         ANIM.hardCut = true;                    /* root 骨必须同帧归零，不然会双倍 */
         ANIM.oneShot = false;                   /* 松开，让状态机立刻接管 */
       }
-      TURN.on = false; TURN.cool = 0.12;
+      /* 冷却给到 0.3s：贴墙滑行时 sp 会在 0.45~0.55 来回跳，
+         0.12s 的冷却不够，会出现"触发→被 sp>0.5 取消→立刻再触发"的抖动。 */
+      TURN.on = false; TURN.cool = 0.3;
     }
   } else if (!climb && P.onGround && !settingsOpen && sp < 0.45 && TURN.cool <= 0 && TURN.settle > 0.12) {
     if (Math.abs(diff) > 1.05) {                /* 60° 以上才值得演一段转身 */
@@ -3995,6 +4029,7 @@ function fpsTick(t) {
         '\n速度 ' + Math.hypot(vel.x, vel.z).toFixed(2) + ' m/s' +
         '\n位置 ' + P.pos.x.toFixed(2) + ', ' + P.pos.y.toFixed(2) + ', ' + P.pos.z.toFixed(2) +
         '\n朝向 ' + P.face.toFixed(2) + ' → ' + P.faceTarget.toFixed(2) +
+        ' / 视线 ' + camYaw.toFixed(2) + ' / 头偏 ' + (LOOK.cur * 57.3).toFixed(0) + '°' +
         '\n体宽半径 ' + rBody.toFixed(3) + ' m（骨骼实测，基准 ' + PLAYER_R + '）' +
         '\n碰撞体 ' + colliders.length + ' / ' + VIEW_NAME[viewMode] +
         '\n网格 ' + (collisionAuditData ? collisionAuditData.verify.meshes : 0) +
@@ -4046,6 +4081,7 @@ function loop(t) {
   var _jd = performance.now();
   driveAnim(simDt);
   updateFootContact(simDt);
+  updateLookPose(simDt);
   updateBodyRadius(dt);
   if (playerViz && colVizOn) playerViz.scale.set(rBody / PLAYER_R, 1, rBody / PLAYER_R);
   updateBoneViz();
@@ -4071,7 +4107,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.13.3';
+window.__worldVersion = 'v0.13.4';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   weapon: weapon, targets: targets, fire: fireWeapon, reload: reloadWeapon,
   fx: FX,
@@ -4088,6 +4124,8 @@ window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   motionDebug: motionDebug, footState: footState,
   /* 诊断：脚部 IK 参数（踝高/上下限/贴坡上限/收敛速度） */
   get ikCfg() { return IK; },
+  /* 诊断：头部视线跟随（当前偏角/上限/颈头分配） */
+  get look() { return LOOK; },
   supportAt: supportAt, bodyClear: bodyClear,
   get boneBoxes() { return boneViz.length; },
   get climbState() { return climb; },
