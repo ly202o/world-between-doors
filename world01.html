@@ -157,23 +157,6 @@
   #side .tFoot { flex: none; display: flex; align-items: center; gap: 9px; padding: 9px 14px; border-top: 1px solid #53606f; }
   #side .tFoot button { padding: 6px 12px; border-radius: 6px; border: 1px solid #5d6a79; background: #2a323d; color: #dfe7f2; font-size: 12px; }
   #side #testMsg { color: #9fb0c2; font-size: 12px; }
-  #fireBtn { right: 14px; bottom: calc(env(safe-area-inset-bottom, 0px) + 150px); width: 64px; height: 44px; }
-  #reloadBtn { right: 88px; bottom: calc(env(safe-area-inset-bottom, 0px) + 150px); }
-  #weaponHud { position: fixed; left: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 54px); color: var(--ink); font: 12px/1.6 sans-serif; pointer-events: none; z-index: 180; }
-  /* 准星：四段短线 + 中心点。散布变化时只改四段线的 translate（不重排、不重绘整页）。
-     世界坐标投影到屏幕上对准星中心，四段线跟着张/合 —— 一看就知道"现在准不准"。 */
-  #aim { position: fixed; width: 0; height: 0; left: 50%; top: 50%; pointer-events: none; z-index: 180; }
-  #aim i, #aim b {
-    position: absolute; left: 0; top: 0; display: block;
-    background: var(--on-bg); border-radius: 1px;
-    box-shadow: 0 0 3px rgba(0, 0, 0, .6);
-    will-change: transform;
-  }
-  #aim .v { width: 2px; height: 7px; }
-  #aim .h { width: 7px; height: 2px; }
-  #aim b { width: 2px; height: 2px; border-radius: 50%; }
-  #aim.hit i, #aim.hit b { background: #f5cf75; }
-  #aim.empty i, #aim.empty b { background: #e2705c; opacity: .75; }
   #fps {
     position: fixed; left: 10px; top: 8px;
     font: 400 10px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -188,10 +171,6 @@
 <div id="snd">🔇 静音 · 点这里开声音</div>
 <div id="fps">— FPS</div>
 <div id="helpBadge" title="按 H 显示 / 隐藏操作说明">H</div>
-<button id="fireBtn" class="pill">射击</button>
-<button id="reloadBtn" class="pill">换弹</button>
-<div id="weaponHud"></div>
-<div id="aim"><i class="v" data-d="u"></i><i class="v" data-d="d"></i><i class="h" data-d="l"></i><i class="h" data-d="r"></i><b></b></div>
 <button id="runBtn" class="pill">快跑</button>
 <button id="viewBtn" class="pill">自由</button>
 <button id="lockBtn" class="pill">俯仰</button>
@@ -238,7 +217,7 @@
   </div>
   <div class="tFoot"><button id="testCopy" type="button">复制反馈</button><span id="testMsg"></span></div>
 </aside>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.13.6</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.14.0</div>
 <script>
 /**
  * @license
@@ -495,7 +474,7 @@ function addPost(x, y, z, r, h) {
      遍历场景里每个网格（含 InstancedMesh 的每个实例），沿碰撞体列表查它的
      8 个几何角点是否都被某个碰撞体包住；
      没包住的 → 按包围盒补一个近似碰撞体（kind = auto / leaf / flat / pebble）；
-     不该有碰撞的（角色、枪、调试线框、地面）→ 明确豁免并记录理由。
+     不该有碰撞的（角色、调试线框、地面）→ 明确豁免并记录理由。
    审计结果写进 F2 面板，遗漏数必须是 0，缺一个都能看出来。 */
 /* v0.13.6：碎石从"不挡移动"里摘出来了 —— 用户反馈"地上很多碎石没有碰撞"。
    小的靠 STEP_UP（0.35m）自动踩过去，只有真的高于台阶的才挡人。 */
@@ -608,7 +587,6 @@ function fillCollisionGaps() {
   COL_EXEMPT_ROOTS = [
     [ground, '地面平面：支撑由 supportAt 的 0 高度提供，不需要棱柱'],
     [pawn, '角色骨骼蒙皮：移动主碰撞是稳定圆柱，骨骼盒只做调试显示'],
-    [heldPistol, '手持枪模（第一/第三人称共用同一把）']
   ];
   var added = collisionAudit(true);
   var verify = collisionAudit(false);
@@ -1116,50 +1094,8 @@ function driveAnim(dt) {
     ANIM.rootYaw = Math.atan2(2 * (rq.w * rq.y + rq.x * rq.z), 1 - 2 * (rq.y * rq.y + rq.x * rq.x));
   } else ANIM.rootYaw = 0;
 
-  applyHoldPose();
 }
 
-/* ---------------- 持枪姿态：在动画之上叠一层（v0.13.1） ----------------
-   场景里的枪挂在 hand_r 上，但 ALS 这套素材里没有持枪动作，站立/走路时手臂是垂着的，
-   枪被手和身体挡掉，第三人称等于看不见。这里在动画写完之后对右臂叠一层固定旋转，
-   把枪抬到胸前偏右。纯叠加：走/跑/跳/攀爬的原始动画照常播，只是右臂多带一个姿势。
-   三个欧拉角是按手骨落点和枪口朝向数值搜索出来的，见 docs/DESIGN.md 3.62。 */
-/* 角度来源：以「右手落在骨盆右前上方 (-0.20, +0.34, +0.30)」为目标做坐标下降，
-   顺便把手肘约束在中轴 0.17m 之外（不然前臂插进胸口）。收敛残差 2mm。 */
-var HOLD = { on: true, ua: [6.4, -11, 7.9], la: [43.1, -34.3, 57.5], hd: [0, 0, 0] };
-var _holdE = new THREE.Euler(), _holdQ = new THREE.Quaternion();
-function holdBone(name, deg) {
-  if (!deg[0] && !deg[1] && !deg[2]) return;
-  var b = boneByName[name];
-  if (!b) return;
-  _holdE.set(deg[0] * Math.PI / 180, deg[1] * Math.PI / 180, deg[2] * Math.PI / 180, 'XYZ');
-  b.quaternion.multiply(_holdQ.setFromEuler(_holdE));
-}
-/* 第一人称的握枪姿势（v0.13.1）：同一把枪、同一只手，只是把手臂抬到眼睛前方。
-   数值同样由坐标下降解出来——目标「右手落在骨盆上方 0.50m、前方 0.33m、右侧 0.15m」，
-   解出来的枪离眼睛约 0.32m，落在画面下方偏右，是标准 FPS 的持枪位置。 */
-var HOLD_AIM = { ua: [0.5, -54.1, 18.6], la: [35.9, -29.2, 29.3], hd: [17.2, 17.2, 0] };
-var _holdA = [0, 0, 0], _holdB = [0, 0, 0], _holdC = [0, 0, 0];
-function applyHoldPose() {
-  if (!HOLD.on) return;
-  /* 按 fpBlend 在「自然持枪」与「抬枪到眼前」之间插值：
-     两个姿势是同一组骨骼的欧拉角，直接线性插值就够，不会穿帮。 */
-  var k = fpBlend;
-  if (k < 0.001) {
-    holdBone('upperarm_r', HOLD.ua);
-    holdBone('lowerarm_r', HOLD.la);
-    holdBone('hand_r', HOLD.hd);
-    return;
-  }
-  for (var i = 0; i < 3; i++) {
-    _holdA[i] = HOLD.ua[i] + (HOLD_AIM.ua[i] - HOLD.ua[i]) * k;
-    _holdB[i] = HOLD.la[i] + (HOLD_AIM.la[i] - HOLD.la[i]) * k;
-    _holdC[i] = HOLD.hd[i] + (HOLD_AIM.hd[i] - HOLD.hd[i]) * k;
-  }
-  holdBone('upperarm_r', _holdA);
-  holdBone('lowerarm_r', _holdB);
-  holdBone('hand_r', _holdC);
-}
 
 /* ---------------- 脚部 IK：两骨解析解（v0.13.3） ----------------
    v0.13.2 之前这里只有「骨盆补偿」：量到脚陷进地里就整体抬一点骨盆，
@@ -1362,8 +1298,8 @@ function updateFootContact(dt) {
 
 /* ---------------- 头部视线跟随（v0.13.4） ----------------
    ALS 的 Rotation 体系里，下半身负责移动方向、上半身和头跟视线。这里只做头。
-   为什么只到 neck/head，不动 spine：脊柱是手臂的父级，一转枪就跟着转，
-   枪口立刻不再指向准星——持枪姿态会被连带破坏。所以上限就是脖子。
+   为什么只到 neck/head，不动 spine：脊柱是整条手臂的父级，一转就把肩和手一起带走，
+   从侧面看像上半身被人扳了一下。所以上限就是脖子。
    另外站定时身体本来就会转向视线（朝向 lerp），这一项主要在「边走边转头看」时看得出来。
    第一人称要关掉：相机不在骨骼上，头转了相机不转，只会把脑袋转进镜头里。 */
 var LOOK = { on: true, max: 1.15, neck: 0.45, head: 0.55, rate: 9, cur: 0 };
@@ -1811,76 +1747,6 @@ function sfxLand(impact) {
   playBuf('step', 0.9 + Math.random() * 0.06, 0.8 + imp * 0.3);
 }
 
-/* ---------------- 枪声：纯合成（v0.13.1） ----------------
-   ALS 是移动系统，没有武器音源，所以枪声只能自己造。
-   三层叠：低频冲击（重量）+ 噪声爆裂（脆）+ 低通尾音（空间）。
-   每发从噪声 buffer 的随机位置起播，连射不会听成一模一样的复读。
-   没有 <audio> 备用链路——合成音造不出可回放的文件，WebAudio 被拦就没枪声。 */
-var NOISE_BUF = null;
-function noiseBuf() {
-  if (NOISE_BUF || !AC) return NOISE_BUF;
-  var n = Math.max(1, Math.floor(AC.sampleRate * 0.6));
-  NOISE_BUF = AC.createBuffer(1, n, AC.sampleRate);
-  var d = NOISE_BUF.getChannelData(0);
-  for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
-  return NOISE_BUF;
-}
-function sfxClick(freq, gain, dur) {
-  if (!audioReady()) return;
-  var nb = noiseBuf();
-  if (!nb) return;
-  var t = AC.currentTime;
-  var s = AC.createBufferSource(), bp = AC.createBiquadFilter(), g = AC.createGain();
-  s.buffer = nb;
-  bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = 2.2;
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(gain, t + 0.002);
-  g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
-  s.connect(bp); bp.connect(g); g.connect(AM);
-  s.start(t, Math.random() * 0.4); s.stop(t + dur + 0.02);
-}
-function sfxShot() {
-  if (!audioReady()) return;
-  var nb = noiseBuf();
-  if (!nb) return;
-  var t = AC.currentTime, off = Math.random() * 0.25;
-  /* 1) 低频冲击 */
-  var o = AC.createOscillator(), g = AC.createGain();
-  o.type = 'sine';
-  o.frequency.setValueAtTime(148 + Math.random() * 24, t);
-  o.frequency.exponentialRampToValueAtTime(46, t + 0.10);
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(0.60, t + 0.003);
-  g.gain.exponentialRampToValueAtTime(0.0008, t + 0.17);
-  o.connect(g); g.connect(AM);
-  o.start(t); o.stop(t + 0.19);
-  /* 2) 噪声爆裂：决定"脆" */
-  var s1 = AC.createBufferSource(), bp = AC.createBiquadFilter(), g1 = AC.createGain();
-  s1.buffer = nb;
-  s1.playbackRate.value = 0.9 + Math.random() * 0.2;
-  bp.type = 'bandpass'; bp.frequency.value = 2100; bp.Q.value = 0.7;
-  g1.gain.setValueAtTime(0.0001, t);
-  g1.gain.exponentialRampToValueAtTime(0.80, t + 0.002);
-  g1.gain.exponentialRampToValueAtTime(0.0008, t + 0.095);
-  s1.connect(bp); bp.connect(g1); g1.connect(AM);
-  s1.start(t, off); s1.stop(t + 0.11);
-  /* 3) 尾音：枪口炸开后的余响 */
-  var s2 = AC.createBufferSource(), lp = AC.createBiquadFilter(), g2 = AC.createGain();
-  s2.buffer = nb;
-  lp.type = 'lowpass';
-  lp.frequency.setValueAtTime(1500, t);
-  lp.frequency.exponentialRampToValueAtTime(380, t + 0.26);
-  g2.gain.setValueAtTime(0.0001, t + 0.008);
-  g2.gain.exponentialRampToValueAtTime(0.20, t + 0.02);
-  g2.gain.exponentialRampToValueAtTime(0.0008, t + 0.28);
-  s2.connect(lp); lp.connect(g2); g2.connect(AM);
-  s2.start(t, off + 0.2); s2.stop(t + 0.3);
-}
-/* 机械声：干击、退匣、上匣。都是极短的带通噪声，靠 Q 值（2.2）给出"金属脆"。
-   峰值只到枪声的 5%，所以 gain 给得比枪声还高，才能在枪声余响里还听得见。 */
-function sfxDry() { sfxClick(3000, 0.55, 0.05); }
-function sfxMagOut() { sfxClick(1200, 0.50, 0.075); }
-function sfxMagIn() { sfxClick(2300, 0.55, 0.065); sfxClick(1400, 0.38, 0.055); }
 
 /* ---------------- ALS 原版音效复刻（v0.13.1） ----------------
    Pivot：转身那一下"脚碾地"的摩擦声。ALS 在 90° 急转时播它。
@@ -1902,7 +1768,7 @@ function sfxUi() {
 var AMB_SRC = null, AMB_GAIN = null, AMB_VOL = 0.16;
 function startAmbient() {
   /* 环境音默认关（用户 v0.13.5 反馈）：风 / 鸟叫是循环的，不是每个人都想一直听。
-     枪声、脚步、UI 音不受影响——它们跟着总开关走。 */
+     脚步、UI 音不受影响——它们跟着总开关走。 */
   if (!SOUND.amb) return;
   if (AMB_SRC || !AC || AC.state !== 'running') return;
   var arr = SFX_BUF.amb;
@@ -2161,20 +2027,23 @@ var TEST_ITEMS = [
   {id:'125',  ver:'v0.12.5',  w:'2m 高墙也能爬，按墙高自动选 1m / 2m 动作', a:'走到 2m 高墙前按空格'},
   {id:'126',  ver:'v0.12.6',  w:'攀爬位移改由动画本身驱动 —— 修掉滑步', a:'爬墙时盯脚'},
   {id:'127',  ver:'v0.12.7',  w:'高墙改成必须按空格才爬；动作从 2s 缩到 1.55s；修穿模；材质去油光', a:'不按空格直接撞高墙；再按空格爬一次；爬时看身体'},
-  {id:'130',  ver:'v0.13.0',  w:'手机降像素比 + 关抗锯齿 + 自动降分辨率；手枪整个重做', a:'手机开局走一圈；连开几枪、打空、按 R 换弹'},
-  {id:'131',  ver:'v0.13.1',  w:'全场只剩一把枪；有枪声了；ALS 的转身步 / 界面音 / 环境音复刻', a:'V 切三种视角；开火；跑起来急转；站着静听'},
+  {id:'130',  ver:'v0.13.0',  w:'手机降像素比 + 关抗锯齿 + 自动降分辨率', a:'手机开局走一圈'},
+  {id:'131',  ver:'v0.13.1',  w:'ALS 的转身步 / 界面音 / 环境音复刻', a:'跑起来急转；站着静听'},
   {id:'132',  ver:'v0.13.2',  w:'站定转视角会真的迈步转身（90°）', a:'站定不动，把视角直接甩到身后'},
   {id:'133',  ver:'v0.13.3',  w:'脚真的踩在斜坡上，鞋底顺坡倾斜', a:'走上偏坡屋顶，侧着看双脚'},
   {id:'134',  ver:'v0.13.4',  w:'边走边转视角，头先转过去看', a:'按住方向键走，同时把视角甩到侧面'},
   {id:'1351', ver:'v0.13.5',  w:'右侧栏：可折叠测试清单，通过 / 不通过 / 待办 / 反馈，一键复制', a:'点屏幕右缘的竖标签；勾几条；点「复制反馈」'},
   {id:'1352', ver:'v0.13.5',  w:'默认静音：打开不再先响一声，徽标 / 侧栏顶部都能切', a:'打开页面先听有没有声音；再点左下角声音徽标'},
-  {id:'1361', ver:'v0.13.6',  w:'右侧栏改成并行的：开着也能转视角、走路、开枪', a:'拉开清单不收起，直接拖画面转视角'},
+  {id:'1361', ver:'v0.13.6',  w:'右侧栏改成并行的：开着也能转视角、走路，不用先收起来', a:'拉开清单不收起，直接拖画面转视角'},
   {id:'1362', ver:'v0.13.6',  w:'地上的碎石有碰撞了：矮的自动踩过去，高的挡人', a:'往石堆里走'},
   {id:'1363', ver:'v0.13.6',  w:'树干碰撞改成圆柱，贴树走不再被看不见的角挡住', a:'绕着树贴边走一圈'},
   {id:'1364', ver:'v0.13.6',  w:'出生点东边加了个 20° 土坡，专门测贴脚', a:'出生后往东走两步，站坡上侧看双脚'},
   {id:'1365', ver:'v0.13.6',  w:'环境音（风 / 鸟叫）默认关，F2 设置里单独开', a:'F2 打开设置看「环境音」是不是没勾'},
-  {id:'t1',   ver:'待办', d0:'todo', w:'8 方向步态：Walk / Run 的 B、LB、RB、LF、RF 还没导出来', a:'素材在 ALS 工程里没导；现在靠转身 + 步态混合顶着'},
-  {id:'t2',   ver:'待办', d0:'todo', w:'180° 转身、落地翻滚（LandRoll）同样缺素材', a:'UE 5.9 引擎目录是空的，暂时导不出来'}
+  /* v0.14.0：武器整块拆掉了。下面这条专门让人确认"真的没了"，而不是某处还在偷偷开枪。 */
+  {id:'1401', ver:'v0.14.0',  w:'武器系统整个删掉：没有枪、没有准星、没有射击 / 换弹键、没有枪声、没有弹壳弹孔', a:'看右下角还有没有「射击 / 换弹」；点左键拖一下；按 R；按空格跳'},
+  {id:'1402', ver:'v0.14.0',  w:'拆枪之后右臂回到自然摆臂，不再悬在胸前"端着一把看不见的枪"', a:'第三 / 第一人称站着不动，看右手'},
+  {id:'t1', ver:'待办', d0:'todo', w:'8 方向步态：Walk / Run 的 B、LB、RB、LF、RF 还没导出来', a:'素材在 ALS 工程里没导；现在靠转身 + 步态混合顶着'},
+  {id:'t2', ver:'待办', d0:'todo', w:'180° 转身、落地翻滚（LandRoll）同样缺素材', a:'本机 UE 5.8 已装完整，待跑导出脚本'}
 ];
 var TEST_KEY = 'w01.testlist.v2', TEST_ALL_KEY = 'w01.testlist.all.v2';
 var sideOpen = false;
@@ -2389,8 +2258,6 @@ function toggleTheme() { applyTheme(themeName === 'dark' ? 'light' : 'dark'); hi
 var TOUCH_UI = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 function syncBtns() {
   var show = TOUCH_UI ? 'block' : 'none';
-  document.getElementById('fireBtn').style.display = show;
-  document.getElementById('reloadBtn').style.display = show;
   if (runBtn) {
     runBtn.style.display = show;
     runBtn.classList.toggle('on', RUN_TOGGLE);
@@ -2506,11 +2373,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 射击键 开火 · 换弹键 装填 · 轻点 跳/攀 · 右缘竖标签拉开测试清单 · 自由视角里双指缩放、45°键锁死视角　·　v0.13.5';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳/攀 · 右缘竖标签拉开测试清单 · 自由视角里双指缩放、45°键锁死视角　·　v0.14.0';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 左键 射击 · R 换弹 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · F2 设置 · F3 测试清单 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.13.5';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · F2 设置 · F3 测试清单 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.14.0';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -2533,7 +2400,6 @@ window.addEventListener('keydown', function (e) {
   if (k === 'v') toggleView();
   if (k === 'l' && freeMode) toggleLock();           /* 同上：45° 俯角锁定 */
   if (k === 't') toggleTheme();                      /* 桌面没有按钮，给个键 */
-  if (k === 'r') reloadWeapon();
   if (k === 'c') setColViz(!colVizOn);               /* 碰撞体积可视化（调试） */
   keys[k] = true;
   hideTip();
@@ -2544,12 +2410,6 @@ window.addEventListener('blur', resetInput);
 document.addEventListener('visibilitychange', function () { if (document.hidden) resetInput(); });
 
 /* ---- 快跑切换按钮：只在触屏设备显示，开一次后摇杆推着走就是冲刺 ---- */
-document.getElementById('fireBtn').addEventListener('pointerdown', function (e) {
-  e.preventDefault(); e.stopPropagation(); fireWeapon();
-}, { passive: false });
-document.getElementById('reloadBtn').addEventListener('pointerdown', function (e) {
-  e.preventDefault(); e.stopPropagation(); reloadWeapon();
-}, { passive: false });
 var RUN_TOGGLE = false;
 window.__forceTouchUI = function () { TOUCH_UI = true; syncBtns(); };  /* 诊断：headless 测按钮用 */
 runBtn.addEventListener('pointerdown', function (e) {
@@ -2615,7 +2475,6 @@ canvas.addEventListener('pointerdown', function (e) {
   if (settingsOpen) return;
   if (e.pointerType === 'mouse') {
     if (e.button !== 0) return;
-    fireWeapon();
     mouse.down = true; mouse.px = e.clientX; mouse.py = e.clientY;
     hideTip();
     /* 桌面：点一下画面就把指针锁进来，之后鼠标移动直接转视角（RPG 式），Esc 退出。
@@ -2744,7 +2603,7 @@ window.addEventListener('pointercancel', releasePointer, { passive: true });
    doJump 只记 0.14s 输入缓冲（空中点按也能落地即跳），真跳在 update 里消费。 */
 var JUMP_BUF = 0.14;
 var jumpBufT = 0;
-var pendSfxJump = 0, pendSfxLand = 0, pendSfxShot = 0, pendSfxDry = 0, pendSfxPivot = 0, pendSfxUi = 0;   /* 待播音效：在 loop 渲染后消费 */
+var pendSfxJump = 0, pendSfxLand = 0, pendSfxPivot = 0, pendSfxUi = 0;   /* 待播音效：在 loop 渲染后消费 */
 var jumpTAnim = 0, jumpTSfx = 0, jumpTDrv = 0;   /* 起跳帧分段耗时（诊断） */
 var camKickV = 0;   /* 落地相机微沉：实际位移 */
 var camKickT = 0;   /* 落地相机微沉：目标位移（平滑逼近，不能一帧拽到位，否则远景会"跳一下"） */
@@ -3347,13 +3206,12 @@ function update(dt) {
   if (fpBlend > 0.5 || (settings.followView && !freeMode)) {
     P.faceTarget = camYaw + Math.PI;
   }
-  /* 持枪站定：身体跟着瞄准方向转。移动时仍按移动方向（ALS 素材没有横移步态，
-     强行让身体朝镜头方向会滑步），所以只在几乎静止时接管。
-     自由视角同样接管——不然从正后方看，枪被躯干整个挡住，等于没有枪。 */
-  if (!climb && HOLD.on && fpBlend < 0.5 && sp < 0.2 && tx * tx + tz * tz < 0.01) {
-    /* 偏 0.5rad（约 29°）的侧身站姿：正对镜头时枪正好被躯干完全挡住，
-       斜一点右肩才露得出来，也符合真实的射击站姿。 */
-    P.faceTarget = camYaw + Math.PI - 0.5;
+  /* 站定时身体跟着视线转：v0.13.2 的原地转身（90° TurnInPlace）全靠这里给触发点 ——
+     不接管这一下，站定甩视角就再也不会迈步转身了。
+     v0.14.0 拆武器时只摘掉了原来那句 -0.5rad（约 29°）的侧身偏移：那是持枪站姿，
+     为了让右肩和枪露出来；没有枪之后身体应该正对视线，不用斜着站。 */
+  if (!climb && fpBlend < 0.5 && sp < 0.2 && tx * tx + tz * tz < 0.01) {
+    P.faceTarget = camYaw + Math.PI;
   }
   var diff = P.faceTarget - P.face;
   while (diff > Math.PI) diff -= Math.PI * 2;
@@ -3894,506 +3752,22 @@ function setColViz(on) {
   syncSettings();
 }   /* 默认深色；内部会调 syncBtns() 把主题按钮文字也同步好 */
 
-/* ---------------- 手枪 ----------------
-   参考成熟 FPS 手枪的做法逐项落地，不是"能开枪就行"的占位版：
-   1) 模型：滑套 / 抛壳口 / 防滑纹 / 照门 / 准星 / 枪管膛口 / 套筒座 / 扳机护圈 /
-      扳机 / 握把 / 握把纹 / 弹匣底板 / 弹匣体 / 分解杆，全部几何体，零贴图。
-   2) 后坐力：冲量驱动的弹簧回正（会过冲再收），枪身位移 / 俯仰 / 横摆三条曲线，
-      第三人称与第一人称共用同一组参数。
-   3) 滑套循环：开火后滑套后座 28mm 再回位，换弹拉满 —— 手枪"有质感"的关键就在这一下。
-   4) 散布：基础 + 移动 + 空中 + 连射累积，停火衰减；世界射线与准星张合同步。
-   5) 特效：枪口火光（交叉面片）+ 烟雾 + 抛壳（重力/落地静止）+ 曳光 + 弹孔。
-   6) 换弹：抬枪 → 下沉 → 退匣 → 上匣 → 回位四段，中段补弹，动作期间不能开枪。
-   7) 空仓：干击顿挫 + 准星变红 + HUD 提示。
-   坐标系约定：+x 右、+y 上、-z 枪口方向，整枪长约 0.21m（真实全尺寸手枪）。 */
-var FIRE_INTERVAL = 0.14;
-var weapon = {
-  capacity: 12, ammo: 12, reserve: 72,
-  cooldown: 0, reload: 0, reloadDur: 1.35,
-  shots: 0, hits: 0, last: '就绪',
-  flash: 0, hitTime: 0, dry: 0,
-  slideT: 0,         /* 滑套循环进度 0..1 */
-  magOut: 0,         /* 弹匣脱离握把的位移 0..1 */
-  bloom: 0,          /* 当前散布（弧度），准星张合由它驱动 */
-  burst: 0           /* 连射累积，停火后回落 */
-};
-/* 无环境贴图时 metalness 太高会发黑，所以靠 color + roughness 拉开层次。
-   另外这个世界底色是白的：全黑枪身会糊成一个剪影，滑套用中灰钢色、
-   握把保持深色，两段拉开才有"这是把枪"的形状感。 */
-var gunSteel = new THREE.MeshStandardMaterial({ color: 0x6d7885, roughness: 0.42, metalness: 0.35 });
-var gunDark = new THREE.MeshStandardMaterial({ color: 0x323941, roughness: 0.52, metalness: 0.26 });
-var gunPoly = new THREE.MeshStandardMaterial({ color: 0x23282f, roughness: 0.93, metalness: 0.04 });
-var gunSteelDark = gunDark;
-/* 几何缓存：手持和第一人称两把枪共用同一批 geometry，省一半几何内存 */
-var GCACHE = {};
-function gBox(w, h, d) {
-  var k = 'b' + w + '_' + h + '_' + d;
-  if (!GCACHE[k]) GCACHE[k] = new THREE.BoxGeometry(w, h, d);
-  return GCACHE[k];
-}
-function gCyl(rt, rb, h, rs) {
-  var k = 'c' + rt + '_' + rb + '_' + h + '_' + rs;
-  if (!GCACHE[k]) GCACHE[k] = new THREE.CylinderGeometry(rt, rb, h, rs);
-  return GCACHE[k];
-}
-/* 火光用普通混合而不是叠加：这个世界底色是白的，叠加色在白底上等于没画 */
-var flashMat = new THREE.MeshBasicMaterial({ color: 0xffb03a, transparent: true, opacity: 0.92,
-  depthWrite: false, side: THREE.DoubleSide });
-var boreMat = new THREE.MeshBasicMaterial({ color: 0x080a0c });
-
-function makePistol() {
-  var g = new THREE.Group();
-  function add(mesh, x, y, z, parent) { mesh.position.set(x, y, z); (parent || g).add(mesh); return mesh; }
-
-  /* 滑套：主体 + 顶部两条斜切面，让它不是一块死平的方砖 */
-  var slideGrp = new THREE.Group(); g.add(slideGrp);
-  add(new THREE.Mesh(gBox(0.036, 0.042, 0.196), gunSteel), 0, 0.021, -0.068, slideGrp);
-  add(new THREE.Mesh(gBox(0.036, 0.006, 0.196), gunSteel), 0, 0.045, -0.068, slideGrp).rotation.z = 0.20;
-  add(new THREE.Mesh(gBox(0.036, 0.006, 0.196), gunSteel), 0, 0.045, -0.068, slideGrp).rotation.z = -0.20;
-  /* 抛壳口：右侧一条深色凹槽 */
-  add(new THREE.Mesh(gBox(0.005, 0.017, 0.046), gunDark), 0.0175, 0.030, -0.028, slideGrp);
-  /* 后段防滑纹：4 条凸筋 */
-  for (var si = 0; si < 4; si++) {
-    add(new THREE.Mesh(gBox(0.038, 0.030, 0.0035), gunDark), 0, 0.020, 0.021 - si * 0.0105, slideGrp);
-  }
-  /* 照门（后缺口，两片）+ 准星（前柱） */
-  add(new THREE.Mesh(gBox(0.008, 0.009, 0.006), gunDark), -0.010, 0.0485, 0.018, slideGrp);
-  add(new THREE.Mesh(gBox(0.008, 0.009, 0.006), gunDark), 0.010, 0.0485, 0.018, slideGrp);
-  add(new THREE.Mesh(gBox(0.005, 0.009, 0.006), gunDark), 0, 0.0485, -0.158, slideGrp);
-  /* 膛口：枪管端面 + 枪口孔 */
-  var muzzle = add(new THREE.Mesh(gCyl(0.0105, 0.0105, 0.016, 10), gunDark), 0, 0.021, -0.168, slideGrp);
-  muzzle.rotation.x = Math.PI / 2;
-  var bore = add(new THREE.Mesh(gCyl(0.0062, 0.0062, 0.005, 8), boreMat), 0, 0.021, -0.1755, slideGrp);
-  bore.rotation.x = Math.PI / 2;
-
-  /* 套筒座（下机匣）：前段导轨 + 后段机匣 */
-  add(new THREE.Mesh(gBox(0.032, 0.024, 0.150), gunPoly), 0, -0.006, -0.060);
-  add(new THREE.Mesh(gBox(0.029, 0.018, 0.060), gunPoly), 0, -0.018, -0.128);
-  /* 分解杆 */
-  add(new THREE.Mesh(gBox(0.004, 0.007, 0.016), gunSteel), 0.017, 0.000, -0.044);
-  /* 扳机护圈：前立柱 + 底横梁，围出一个真的"圈" */
-  add(new THREE.Mesh(gBox(0.024, 0.032, 0.007), gunPoly), 0, -0.040, -0.032);
-  add(new THREE.Mesh(gBox(0.024, 0.007, 0.058), gunPoly), 0, -0.054, -0.002);
-  /* 扳机：两段折板，比一根直棍像真枪 */
-  var trig = add(new THREE.Mesh(gBox(0.011, 0.026, 0.006), gunDark), 0, -0.040, -0.012);
-  trig.rotation.x = 0.18;
-
-  /* 握把：整体后倾 15°，纹路和弹匣都挂在它下面，保证跟着一起斜 */
-  var grip = new THREE.Group();
-  grip.position.set(0, -0.030, 0.020);
-  grip.rotation.x = -0.26;
-  g.add(grip);
-  add(new THREE.Mesh(gBox(0.034, 0.104, 0.050), gunPoly), 0, -0.048, 0, grip);
-  for (var gi = 0; gi < 4; gi++) {
-    add(new THREE.Mesh(gBox(0.036, 0.0035, 0.048), gunDark), 0, -0.026 - gi * 0.020, 0, grip);
-  }
-  /* 弹匣（体 + 底板）：换弹时整体往下掉出握把 */
-  var mag = new THREE.Group(); mag.position.set(0, 0, 0); grip.add(mag);
-  add(new THREE.Mesh(gBox(0.030, 0.070, 0.044), gunDark), 0, -0.070, 0, mag);
-  add(new THREE.Mesh(gBox(0.038, 0.011, 0.056), gunSteel), 0, -0.104, 0.002, mag);
-
-  /* 枪口火光：一片正对镜头的方片（正面亮斑）+ 一个前向锥体（侧面看是火舌）。
-     不要用长条面片拼星形——透视下会拉成一条横贯半屏的丝带。 */
-  var flash = new THREE.Group();
-  flash.position.set(0, 0.021, -0.178);
-  var p1 = new THREE.Mesh(new THREE.PlaneGeometry(0.046, 0.046), flashMat);
-  var cone = new THREE.Mesh(new THREE.ConeGeometry(0.020, 0.072, 6), flashMat);
-  cone.rotation.x = -Math.PI / 2; cone.position.z = -0.038;
-  flash.add(p1); flash.add(cone);
-  flash.visible = false;
-  g.add(flash);
-
-  g.userData.flash = flash;
-  g.userData.slide = slideGrp;
-  g.userData.mag = mag;
-  return g;
-}
-var heldPistol = makePistol();
-boneByName.hand_r.add(heldPistol);
-/* 枪在手里的固定姿态：握把落在掌心、枪口沿前臂指向前方。
-   数值由「持枪姿态下的 hand_r 世界朝向」反解（世界期望朝向 = 角色前方）。
-   用常量局部变换而不是每帧对齐相机——枪才会真的跟手走，
-   角色转身/摆臂时枪跟着动，不会出现"手腕反折枪管乱指"。 */
-var GUN_HAND_Q = new THREE.Quaternion(-0.4610, 0.6683, -0.2158, 0.5423);
-var GUN_HAND_P = new THREE.Vector3(-0.0483, 0.0333, -0.0551);
-heldPistol.quaternion.copy(GUN_HAND_Q);
-heldPistol.position.copy(GUN_HAND_P);
-/* 只有一把枪（v0.13.1）：第三人称手里那把就是唯一那把。
-   第一人称不是"另一套枪模"，只是把相机移到角色前面——所以这里不再有 fpPistol。 */
 scene.add(camera);
+/* 三块靶板：v0.14.0 拆掉武器之后它们只是场景里的立牌——
+   没有命中判定、没有命中高亮，也不再挂在任何射击逻辑上。
+   留着是因为它们是有碰撞的世界物件，整片铲掉这块空地就空了；要清就一句话的事。 */
 var targets = [], targetMat = new THREE.MeshStandardMaterial({ color: 0xc1b594, roughness: 0.85 });
+var targetStandMat = new THREE.MeshStandardMaterial({ color: 0x323941, roughness: 0.52 });
 for (var targetIndex = 0; targetIndex < 3; targetIndex++) {
   var target = new THREE.Mesh(new THREE.BoxGeometry(0.75, 1.15, 0.16), targetMat.clone());
-  target.position.set(4 + targetIndex * 1.8, 1.35, -6); target.userData.hitTime = 0; scene.add(target); targets.push(target);
+  target.position.set(4 + targetIndex * 1.8, 1.35, -6); scene.add(target); targets.push(target);
   addCollider(target, 0.75, 0.16, 1.15); colliders[colliders.length - 1].kind = 'target';
-  var stand = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.78, 0.12), gunDark);
+  var stand = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.78, 0.12), targetStandMat);
   stand.position.set(target.position.x, 0.39, -6); scene.add(stand);
   addCollider(stand, 0.10, 0.12, 0.78); colliders[colliders.length - 1].kind = 'stand';
 }
 /* 场景全部建好后一次性补齐碰撞并复核（遗漏必须为 0），结果进 F2 面板 */
 fillCollisionGaps();
-var shotOrigin = new THREE.Vector3(), shotDir = new THREE.Vector3(), aimPoint = new THREE.Vector3();
-var shotRay = new THREE.Raycaster(), aimEl = document.getElementById('aim'), weaponHud = document.getElementById('weaponHud');
-function weaponAim() {
-  shotOrigin.set(P.pos.x, P.pos.y + 1.35, P.pos.z);
-  var pitch = firstMode ? fpPitch : 0;
-  shotDir.set(-Math.sin(camYaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(camYaw) * Math.cos(pitch));
-}
-/* 与移动共用解析体；凸体半空间裁剪，屋顶保留双坡，不使用空气包围盒。 */
-function shotCollider(c) {
-  var dx = shotOrigin.x - c.x, dz = shotOrigin.z - c.z;
-  var ox = dx * c.c - dz * c.s, oz = dx * c.s + dz * c.c;
-  var vx = shotDir.x * c.c - shotDir.z * c.s, vz = shotDir.x * c.s + shotDir.z * c.c;
-  var lo = 0, hi = 80;
-  var planes = [[1,0,0,c.hw],[-1,0,0,c.hw],[0,0,1,c.hd],[0,0,-1,c.hd],[0,-1,0,-(c.bottom || 0)],[0,1,0,c.top]];
-  if (c.kind === 'roof') {
-    var slope = (c.top - c.base) / c.hw;
-    planes.push([slope,1,0,c.top],[-slope,1,0,c.top]);
-  }
-  for (var i = 0; i < planes.length; i++) {
-    var p = planes[i], dist = p[3] - (p[0]*ox + p[1]*shotOrigin.y + p[2]*oz);
-    var dot = p[0]*vx + p[1]*shotDir.y + p[2]*vz;
-    if (Math.abs(dot) < 0.000001) { if (dist < 0) return Infinity; }
-    else if (dot > 0) hi = Math.min(hi, dist / dot);
-    else lo = Math.max(lo, dist / dot);
-    if (lo > hi) return Infinity;
-  }
-  return lo;
-}
-/* ---------------- 弹道特效池 ----------------
-   全部预建、复用。开火瞬间才 new 对象的话，手机上"临时分配 + 首次编译着色器"
-   会让每一枪卡一下 —— 这是特效最容易踩的坑。 */
-var FX = { casings: [], tracers: [], decals: [], smoke: [], ci: 0, ti: 0, di: 0, si: 0 };
-var WUP = new THREE.Vector3(0, 1, 0);
-var _sRight = new THREE.Vector3(), _sUp = new THREE.Vector3(), _fxP = new THREE.Vector3();
-var brassMat = new THREE.MeshStandardMaterial({ color: 0xb08a4c, roughness: 0.32, metalness: 0.62 });
-(function buildFx() {
-  var i, m;
-  for (i = 0; i < 8; i++) {
-    m = new THREE.Mesh(gCyl(0.005, 0.0046, 0.020, 7), brassMat);
-    m.visible = false; scene.add(m);
-    FX.casings.push({ m: m, v: new THREE.Vector3(), spin: new THREE.Vector3(), life: 0 });
-  }
-  for (i = 0; i < 4; i++) {
-    m = new THREE.Mesh(gBox(0.007, 0.007, 1), new THREE.MeshBasicMaterial({
-      color: 0xffc247, transparent: true, opacity: 0.78, depthWrite: false }));
-    m.visible = false; scene.add(m);
-    FX.tracers.push({ m: m, life: 0 });
-  }
-  var decalGeo = new THREE.CircleGeometry(0.022, 8);
-  for (i = 0; i < 20; i++) {
-    m = new THREE.Mesh(decalGeo, new THREE.MeshBasicMaterial({
-      color: 0x2b2318, transparent: true, opacity: 0.8, depthWrite: false }));
-    m.visible = false; scene.add(m);
-    FX.decals.push({ m: m, life: 0 });
-  }
-  var smokeGeo = new THREE.PlaneGeometry(0.09, 0.09);
-  for (i = 0; i < 6; i++) {
-    m = new THREE.Mesh(smokeGeo, new THREE.MeshBasicMaterial({
-      color: 0xb9c3ce, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
-    m.visible = false; scene.add(m);
-    FX.smoke.push({ m: m, v: new THREE.Vector3(), life: 0, max: 0.5, grow: 1 });
-  }
-})();
-
-function spawnCasing(pos, side, up) {
-  var c = FX.casings[FX.ci = (FX.ci + 1) % FX.casings.length];
-  c.m.visible = true;
-  c.m.position.copy(pos);
-  c.m.rotation.set(Math.random() * 6.28, Math.random() * 6.28, Math.random() * 6.28);
-  /* 右手抛壳：往右后方、略向上，带随机，连发时不会像喷泉一样整齐 */
-  c.v.set(side.x * (1.5 + Math.random() * 0.8),
-          up.y * (1.0 + Math.random() * 0.6) + 0.55,
-          side.z * (1.5 + Math.random() * 0.8));
-  c.spin.set((Math.random() - 0.5) * 26, (Math.random() - 0.5) * 26, (Math.random() - 0.5) * 26);
-  c.life = 5.0;
-}
-function spawnTracer(from, to, dist) {
-  if (dist < 2.5) return;              /* 近距离不画，纯浪费 */
-  var t = FX.tracers[FX.ti = (FX.ti + 1) % FX.tracers.length];
-  t.m.visible = true;
-  t.m.position.copy(from).add(to).multiplyScalar(0.5);
-  t.m.lookAt(to);
-  t.m.scale.set(1, 1, dist);
-  t.life = 0.09;
-}
-function spawnDecal(point, normal) {
-  var d = FX.decals[FX.di = (FX.di + 1) % FX.decals.length];
-  d.m.visible = true;
-  d.m.position.copy(point).addScaledVector(normal, 0.006);
-  d.m.lookAt(_fxP.copy(point).add(normal));
-  d.m.material.opacity = 0.82;
-  d.life = 6.0;
-}
-function spawnSmoke(pos, dir) {
-  for (var k = 0; k < 2; k++) {
-    var s = FX.smoke[FX.si = (FX.si + 1) % FX.smoke.length];
-    s.m.visible = true;
-    s.m.position.copy(pos).addScaledVector(dir, 0.03 + k * 0.05);
-    s.m.rotation.z = Math.random() * 6.28;
-    s.v.set(dir.x * 0.5 + (Math.random() - 0.5) * 0.3, 0.45 + Math.random() * 0.3,
-            dir.z * 0.5 + (Math.random() - 0.5) * 0.3);
-    s.life = s.max = 0.45 + Math.random() * 0.25;
-    s.grow = 0.9 + Math.random() * 0.7;
-    s.m.scale.setScalar(0.55);
-    s.m.material.opacity = 0.5;
-  }
-}
-/* 命中面法线：按 2.5D 碰撞体的三个面谁最近取谁，贴片才不会插进墙里 */
-function decalNormal(c, p, out) {
-  if (!c) return out.set(0, 1, 0);
-  var dx = p.x - c.x, dz = p.z - c.z;
-  var lx = dx * c.c - dz * c.s, lz = dx * c.s + dz * c.c;
-  var ex = c.hw - Math.abs(lx), ez = c.hd - Math.abs(lz), ey = c.top - p.y;
-  if (ey <= ex && ey <= ez) return out.set(0, 1, 0);
-  if (ex <= ez) return out.set(lx >= 0 ? c.c : -c.c, 0, lx >= 0 ? -c.s : c.s);
-  return out.set(lz >= 0 ? c.s : -c.s, 0, lz >= 0 ? c.c : -c.c);
-}
-
-function reloadWeapon() {
-  if (settingsOpen || climb || weapon.reload > 0) return false;
-  if (weapon.ammo === weapon.capacity || weapon.reserve <= 0) return false;
-  weapon.reload = weapon.reloadDur;
-  weapon.dry = 0;
-  weapon.last = '换弹中';
-  sfxMagOut();
-  return true;
-}
-var _gunQ = new THREE.Quaternion(), _gunSide = new THREE.Vector3(), _gunMuz = new THREE.Vector3();
-var _hitP = new THREE.Vector3(), _hitN = new THREE.Vector3();
-function gunMuzzleWorld(out) {
-  heldPistol.updateWorldMatrix(true, false);
-  return out.set(0, 0.021, -0.186).applyMatrix4(heldPistol.matrixWorld);
-}
-function fireWeapon() {
-  if (settingsOpen || climb) return false;
-  if (weapon.reload > 0 || weapon.cooldown > 0) return false;
-  /* 空仓：不是静默失败，给一次干击顿挫 —— 玩家要立刻知道"不是没点中，是没子弹了" */
-  if (weapon.ammo <= 0) {
-    if (weapon.dry <= 0) {
-      weapon.dry = 0.26; weapon.slideT = 1; weapon.last = '空仓 · 按换弹';
-      wRecV += 0.22;
-      pendSfxDry = 1;
-    }
-    return false;
-  }
-  weapon.ammo--; weapon.shots++;
-  weapon.cooldown = FIRE_INTERVAL;
-  weapon.flash = 0.048;
-  weapon.slideT = 1;
-  wRecV += 0.95;                                        /* 直接给弹簧一个初速度 */
-  wSideV += (Math.random() * 2 - 1) * 0.70;
-  weapon.burst = Math.min(1, weapon.burst + 0.34);
-  weapon.hitTime = 0;
-  camKickT = Math.min(0.15, camKickT + 0.010 + 0.008 * weapon.burst);
-  pendSfxShot = 1;                                     /* 声音推到渲染后，别抢这一帧 */
-
-
-  weaponAim();
-  /* 散布：在锥内按极坐标取随机方向。用 sqrt(random) 才是均匀分布，
-     否则子弹会往中心挤，准星张开了但打起来没感觉。 */
-  var sp = weapon.bloom;
-  if (sp > 0.0002) {
-    _sRight.crossVectors(shotDir, WUP).normalize();
-    _sUp.crossVectors(_sRight, shotDir).normalize();
-    var ang = Math.random() * 6.2831853, rad = Math.sqrt(Math.random()) * sp;
-    shotDir.addScaledVector(_sRight, Math.cos(ang) * rad)
-           .addScaledVector(_sUp, Math.sin(ang) * rad).normalize();
-  }
-
-  /* 先和场景解析体求交（比 mesh 射线便宜，且和移动用同一套形状）。
-     靶子自己也是碰撞体，但它由下面的 mesh 射线负责判定——不排除的话，
-     同一块板子会被算两次，浮点误差会让"打中靶子"退化成"打中场景"。 */
-  var nearest = 80, ncol = null;
-  for (var i = 0; i < colliders.length; i++) {
-    if (colliders[i].kind === 'target') continue;
-    var d = shotCollider(colliders[i]);
-    if (d > 0.05 && d < nearest) { nearest = d; ncol = colliders[i]; }
-  }
-  shotRay.set(shotOrigin, shotDir); shotRay.far = 80;
-  var hits = shotRay.intersectObjects(targets, false);
-  var dist = nearest, hp = null, hn = null, hitTarget = false;
-  if (hits.length && hits[0].distance < nearest) {
-    hitTarget = true; dist = hits[0].distance; hp = hits[0].point;
-    hn = _hitN.copy(shotDir).negate();
-  } else if (ncol) {
-    hp = _hitP.copy(shotOrigin).addScaledVector(shotDir, nearest);
-    hn = decalNormal(ncol, hp, _hitN);
-  }
-  /* 什么都没打到也要有曳光：否则打空的时候画面完全没有反馈 */
-  if (!hp) { hp = _hitP.copy(shotOrigin).addScaledVector(shotDir, 45); dist = 45; }
-  if (hitTarget) {
-    weapon.hits++; weapon.hitTime = 0.20;
-    hits[0].object.userData.hitTime = 0.20;
-    weapon.last = '命中靶子';
-  } else weapon.last = ncol ? '命中场景' : '未命中';
-
-  /* 特效：火光在 updateWeapon 里按 flash 计时淡出；这里只负责生成 */
-  gunMuzzleWorld(_gunMuz);
-  camera.getWorldQuaternion(_gunQ);
-  _gunSide.set(1, 0, 0).applyQuaternion(_gunQ);
-  spawnCasing(_gunMuz, _gunSide, WUP);
-  spawnSmoke(_gunMuz, shotDir);
-  if (hp) spawnTracer(_gunMuz, hp, dist);
-  if (hp && hn) spawnDecal(hp, hn);
-  return true;
-}
-/* 后坐力弹簧（欠阻尼）：冲量打进去以后先猛退、过冲一点再收住。
-   纯指数衰减看着像掉帧，弹簧才有"枪有劲"的物理感。 */
-var wRec = 0, wRecV = 0, wSide = 0, wSideV = 0;
-var aimBars = null, lastGapPx = -1;
-function stepRecoil(dt) {
-  if (dt <= 0) return;
-  wRecV += (-wRec * 210 - wRecV * 17) * dt;
-  wRec += wRecV * dt;
-  if (wRec < -0.30) { wRec = -0.30; wRecV = 0; }      /* 极端长帧下别把枪甩飞 */
-  wSideV += (-wSide * 150 - wSideV * 15) * dt;
-  wSide += wSideV * dt;
-  if (wSide < -0.30) { wSide = -0.30; wSideV = 0; }
-}
-function updateWeapon(dt) {
-  weapon.cooldown = Math.max(0, weapon.cooldown - dt);
-  weapon.flash = Math.max(0, weapon.flash - dt);
-  weapon.hitTime = Math.max(0, weapon.hitTime - dt);
-  weapon.dry = Math.max(0, weapon.dry - dt);
-  weapon.slideT = Math.max(0, weapon.slideT - dt / 0.085);
-  stepRecoil(dt);
-
-  /* 散布：基础 + 移动 + 空中 + 连射累积。准星张合、实际弹道都吃这一个值 */
-  var spd = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
-  var tgtBloom = 0.0032 + Math.min(1, spd / 6.5) * 0.014 + (P.onGround ? 0 : 0.028)
-               + weapon.burst * 0.040;
-  weapon.bloom += (tgtBloom - weapon.bloom) * Math.min(1, dt * 14);
-  weapon.burst *= Math.pow(0.12, dt);
-
-  /* 换弹：抬枪→下沉→退匣→上匣→回位。补弹卡在 72% 进度，正好是"上匣"那一下 */
-  var dip = 0;
-  if (weapon.reload > 0) {
-    var before = weapon.reload;
-    weapon.reload = Math.max(0, weapon.reload - dt);
-    var rp = 1 - weapon.reload / weapon.reloadDur;
-    dip = Math.min(1, Math.min(rp, 1 - rp) * 6);
-    if (before > weapon.reloadDur * 0.28 && weapon.reload <= weapon.reloadDur * 0.28) {
-      var take = Math.min(weapon.capacity - weapon.ammo, weapon.reserve);
-      weapon.ammo += take; weapon.reserve -= take;
-      sfxMagIn();                                      /* 上匣 */
-    }
-    /* 上匣后拉一次套筒（右侧那个动作是靠滑套后座表达的） */
-    if (rp > 0.70 && rp < 0.82) weapon.slideT = Math.max(weapon.slideT, 1);
-    if (!weapon.reload) { weapon.last = '就绪'; weapon.magOut = 0; }
-  }
-  var mOut = 0;
-  if (weapon.reload > 0) {
-    var rp2 = 1 - weapon.reload / weapon.reloadDur;
-    if (rp2 > 0.08 && rp2 < 0.68) {
-      mOut = Math.min(1, (rp2 - 0.08) / 0.10) * Math.min(1, (0.68 - rp2) / 0.10);
-    }
-  }
-  weapon.magOut += (mOut - weapon.magOut) * Math.min(1, dt * 20);
-
-  /* 一把枪走遍所有视角：第一人称时相机移到角色前方，看到的还是这只手这把枪 */
-  heldPistol.visible = !climb;
-  heldPistol.userData.slide.position.z = weapon.slideT * 0.028;
-  heldPistol.userData.mag.position.y = -weapon.magOut * 0.085;
-
-  heldPistol.quaternion.copy(GUN_HAND_Q);
-  heldPistol.position.copy(GUN_HAND_P);
-  if (wRec > 0.0008) heldPistol.rotateX(wRec * 3.2);   /* 后坐力绕着手的局部 X 轴抬 */
-  if (wSide > 0.001 || wSide < -0.001) heldPistol.rotateZ(wSide * 0.34);  /* 横向抖一下 */
-  if (dip > 0.001) heldPistol.rotateX(-dip * 0.95);   /* 换弹时枪口向下压，配退匣动作 */
-
-  /* 枪口火光：每帧随机滚转角与缩放，读起来是"闪"不是"亮着一块板" */
-  var flashOn = weapon.flash > 0;
-  if (flashOn) {
-    heldPistol.userData.flash.scale.setScalar(0.85 + Math.random() * 0.45);
-    heldPistol.userData.flash.rotation.z = Math.random() * 6.28;
-  }
-  heldPistol.userData.flash.visible = flashOn;
-
-  /* --- 抛壳：重力 + 落地反弹一次 + 静止 --- */
-  var ci, c, cdt;
-  for (ci = 0; ci < FX.casings.length; ci++) {
-    c = FX.casings[ci];
-    if (c.life <= 0) continue;
-    c.life -= dt;
-    if (c.life <= 0) { c.m.visible = false; continue; }
-    cdt = Math.min(dt, 0.05);
-    c.v.y -= 9.8 * cdt;
-    c.m.position.addScaledVector(c.v, cdt);
-    c.m.rotation.x += c.spin.x * cdt;
-    c.m.rotation.y += c.spin.y * cdt;
-    c.m.rotation.z += c.spin.z * cdt;
-    if (c.m.position.y < 0.011) {
-      c.m.position.y = 0.011;
-      if (c.v.y < -0.35) {
-        c.v.y = -c.v.y * 0.30; c.v.x *= 0.5; c.v.z *= 0.5;
-        c.spin.multiplyScalar(0.35);
-      } else {
-        c.v.set(0, 0, 0); c.spin.set(0, 0, 0);
-        c.m.rotation.x = Math.PI / 2;                  /* 躺平 */
-      }
-    }
-  }
-  /* --- 曳光 --- */
-  for (ci = 0; ci < FX.tracers.length; ci++) {
-    var tr = FX.tracers[ci];
-    if (tr.life <= 0) continue;
-    tr.life -= dt;
-    if (tr.life <= 0) { tr.m.visible = false; continue; }
-    tr.m.material.opacity = (tr.life / 0.09) * 0.85;
-  }
-  /* --- 枪口烟 --- */
-  for (ci = 0; ci < FX.smoke.length; ci++) {
-    var sm = FX.smoke[ci];
-    if (sm.life <= 0) continue;
-    sm.life -= dt;
-    if (sm.life <= 0) { sm.m.visible = false; continue; }
-    sm.m.position.addScaledVector(sm.v, dt);
-    sm.m.scale.setScalar(sm.m.scale.x + sm.grow * dt);
-    sm.m.material.opacity = (sm.life / sm.max) * 0.34;
-  }
-  /* --- 弹孔 --- */
-  for (ci = 0; ci < FX.decals.length; ci++) {
-    var dc = FX.decals[ci];
-    if (dc.life <= 0) continue;
-    dc.life -= dt;
-    if (dc.life <= 0) { dc.m.visible = false; continue; }
-    if (dc.life < 1.2) dc.m.material.opacity = (dc.life / 1.2) * 0.82;
-  }
-
-  for (var i = 0; i < targets.length; i++) {
-    var target = targets[i];
-    target.userData.hitTime = Math.max(0, target.userData.hitTime - dt);
-    target.material.emissive.setHex(target.userData.hitTime > 0 ? 0x997744 : 0);
-  }
-
-  weaponAim();
-  aimPoint.copy(shotDir).multiplyScalar(12).add(shotOrigin).project(camera);
-  aimEl.style.left = ((aimPoint.x + 1) * innerWidth / 2) + 'px';
-  aimEl.style.top = ((1 - aimPoint.y) * innerHeight / 2) + 'px';
-  aimEl.style.display = settingsOpen || climb || aimPoint.z > 1 ? 'none' : 'block';
-  aimEl.classList.toggle('hit', weapon.hitTime > 0);
-  aimEl.classList.toggle('empty', weapon.ammo === 0);
-
-  /* 准星张合：gap 就是"当前散布在屏幕上有多大"，只改 transform，不触发重排 */
-  if (!aimBars) {
-    aimBars = {};
-    var bars = aimEl.querySelectorAll('i');
-    for (var bi = 0; bi < bars.length; bi++) aimBars[bars[bi].getAttribute('data-d')] = bars[bi];
-  }
-  var gapPx = Math.round(3 + Math.min(26, weapon.bloom * 620));
-  if (gapPx !== lastGapPx) {
-    lastGapPx = gapPx;
-    aimBars.u.style.transform = 'translate(-1px,' + (-(gapPx + 7)) + 'px)';
-    aimBars.d.style.transform = 'translate(-1px,' + gapPx + 'px)';
-    aimBars.l.style.transform = 'translate(' + (-(gapPx + 7)) + 'px,-1px)';
-    aimBars.r.style.transform = 'translate(' + gapPx + 'px,-1px)';
-  }
-
-  var weaponText = '手枪 ' + weapon.ammo + ' / ' + weapon.reserve + ' · ' +
-    (weapon.reload > 0 ? '换弹中' : weapon.last) + ' · 命中 ' + weapon.hits;
-  if (weaponHud.textContent !== weaponText) weaponHud.textContent = weaponText;
-}
 
 /* ---------------- 主循环 ---------------- */
 var last = performance.now();
@@ -4438,8 +3812,6 @@ function fpsTick(t) {
         ' / 踝补 ' + footState.ikL.toFixed(3) + '/' + footState.ikR.toFixed(3) +
         ' / 贴坡 ' + (footState.tiltL * 57.3).toFixed(1) + '°/' + (footState.tiltR * 57.3).toFixed(1) + '°' +
         '\n渲染 ' + renderScale.toFixed(2) + 'x（上限 ' + DPR_CAP + '，' + (IS_MOBILE ? '手机档' : '桌面档') + '）平均帧 ' + (perfStat.avg * 1000).toFixed(1) + 'ms' +
-        '\n手枪 ' + weapon.ammo + '/' + weapon.reserve + ' 冷却 ' + weapon.cooldown.toFixed(2) + ' 换弹 ' + weapon.reload.toFixed(2) + ' 散布 ' + (weapon.bloom * 1000).toFixed(1) + 'mrad' +
-        '\n射击 ' + weapon.shots + ' 命中 ' + weapon.hits + ' / ' + weapon.last +
         '\n肢体接触 ' + bodyContact.hits + ' / 最深 ' + bodyContact.deepest.toFixed(2) + (bodyContact.parts ? ' @' + bodyContact.parts : '') + '（骨骼胶囊只做命中/接触，不挡移动）' +
         '\n脚层：两骨 IK（大腿→小腿→脚踝，逐脚贴地 + 脚掌贴坡）' +
         '\n绿=实体 橙=逐构件栅栏 粉=坡屋面 蓝=主圆柱 金=随骨骼近似盒' +
@@ -4477,7 +3849,6 @@ function loop(t) {
   updateBodyRadius(dt);
   if (playerViz && colVizOn) playerViz.scale.set(rBody / PLAYER_R, 1, rBody / PLAYER_R);
   updateBoneViz();
-  updateWeapon(simDt);
   jumpTDrv = performance.now() - _jd;
   drawStick();
   if (colVizOn && playerViz) playerViz.position.set(P.pos.x, P.pos.y + 0.93, P.pos.z);
@@ -4488,8 +3859,6 @@ function loop(t) {
      放在起跳那一帧的渲染前会抢主线程（用户感觉「起跳时掉帧」）。 */
   if (pendSfxJump) { pendSfxJump = 0; var _js = performance.now(); sfxJump(); jumpTSfx = performance.now() - _js; }
   if (pendSfxLand) { var lv = pendSfxLand; pendSfxLand = 0; sfxLand(lv); }
-  if (pendSfxShot) { pendSfxShot = 0; sfxShot(); }
-  if (pendSfxDry) { pendSfxDry = 0; sfxDry(); }
   if (pendSfxPivot) { pendSfxPivot = 0; sfxPivot(); }
   if (pendSfxUi) { pendSfxUi = 0; sfxUi(); }
   ambientTick();
@@ -4499,20 +3868,15 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.13.6';
+window.__worldVersion = 'v0.14.0';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
-  weapon: weapon, targets: targets, fire: fireWeapon, reload: reloadWeapon,
-  fx: FX,
+targets: targets,
   get mobile() { return IS_MOBILE; },
   get bones() { return boneByName; },
-  get hold() { return HOLD; },
-  applyHold: function () { pawn.updateMatrixWorld(true); },
-  /* 诊断：用当前 HOLD 重新摆一次姿势（dt=0，不推进动画时间） */
+  /* 诊断：用当前姿势重新摆一次（dt=0，不推进动画时间） */
   repose: function () { driveAnim(0); pawn.updateMatrixWorld(true); },
   get renderScale() { return renderScale; },
   get dprCap() { return DPR_CAP; },
-  shotCollider: shotCollider, shotOrigin: shotOrigin, shotDir: shotDir,
-  heldPistol: heldPistol,
   motionDebug: motionDebug, footState: footState,
   /* 诊断：脚部 IK 参数（踝高/上下限/贴坡上限/收敛速度） */
   get ikCfg() { return IK; },
