@@ -108,55 +108,6 @@
   #settingsBtn { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 182px); display: block; }
   #mouseBtn  { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 224px); display: block; }
   #mouseBtn  { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 224px); }
-  /* 右侧可折叠侧栏的把手：贴着屏幕右缘的一条竖标签，点开才滑出整条 */
-  #sideTab {
-    position: fixed; right: 0; top: 50%; transform: translateY(-50%); z-index: 1200;
-    width: 26px; padding: 13px 0; border: 1px solid var(--on-bg); border-right: none;
-    border-radius: 10px 0 0 10px; background: var(--panel); color: var(--ink);
-    box-shadow: 0 2px 10px var(--shadow-snd);
-    font: 600 12px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
-    letter-spacing: .22em; writing-mode: vertical-rl; text-orientation: mixed;
-    transition: opacity .18s ease, transform .18s ease;
-  }
-  /* 右侧可折叠侧栏：整条固定在右边，用 transform 滑进滑出（不做宽度动画，手机更稳） */
-  #sideTab.hide { opacity: 0; transform: translateY(-50%) translateX(16px); pointer-events: none; }
-  #side {
-    position: fixed; z-index: 1210; right: 0; top: 0; height: 100%;
-    width: 330px; max-width: 88vw; display: flex; flex-direction: column; box-sizing: border-box;
-    background: #202630; color: #eef2f6; border-left: 1px solid #687382;
-    box-shadow: -10px 0 28px rgba(0, 0, 0, .38); font: 13px/1.6 sans-serif;
-    transform: translateX(101%); transition: transform .24s cubic-bezier(.2, .75, .25, 1);
-    padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-  #side.open { transform: translateX(0); }
-  #side .tHead { flex: none; padding: 11px 14px 7px; border-bottom: 1px solid #53606f; }
-  #side .tHeadTop { display: flex; align-items: center; gap: 6px; }
-  #side .tHeadTop strong { flex: 1; }
-  #side .tHeadTop button { padding: 2px 9px; border-radius: 6px; border: 1px solid #5d6a79; background: #2a323d; color: #dfe7f2; font-size: 12px; white-space: nowrap; }
-  #side .tProg { color: #9fb0c2; font-size: 12px; margin: 4px 0; }
-  #side .tBar { display: flex; height: 4px; border-radius: 2px; background: #39424f; overflow: hidden; }
-  #side .tBar i { display: block; height: 100%; width: 0; transition: width .18s ease; }
-  #side #testBarOk { background: #4f8a61; }
-  #side #testBarNo { background: #b4553f; }
-  #side #testBarTodo { background: #cdb27a; }
-  #testScroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 14px 12px; touch-action: pan-y; }
-  #side .tItem { border-bottom: 1px solid #3c4654; padding: 8px 0 9px; }
-  #side .tItem.done .tTop, #side .tItem.tdone .tTop { opacity: .5; }
-  #side .tTop { display: flex; gap: 6px; align-items: baseline; }
-  #side .tVer { flex: none; color: #cdb27a; font-weight: 700; font-size: 12px; }
-  #side .tWhat { flex: 1; }
-  #side .tHow { color: #9fb0c2; font-size: 12px; margin-top: 3px; }
-  #side .tActs { display: flex; gap: 4px; margin-top: 6px; }
-  #side .tBtn { flex: 1; padding: 4px 0; border-radius: 6px; border: 1px solid #5d6a79; background: #2a323d; color: #dfe7ef; font-size: 12px; }
-  #side .tBtn.ok.s { background: #3c6b4a; border-color: #6aa07c; color: #eaf6ee; }
-  #side .tBtn.no.s { background: #7a3a30; border-color: #b4553f; color: #f8ece9; }
-  #side .tBtn.td.s { background: #6a5a34; border-color: #cdb27a; color: #f6efdf; }
-  #side .tNote { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; min-height: 42px; padding: 5px 6px; border-radius: 6px; border: 1px solid #5d6a79; background: #171c23; color: #eef2f6; font: 12px/1.5 sans-serif; resize: vertical; }
-  #side .tNote[hidden] { display: none; }
-  #side #testAll { display: block; width: 100%; box-sizing: border-box; min-height: 56px; margin: 8px 0 0; padding: 6px; border-radius: 6px; border: 1px solid #5d6a79; background: #171c23; color: #eef2f6; font: 12px/1.5 sans-serif; }
-  #side .tFoot { flex: none; display: flex; align-items: center; gap: 9px; padding: 9px 14px; border-top: 1px solid #53606f; }
-  #side .tFoot button { padding: 6px 12px; border-radius: 6px; border: 1px solid #5d6a79; background: #2a323d; color: #dfe7f2; font-size: 12px; }
-  #side #testMsg { color: #9fb0c2; font-size: 12px; }
   #fps {
     position: fixed; left: 10px; top: 8px;
     font: 400 10px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -200,24 +151,7 @@
   <button id="settingsReset" type="button">恢复默认</button>
   <button id="settingsClose" type="button">关闭</button>
 </section>
-<button id="sideTab" type="button" aria-label="展开测试清单">清单</button>
-<aside id="side" aria-label="测试清单">
-  <div class="tHead">
-    <div class="tHeadTop">
-      <strong>测试清单 <span id="testVer" style="color:#cdb27a"></span></strong>
-      <button id="soundBtn" type="button">🔇 静音</button>
-      <button id="testClose" type="button">收起</button>
-    </div>
-    <div class="tProg" id="testProg"></div>
-    <div class="tBar"><i id="testBarOk"></i><i id="testBarNo"></i><i id="testBarTodo"></i></div>
-  </div>
-  <div id="testScroll">
-    <div id="testList"></div>
-    <textarea id="testAll" placeholder="整体感受 / 总评（可留空）"></textarea>
-  </div>
-  <div class="tFoot"><button id="testCopy" type="button">复制反馈</button><span id="testMsg"></span></div>
-</aside>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.14.0</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.16.0</div>
 <script>
 /**
  * @license
@@ -1375,7 +1309,6 @@ function setMuted(v) {
     if (sndEl) sndEl.textContent = '🔊 声音已开';
     sndHint(false);
   }
-  if (typeof syncSoundBtn === 'function') syncSoundBtn();
 }
 function audioInit() {
   if (AC) return AC;
@@ -2035,7 +1968,6 @@ function resetInput() {
 }
 function showSettings(on) {
   settingsOpen = !!on;
-  if (settingsOpen && sideOpen) showSide(false);        /* 右侧同一块地方，互斥 */
   settingsPanel.hidden = !settingsOpen;
   document.getElementById('settingsBtn').classList.toggle('on', settingsOpen);
   /* 面板不吞键盘移动，但打开时必须切断残留的画面指针/触摸手势。 */
@@ -2055,207 +1987,6 @@ settingsPanel.addEventListener('wheel', function (e) { e.stopPropagation(); });
 document.getElementById('settingsBtn').addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); showSettings(!settingsOpen); });
 document.getElementById('settingsClose').onclick = function () { showSettings(false); };
 
-/* ---------------- 测试清单：右侧可折叠侧栏 ----------------
-   收起时右缘只留一条竖标签，点开从右边滑出整条（整条也是独立滚动区）。
-   每条四个动作：通过 / 不通过 / 待办 / 反馈。
-   「待办」＝现在能用、但后期还要做或另有设想 —— 和「不通过」分开记账，
-   否则"先算过"之后要做的事就会丢。
-   记录存在 localStorage，和 docs/TESTLIST-*.html 用同一套 key，两边互通。 */
-var TEST_ITEMS = [
-  {id:'42',   ver:'v0.11.42', w:'PC 鼠标灵敏度调低；攀爬上墙收尾不再滑一下', a:'电脑上转视角；爬一次矮墙'},
-  {id:'43',   ver:'v0.11.43', w:'设置能保存了；栅栏判定按轴向修正', a:'改个设置 → 刷新页面'},
-  {id:'44',   ver:'v0.11.44', w:'栅栏改成逐根柱子、逐块板子的碰撞；坡屋顶能站', a:'贴着栅栏走；跳上坡屋顶'},
-  {id:'45',   ver:'v0.11.45', w:'三轮自审：输入状态、材质、运动稳定性', a:'不用专门测，跳过'},
-  {id:'121',  ver:'v0.12.1',  w:'矮台阶能连续走上去；翻栅栏落到另一侧地面；倍速可保存', a:'连走三级台阶；对着栅栏按跳；改倍速后刷新'},
-  {id:'122',  ver:'v0.12.2',  w:'修设置面板打开时残留的输入状态', a:'拖视角到一半 → 打开设置 → 关掉'},
-  {id:'123',  ver:'v0.12.3',  w:'设置里能调走 / 跑 / 快跑速度；全场景碰撞补全', a:'拉速度条；贴着房子各部件走'},
-  {id:'124',  ver:'v0.12.4',  w:'删掉上一版加的角色配件；碰撞自检做到遗漏 0', a:'看角色身上'},
-  {id:'125',  ver:'v0.12.5',  w:'2m 高墙也能爬，按墙高自动选 1m / 2m 动作', a:'走到 2m 高墙前按空格'},
-  {id:'126',  ver:'v0.12.6',  w:'攀爬位移改由动画本身驱动 —— 修掉滑步', a:'爬墙时盯脚'},
-  {id:'127',  ver:'v0.12.7',  w:'高墙改成必须按空格才爬；动作从 2s 缩到 1.55s；修穿模；材质去油光', a:'不按空格直接撞高墙；再按空格爬一次；爬时看身体'},
-  {id:'130',  ver:'v0.13.0',  w:'手机降像素比 + 关抗锯齿 + 自动降分辨率', a:'手机开局走一圈'},
-  {id:'131',  ver:'v0.13.1',  w:'ALS 的转身步 / 界面音 / 环境音复刻', a:'跑起来急转；站着静听'},
-  {id:'132',  ver:'v0.13.2',  w:'站定转视角会真的迈步转身（90°）', a:'站定不动，把视角直接甩到身后'},
-  {id:'133',  ver:'v0.13.3',  w:'脚真的踩在斜坡上，鞋底顺坡倾斜', a:'走上偏坡屋顶，侧着看双脚'},
-  {id:'134',  ver:'v0.13.4',  w:'边走边转视角，头先转过去看', a:'按住方向键走，同时把视角甩到侧面'},
-  {id:'1351', ver:'v0.13.5',  w:'右侧栏：可折叠测试清单，通过 / 不通过 / 待办 / 反馈，一键复制', a:'点屏幕右缘的竖标签；勾几条；点「复制反馈」'},
-  {id:'1352', ver:'v0.13.5',  w:'默认静音：打开不再先响一声，徽标 / 侧栏顶部都能切', a:'打开页面先听有没有声音；再点左下角声音徽标'},
-  {id:'1361', ver:'v0.13.6',  w:'右侧栏改成并行的：开着也能转视角、走路，不用先收起来', a:'拉开清单不收起，直接拖画面转视角'},
-  {id:'1362', ver:'v0.13.6',  w:'地上的碎石有碰撞了：矮的自动踩过去，高的挡人', a:'往石堆里走'},
-  {id:'1363', ver:'v0.13.6',  w:'树干碰撞改成圆柱，贴树走不再被看不见的角挡住', a:'绕着树贴边走一圈'},
-  {id:'1364', ver:'v0.13.6',  w:'出生点东边加了个 20° 土坡，专门测贴脚', a:'出生后往东走两步，站坡上侧看双脚'},
-  {id:'1365', ver:'v0.13.6',  w:'环境音（风 / 鸟叫）默认关，F2 设置里单独开', a:'F2 打开设置看「环境音」是不是没勾'},
-  /* v0.14.0：武器整块拆掉了。下面这条专门让人确认"真的没了"，而不是某处还在偷偷开枪。 */
-  {id:'1401', ver:'v0.14.0',  w:'武器系统整个删掉：没有枪、没有准星、没有射击 / 换弹键、没有枪声、没有弹壳弹孔', a:'看右下角还有没有「射击 / 换弹」；点左键拖一下；按 R；按空格跳'},
-  {id:'1402', ver:'v0.14.0',  w:'拆枪之后右臂回到自然摆臂，不再悬在胸前"端着一把看不见的枪"', a:'第三 / 第一人称站着不动，看右手'},
-  /* v0.15.0：第 4 档视角。两条分别验"投影真的换了"和"方位是按档吸附的"。 */
-  {id:'1501', ver:'v0.15.0',  w:'第 4 档视角「等距」：正交投影 + 35.26° 仰角，远处的门和近处的门一样大', a:'按 V 切到「等距」，对比同尺寸的两块积木一近一远'},
-  {id:'1502', ver:'v0.15.0',  w:'等距里左右拖动 / Q E 是 90° 一档转世界，滚轮和双指改的是画面覆盖多少米', a:'等距下右拖一下看是不是整 90°；滚轮来回滚'},
-  {id:'t1', ver:'待办', d0:'todo', w:'8 方向步态：Walk / Run 的 B、LB、RB、LF、RF 还没导出来', a:'素材在 ALS 工程里没导；现在靠转身 + 步态混合顶着'},
-  {id:'t2', ver:'待办', d0:'todo', w:'180° 转身、落地翻滚（LandRoll）同样缺素材', a:'本机 UE 5.8 已装完整，待跑导出脚本'}
-];
-var TEST_KEY = 'w01.testlist.v2', TEST_ALL_KEY = 'w01.testlist.all.v2';
-var sideOpen = false;
-var sideEl = document.getElementById('side');
-var sideTabEl = document.getElementById('sideTab');
-var testStore = {};
-try { testStore = JSON.parse(localStorage.getItem(TEST_KEY) || '{}') || {}; } catch (_) { testStore = {}; }
-/* 设置面板是"模态"的（弹出就去碰画面）；测试侧栏是**并行**的——
-   打开时照样能转视角、走路、开火，不用先收起来（用户 v0.13.5 反馈）。
-   所以输入门控只看 settingsOpen，不看 sideOpen。 */
-function panelOpen() { return settingsOpen; }
-function testSave() {
-  try { localStorage.setItem(TEST_KEY, JSON.stringify(testStore)); } catch (_) {}
-}
-function testTally() {
-  var ok = 0, no = 0, td = 0, n = TEST_ITEMS.length, i, s;
-  for (i = 0; i < n; i++) {
-    s = (testStore[TEST_ITEMS[i].id] || {}).s || '';
-    if (s === 'pass') ok++; else if (s === 'fail') no++; else if (s === 'todo') td++;
-  }
-  document.getElementById('testProg').innerHTML =
-    ok + ' 通过 · <b style="color:#e08c78">' + no + ' 不通过</b> · <b style="color:#cdb27a">' + td + ' 待办</b> · ' +
-    (n - ok - no - td) + ' 未测';
-  document.getElementById('testBarOk').style.width = (ok / n * 100) + '%';
-  document.getElementById('testBarNo').style.width = (no / n * 100) + '%';
-  document.getElementById('testBarTodo').style.width = (td / n * 100) + '%';
-}
-function testPaint(id) {
-  var el = document.querySelector('#testList .tItem[data-id="' + id + '"]');
-  if (!el) return;
-  var s = (testStore[id] || {}).s || '';
-  el.classList.toggle('done', s === 'pass' || s === 'fail');
-  el.classList.toggle('tdone', s === 'todo');
-  var bs = el.querySelectorAll('.tBtn');
-  for (var i = 0; i < bs.length; i++) {
-    var k = bs[i].getAttribute('data-s');
-    if (k === 'note') continue;
-    bs[i].classList.toggle('s', k === s);
-  }
-  testTally();
-}
-(function testBuild() {
-  var host = document.getElementById('testList'), html = '', i, d;
-  for (i = 0; i < TEST_ITEMS.length; i++) {
-    d = TEST_ITEMS[i];
-    html += '<div class="tItem" data-id="' + d.id + '">' +
-      '<div class="tTop"><span class="tVer">' + d.ver + '</span><span class="tWhat">' + d.w + '</span></div>' +
-      (d.a ? '<div class="tHow">' + d.a + '</div>' : '') +
-      '<div class="tActs">' +
-        '<button class="tBtn ok" data-s="pass" type="button">通过</button>' +
-        '<button class="tBtn no" data-s="fail" type="button">不通过</button>' +
-        '<button class="tBtn td" data-s="todo" type="button">待办</button>' +
-        '<button class="tBtn" data-s="note" type="button">反馈</button>' +
-      '</div>' +
-      '<textarea class="tNote" placeholder="哪里不对 / 后期想改成什么样…" hidden></textarea>' +
-    '</div>';
-  }
-  host.innerHTML = html;
-  for (i = 0; i < TEST_ITEMS.length; i++) {
-    d = TEST_ITEMS[i];
-    var st = testStore[d.id] || (testStore[d.id] = {});
-    if (d.d0 && !st.s) st.s = d.d0;          /* 待办条目默认就落在"待办"里 */
-    var el = host.querySelector('.tItem[data-id="' + d.id + '"]');
-    if (st.n) { var ta = el.querySelector('.tNote'); ta.value = st.n; ta.hidden = false; }
-    testPaint(d.id);
-  }
-  try {
-    var all = localStorage.getItem(TEST_ALL_KEY);
-    if (all) document.getElementById('testAll').value = all;
-  } catch (_) {}
-})();
-document.getElementById('testList').addEventListener('click', function (e) {
-  var b = e.target.closest ? e.target.closest('.tBtn') : null;
-  if (!b) return;
-  var item = b.closest('.tItem');
-  if (!item) return;
-  var id = item.getAttribute('data-id');
-  var s = b.getAttribute('data-s');
-  var st = testStore[id] || (testStore[id] = {});
-  if (s === 'note') {
-    var ta = item.querySelector('.tNote');
-    ta.hidden = !ta.hidden;
-    if (!ta.hidden) ta.focus();
-    return;
-  }
-  st.s = (st.s === s) ? '' : s;              /* 再点同一状态就取消 */
-  testSave();
-  testPaint(id);
-});
-document.getElementById('testList').addEventListener('input', function (e) {
-  var t = e.target;
-  if (!t.classList || !t.classList.contains('tNote')) return;
-  var item = t.closest('.tItem');
-  if (!item) return;
-  var id = item.getAttribute('data-id');
-  var st = testStore[id] || (testStore[id] = {});
-  st.n = t.value;
-  testSave();
-});
-document.getElementById('testAll').addEventListener('input', function () {
-  try { localStorage.setItem(TEST_ALL_KEY, this.value); } catch (_) {}
-});
-function testBuildText() {
-  var ok = [], no = [], td = [], rest = [], i, d, st, s, line;
-  for (i = 0; i < TEST_ITEMS.length; i++) {
-    d = TEST_ITEMS[i]; st = testStore[d.id] || {}; s = st.s || '';
-    line = d.ver + ' ' + d.w + (st.n ? '｜反馈：' + st.n : '');
-    if (s === 'pass') ok.push(line);
-    else if (s === 'fail') no.push(line);
-    else if (s === 'todo') td.push(line);
-    else rest.push(d.ver + ' ' + d.w);
-  }
-  var all = (document.getElementById('testAll').value || '').trim();
-  var out = ['WORLD 01 ' + (window.__worldVersion || '') + ' 测试反馈',
-             '通过 ' + ok.length + ' / 不通过 ' + no.length + ' / 待办 ' + td.length + ' / 未测 ' + rest.length, '',
-             '【不通过】'];
-  out = out.concat(no.length ? no : ['（无）']);
-  out.push('', '【待办 / 设想】');
-  out = out.concat(td.length ? td : ['（无）']);
-  out.push('', '【通过】');
-  out = out.concat(ok.length ? ok : ['（无）']);
-  out.push('', '【未测】');
-  out = out.concat(rest.length ? rest : ['（无）']);
-  out.push('', '【整体感受】', all || '（留空）');
-  return out.join('\n');
-}
-document.getElementById('testCopy').onclick = function () {
-  var txt = testBuildText(), msg = document.getElementById('testMsg');
-  function done(ok) { msg.textContent = ok ? '已复制，直接粘给我' : '复制不了，长按手动选'; }
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(txt).then(function () { done(true); }, function () { done(false); });
-  } else {
-    var ta = document.createElement('textarea');
-    ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.appendChild(ta); ta.select();
-    var ok = false;
-    try { ok = document.execCommand('copy'); } catch (_) {}
-    document.body.removeChild(ta);
-    done(ok);
-  }
-};
-function syncSoundBtn() {
-  var b = document.getElementById('soundBtn');
-  if (!b) return;
-  b.textContent = SOUND.muted ? '🔇 静音' : '🔊 有声';
-}
-function showSide(on) {
-  sideOpen = !!on;
-  if (sideOpen && settingsOpen) showSettings(false);   /* 右侧同一块地方，互斥 */
-  sideEl.classList.toggle('open', sideOpen);
-  sideTabEl.classList.toggle('hide', sideOpen);
-  if (sideOpen) {
-    document.getElementById('testVer').textContent = window.__worldVersion || '';
-    syncSoundBtn();
-  }
-  /* 这里刻意**不**动输入状态、也不退鼠标锁定：
-     侧栏是并行的，打开它不该打断你正在转的视角，也不该逼你先收起来才能操作画面。 */
-}
-sideEl.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
-sideEl.addEventListener('wheel', function (e) { e.stopPropagation(); });
-sideTabEl.addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); showSide(true); });
-document.getElementById('testClose').addEventListener('click', function () { showSide(false); });
-document.getElementById('soundBtn').addEventListener('click', function () { setMuted(!SOUND.muted); });
 document.getElementById('timeScale').oninput = function () { settings.timeScale = Math.max(0.25, Math.min(2, +this.value)); syncSettings(); saveSettings(); };
 document.getElementById('mouseSensitivity').oninput = function () { settings.mouse = +this.value; syncSettings(); saveSettings(); };
 document.getElementById('touchSensitivity').oninput = function () { settings.touch = +this.value; syncSettings(); saveSettings(); };
@@ -2434,16 +2165,16 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 右缘竖标签拉开测试清单 · 自由与等距里双指缩放、45°键锁死视角　·　v0.15.0';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角　·　v0.16.0';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · F2 设置 · F3 测试清单 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.15.0';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.16.0';
 }
 
 window.addEventListener('keydown', function (e) {
   var k = e.key.toLowerCase();
-  /* 清单面板里的输入框要能正常打字：WASD / 空格 不能被游戏抢走 */
+  /* 设置面板里的输入控件要能正常操作：WASD / 空格 不能被游戏抢走 */
   var tg = e.target;
   if (tg && (tg.tagName === 'TEXTAREA' || tg.tagName === 'INPUT' || tg.tagName === 'SELECT')) {
     if (k === 'escape') tg.blur();
@@ -2451,9 +2182,7 @@ window.addEventListener('keydown', function (e) {
   }
   if (k === 'm' && !e.repeat) { toggleMousePointer(); return; }
   if (k === 'f2' && !e.repeat) { e.preventDefault(); showSettings(!settingsOpen); return; }
-  if (k === 'f3' && !e.repeat) { e.preventDefault(); showSide(!sideOpen); return; }
   if (settingsOpen && k === 'escape') { showSettings(false); return; }
-  if (sideOpen && k === 'escape') { showSide(false); return; }
   if (k === ' ' || k === 'spacebar' || k.indexOf('arrow') === 0) e.preventDefault();
   if (e.repeat) return;
   if (k === 'h' && !TOUCH_UI) { setTip(!tipShown); return; }   /* 桌面：一个键管显示与隐藏 */
@@ -3992,7 +3721,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.15.0';
+window.__worldVersion = 'v0.16.0';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
@@ -4006,12 +3735,6 @@ targets: targets,
   get ikCfg() { return IK; },
   /* 诊断：头部视线跟随（当前偏角/上限/颈头分配） */
   get look() { return LOOK; },
-  /* 诊断：右侧栏测试清单（开合标志 / 勾选表 / 导出文本） */
-  showSide: function (on) { showSide(on); },
-  get sideOpen() { return sideOpen; },
-  get testStore() { return testStore; },
-  testExport: function () { return testBuildText(); },
-  testSet: function (id, s, n) { var st = testStore[id] || (testStore[id] = {}); st.s = s; if (n !== undefined) st.n = n; testSave(); testPaint(id); return 1; },
   /* 诊断：静音开关与音频上下文状态 */
   get sound() { return SOUND; },
   setMuted: function (v) { setMuted(v); return SOUND.muted; },
