@@ -155,7 +155,7 @@ function modelRest(model) {
 }
 
 // ---------- 主提取 ----------
-function extractAnim(file, limitF) {
+function extractAnim(file, limitF, wantRoot) {
   const { objects, connections } = parseFBX(file);
   const models = objects.children.filter(c => c.name === 'Model');
   const acns = objects.children.filter(c => c.name === 'AnimationCurveNode');
@@ -255,7 +255,27 @@ function extractAnim(file, limitF) {
       bob.push(+(v[1] - base).toFixed(3));
     }
   }
-  return { dur: +(frames[frames.length - 1]).toFixed(4), n: nF, bones: outBones, bob, steps };
+  /* root motion（v0.12.6）：撑上/翻越这类动作原本带整段位移。之前只留了竖直 bob、
+     水平被丢掉，位移由代码插值，腿的节奏和身体速度对不上 → 脚在墙面/地面上拖（滑步）。
+     这里把根骨相对首帧的位移烘出来，按 [前, 上, 侧] 三个分量存，位移交给动画驱动。 */
+  let root = null, rootBone = null;
+  if (wantRoot) {
+    for (const bn of ['root', 'pelvis']) {
+      const t = bones[bn] && bones[bn].t;
+      if (!t || !(t.X || t.Y || t.Z)) continue;
+      const p0 = toThreeV([sample(t.X, 0), sample(t.Y, 0), sample(t.Z, 0)], SCALE);
+      const p1 = toThreeV([sample(t.X, nF - 1), sample(t.Y, nF - 1), sample(t.Z, nF - 1)], SCALE);
+      if (Math.hypot(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]) < 0.05) continue;  /* 5cm 都没有不算根骨 */
+      rootBone = bn;
+      root = [];
+      for (let i = 0; i < nF; i++) {
+        const v = toThreeV([sample(t.X, i), sample(t.Y, i), sample(t.Z, i)], SCALE);
+        root.push([+(v[0] - p0[0]).toFixed(3), +(v[1] - p0[1]).toFixed(3), +(v[2] - p0[2]).toFixed(3)]);
+      }
+      break;
+    }
+  }
+  return { dur: +(frames[frames.length - 1]).toFixed(4), n: nF, bones: outBones, bob, steps, root, rootBone };
 }
 
 const ANIMS = {
@@ -281,12 +301,14 @@ const ANIMS = {
 
 const result = {};
 const LIMIT = { jumpWalkL: 22, jumpWalkR: 22, jumpRunL: 22, jumpRunR: 22 }; /* 起跳只用 ~0.7s，其余裁掉 */
+const WANT_ROOT = { mantle: 1, mantle2: 1 };  /* 只有攀爬类需要 root motion */
 for (const [key, file] of Object.entries(ANIMS)) {
   let p = path.join(SRC, file);
   if (!fs.existsSync(p)) p = path.join(FALLBACK_SRC, file);
-  const a = extractAnim(p, LIMIT[key]);
+  const a = extractAnim(p, LIMIT[key], !!WANT_ROOT[key]);
   result[key] = a;
-  console.log(key, 'dur=' + a.dur, 'frames=' + a.n, 'bones=' + Object.keys(a.bones).length, 'steps=' + a.steps.length);
+  console.log(key, 'dur=' + a.dur, 'frames=' + a.n, 'bones=' + Object.keys(a.bones).length, 'steps=' + a.steps.length,
+    a.root ? ('root@' + a.rootBone + ' Δ=' + JSON.stringify(a.root[a.root.length - 1])) : 'root=无');
 }
 fs.writeFileSync(OUTJS, 'window.__ANIMS=' + JSON.stringify(result) + ';');
 console.log('written', OUTJS, (fs.statSync(OUTJS).size / 1024).toFixed(0) + 'KB');
