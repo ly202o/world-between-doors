@@ -273,7 +273,10 @@ const ANIMS = {
   landHeavy: 'ALS_N_Land_Heavy.fbx',
   /* 攀爬（v0.11.40）：ALS 的撑上 1m 障碍，右手撑版本。
      LH/RH 是按哪只手先撑分的，这里统一用 RH；完整片段比跳跃长，不裁帧。 */
-  mantle: 'ALS_N_Mantle_1m_RH.fbx'
+  mantle: 'ALS_N_Mantle_1m_RH.fbx',
+  /* 高墙攀爬（v0.12.5）：ALS 的撑上 2m 障碍。按墙高在 1m / 2m 之间选动作，
+     不再用 1m 动作硬拉高墙（那会出现"够到了再平移上去"的怪动作）。 */
+  mantle2: 'ALS_N_Mantle_2m.fbx'
 };
 
 const result = {};

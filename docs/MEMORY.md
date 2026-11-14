@@ -4,6 +4,13 @@
 > 读完这一份，就应该能直接开始干活，不需要再问背景。
 > 章程见 `RULES.md`，玩家视角见 `GAME.md`，技术细节见 `DESIGN.md`。
 
+## 2026-11-14 · v0.12.5 高墙攀爬 + 主角碰撞细化
+
+- 2m Mantle（ALS_N_Mantle_2m，2.7s/82 帧）烘焙进单文件；攀爬按高度选段：≤1.30m 用 `mantle`，1.30–2.35m 用 `mantle2`，>2.35m 拒绝。`samplePose` 的 oneShot 判定要同时包含两段。
+- 攀爬竖直位移原先全在第一段（48%）吃完，后半段悬在墙顶不动 → 改成 82% + 18% 分摊到前两段。
+- 主角碰撞分两层：移动仍是单胶囊，但半径 `rBody` 由骨骼实测体宽推（0.24–0.40，平滑），贴墙间隙 0.36→0.25m；另有 13 段骨骼胶囊做接触/命中诊断（F2 显示、碰撞模式标红），**不参与移动阻挡**。理由：UE/ALS 的移动碰撞也是胶囊，多体解算会被摆臂顶飞。
+- 踩坑：测试脚本里改 timeScale 会被 `world01.settings.v1` 持久化，后续所有回归都变慢（表现像"角色走不动"）。测试前应 `localStorage.clear()`。
+
 ## 2026-11-14 · v0.12.4 碰撞全覆盖
 
 - 角色橙色肩甲/腰带/面罩已按用户要求删除，只保留主体蓝灰换色。
@@ -404,8 +411,8 @@ UE 命令行：`/d/app/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe D:/temp
 | 自由 | `freePitch` ±1.45 rad，`freeDist` 1.5 – 60 m；滚轮系数 `exp(dY × 0.0011)`；双指 = `dist0 × d0/d`；`freeDist < 0.9` 藏身体；最低俯角 `asin((0.35 − follow.y − 1.42) / dist)` |
 | 自由默认落点 | `FREE_PITCH_DEF` 0.66 / `FREE_DIST_DEF_L` 23 / `FREE_DIST_DEF_P` 20（沿用旧 `TOP_PITCH` / `TOP_DIST`）；`freeIntro` 0.55 s 缓动，用户一动清 0 |
 | 主题（默认深色） | `THEMES.light/dark` + `applyTheme()`；`T` 键 / `#themeBtn`；CSS 变量走 `<html data-theme>`；深色 hemi+sun = 0.62+0.80（白档 1.45+1.84）；`HOUSE_MATS` 注册房子内部材质；地面网格线色是 uniform `uGridColor` |
-| 动画 | `__ANIMS` 13 段；`mantle` = ALS_N_Mantle_1m_RH（1.5333s / 47 帧 / 32 骨），v0.11.40 接攀爬 |
-| 攀爬 | `climb` / `tryClimb()` / `advanceClimb()`；高 0.45–1.25m、顶面 hw·hd ≥ 0.30；沿 `P.face` 探 0.30–1.20m；**位移分两段**（前 52% 撑起贴外层、后 48% 翻上顶面），`update` 物理段包在 `if(climb)…else…` 内 |
+| 动画 | `__ANIMS` 14 段；`mantle` = ALS_N_Mantle_1m_RH（1.5333s / 47 帧）、`mantle2` = ALS_N_Mantle_2m（2.7s / 82 帧） |
+| 攀爬 | `climb` / `tryClimb()` / `advanceClimb()`；高 0.40–2.35m 分两档（≤1.30 `mantle`，>1.30 `mantle2`）；位移三段 48/30/22，竖直 82%+18% 分摊；`update` 物理段包在 `if(climb)…else…` 内 |
 | 碰撞可视化 | `colViz` 一个 `LineSegments`（`depthTest:false`，`pebble/flat` 不画）+ 玩家胶囊 r0.36/h1.86；`C` 键 / `#colBtn` |
 | 网格碰撞覆盖 | `fillCollisionGaps()` / `collisionAudit(fill)`（v0.12.4）：建完场景后遍历网格+实例，几何包围盒 8 角点查覆盖，缺的补 AABB；复核 `missing` 必须 0，数字进 F2 面板 |
 | 碰撞分类 | 阻挡：solid/rubble/fence/roof/canopy/bush/target/stand/auto；不阻挡但可被射线打中：pebble(≤0.5m 碎屑)/flat(≤0.12m 薄板)/leaf(树冠)；`NON_CLIMB_KIND` = bush/target/stand 不许攀爬 |
@@ -413,7 +420,7 @@ UE 命令行：`/d/app/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe D:/temp
 | 45° 锁定 | `LOCK_PITCH = π/4`、`lockYaw` = 按下时的 `camYaw`；锁定时 `turnBy` 忽略 `dx`/`dy`、禁 `Q`/`E`；每帧 `k=min(1,dt×6)` 同时收敛俯角与 yaw（`dyaw` 归一到 ±π）；跨视角保留，重进自由时落点取 `LOCK_PITCH` |
 | HUD 按钮 | `.pill` 高 34、左右 padding 13、圆角 999、字 12/600；右上 14 / 56 / 98 / 140 依次是 视角 / 45° / 主题 / 碰撞 |；快跑右下 100 |
 | 操作说明 | 桌面：`#tip` 默认 `opacity 0`，按 `H` 切（0.18s 过渡），右上角 `#helpBadge` 显示 `H`、展开时点亮；`hideTip()` 桌面直接 return。触屏：开局 opacity 1、9s 淡出、徽标不显示 |
-| 碰撞 | `PLAYER_R` 0.36、`STEP_UP` 0.35、`STEP_DOWN` 0.40、站立判定放宽 0.28；v0.12.4 共 398 个碰撞体（131 网格 + 289 实例里除豁免 8 个外全覆盖，其中 220 个是自动补齐的碎屑/薄板/树冠） |
+| 碰撞 | `PLAYER_R` 0.36（安全边距基准）、移动实际半径 `rBody` ≈0.24–0.26（骨骼实测）、`STEP_UP` 0.35、`STEP_DOWN` 0.40；v0.12.4 共 398 个碰撞体（131 网格 + 289 实例里除豁免 8 个外全覆盖，其中 220 个是自动补齐的碎屑/薄板/树冠） |
 | 贴墙摩擦 | `WALL_FRIC` 3.5：切向速度每秒衰减 `3.5 × |目标速度·法线|`；0–30° 顶死，45°+ 照常滑；只在 onGround 生效 |
 | fov | 横屏 48 / 竖屏 60 |
 | 雾 | `#F1F5F8`，near 20，far 145 |
