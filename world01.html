@@ -1064,26 +1064,202 @@ function applyHoldPose() {
   holdBone('hand_r', _holdC);
 }
 
-/* 脚部接触层：世界坐标探地 + 限幅骨盆补偿；不冒充双节腿完整 IK。 */
-var footState = { left: false, right: false, leftGround: 0, rightGround: 0, pelvis: 0, mode: '接触/骨盆补偿' };
+/* ---------------- 脚部 IK：两骨解析解（v0.13.3） ----------------
+   v0.13.2 之前这里只有「骨盆补偿」：量到脚陷进地里就整体抬一点骨盆，
+   修好一只脚必然压坏另一只。斜坡上两脚支撑高度差实测 9.9cm（屋顶 18° 面），
+   骨盆只有一个值，物理上无解。所以改成对每条腿单独解两骨 IK：
+     骨盆 → 大腿(0.426m) → 小腿(0.402m) → 脚踝，
+   目标 = 该脚自己脚下的支撑高度 + 平地站立时的踝高（v0.13.3 实测 0.100m）。
+   解法是平面余弦定理（精度足够、无迭代、手机也扛得住）：
+     1) 整条腿绕髋转到「髋→目标」方向；
+     2) 再绕膝把「髋→踝」长度从 l 收到 d。
+   膝盖往哪边拐由「当前膝盖在腿平面哪一侧」决定，所以对任何动画的膝盖朝向都成立，
+   不会出现反关节——这也是当初不敢上 IK 的主要原因。 */
+var IK = {
+  ankleH: 0.100,   /* 平地站立时脚踝离地高度（两脚实测都是 0.100） */
+  rise: 0.34,      /* 单腿最多往上补，超过就认了（再补腿就折断了） */
+  bodyUp: 0.08,    /* 骨盆整体最多上抬 */
+  bodyDown: 0.16,  /* 骨盆整体最多下沉（落地那一帧会用到 0.14） */
+  tiltMax: 0.40,   /* 脚掌贴坡的最大倾角（弧度，约 23°） */
+  rate: 16         /* 修正量收敛速度（1/s），太大会在落地那帧弹一下 */
+};
+var footState = { left: false, right: false, leftGround: 0, rightGround: 0, pelvis: 0,
+                  ikL: 0, ikR: 0, tiltL: 0, tiltR: 0, mode: '两骨IK' };
 var footProbe = new THREE.Vector3();
+
+var _ikA = new THREE.Vector3(), _ikB = new THREE.Vector3(), _ikC = new THREE.Vector3(),
+    _ikT = new THREE.Vector3(), _ikU = new THREE.Vector3(), _ikV = new THREE.Vector3(),
+    _ikW = new THREE.Vector3(), _ikE = new THREE.Vector3(), _ikN = new THREE.Vector3(),
+    _ikUp = new THREE.Vector3(0, 1, 0), _ikF = new THREE.Vector3(0, 0, 1);
+var _ikQ = new THREE.Quaternion(), _ikQp = new THREE.Quaternion(), _ikQi = new THREE.Quaternion(),
+    _ikF0 = new THREE.Quaternion(), _ikWq = new THREE.Quaternion();
+
+/* 给骨骼叠一个「绕自身骨节原点、绕世界轴 axis 转 ang」的旋转。
+   local_new = inv(parentWorld) * R * parentWorld * local —— 直接左乘会把骨骼拉离父级。 */
+function ikRotWorld(bone, axis, ang) {
+  if (!bone.parent) return;
+  bone.parent.getWorldQuaternion(_ikQp);
+  _ikQi.copy(_ikQp).invert();
+  _ikQ.setFromAxisAngle(axis, ang);
+  _ikQi.multiply(_ikQ).multiply(_ikQp);
+  bone.quaternion.premultiply(_ikQi);
+}
+
+/* 单条腿求解。dy = 踝关节竖直修正量；tiltK = 脚掌贴坡权重 */
+function ikLeg(side, dy, tiltK) {
+  var thigh = boneByName['thigh_' + side], calf = boneByName['calf_' + side], foot = boneByName['foot_' + side];
+  if (!thigh || !calf || !foot) return;
+  var A = thigh.getWorldPosition(_ikA);
+  var B = calf.getWorldPosition(_ikB);
+  var C = foot.getWorldPosition(_ikC);
+  var L1 = A.distanceTo(B), L2 = B.distanceTo(C);
+  if (L1 < 0.05 || L2 < 0.05) return;
+  /* 动画原本的脚掌世界朝向：位置解完要恢复到这里（屈膝不能带着脚掌一起转） */
+  foot.getWorldQuaternion(_ikF0);
+
+  if (Math.abs(dy) > 0.0008) {
+    var T = _ikT.copy(C); T.y += dy;
+    var maxD = (L1 + L2) * 0.997, minD = Math.abs(L1 - L2) + 0.03;
+    var kneeAng = function (len) {
+      var v = (L1 * L1 + L2 * L2 - len * len) / (2 * L1 * L2);
+      return Math.acos(Math.max(-1, Math.min(1, v)));
+    };
+    /* 解 3 轮。单次解析解只在「膝盖正好落在屈膝平面里」时精确；
+       原始动画的膝盖未必在这个平面上，所以第一轮会剩 1~2cm，第二轮就收敛到毫米级。
+       每轮都重新量一次当前踝位，把剩下的差额再解一次。 */
+    for (var it = 0; it < 3; it++) {
+      C = foot.getWorldPosition(_ikC);
+      if (Math.abs(T.y - C.y) < 0.0008) break;
+      var dirAC = _ikU.copy(C).sub(A);
+      var dirAT = _ikV.copy(T).sub(A);
+      var l = dirAC.length(), d = dirAT.length();
+      if (l < 1e-4 || d < 1e-4) break;
+      if (d > maxD) { dirAT.multiplyScalar(maxD / d); d = maxD; }
+      else if (d < minD) { dirAT.multiplyScalar(minD / d); d = minD; }
+      dirAC.multiplyScalar(1 / l); dirAT.multiplyScalar(1 / d);
+      /* 1) 整条腿绕髋转到新方向 */
+      _ikQ.setFromUnitVectors(dirAC, dirAT);
+      var ang = 2 * Math.acos(Math.min(1, Math.abs(_ikQ.w)));
+      if (ang > 1e-4) {
+        _ikN.set(_ikQ.x, _ikQ.y, _ikQ.z);
+        if (_ikN.lengthSq() > 1e-10) {
+          ikRotWorld(thigh, _ikN.normalize(), ang);
+          thigh.updateWorldMatrix(false, true);
+        }
+      }
+      /* 2) 绕膝弯曲，把髋→踝长度从 l 收到 d */
+      B = calf.getWorldPosition(_ikB); C = foot.getWorldPosition(_ikC);
+      var l2 = A.distanceTo(C);
+      if (l2 < 1e-4) break;
+      var delta = kneeAng(l2) - kneeAng(d);
+      if (Math.abs(delta) < 1e-4) continue;
+      /* 屈膝平面：由「髋→踝」和「身体正前方」张成，法线 = 两者叉积。
+         一开始这里用的是 cross(髋→踝, 髋→膝)，站立时腿几乎伸直、膝盖离连线不到 1mm，
+         归一化后就是噪声——膝盖会被甩到侧面（实测脚横着飞了 21cm）。
+         改用身体正前方当极向量（pole），膝盖永远朝前拐，和腿直不直无关。
+         转向 ±delta 各试一次，取踝点离目标近的那个，不依赖骨骼局部轴定义。 */
+      var nrm = _ikN.copy(C).sub(A).cross(_ikF);
+      if (nrm.lengthSq() < 1e-10) break;
+      nrm.normalize();
+      var vK = _ikW.copy(C).sub(B);
+      var bestAng = delta, bestErr = Infinity;
+      for (var sgn = -1; sgn <= 1; sgn += 2) {
+        _ikQ.setFromAxisAngle(nrm, delta * sgn);
+        _ikE.copy(vK).applyQuaternion(_ikQ).add(B);
+        var err = _ikE.distanceTo(T);
+        if (err < bestErr) { bestErr = err; bestAng = delta * sgn; }
+      }
+      ikRotWorld(calf, nrm, bestAng);
+      calf.updateWorldMatrix(false, true);
+    }
+  }
+
+  /* 3) 脚掌：位置归位之后单独定朝向。
+     两个必须合成一件事：① 屈膝会把小腿和脚掌一起转（左腿从 167° 弯到 122° 时鞋底就翻了 45°），
+     不能让脚掌继承这个旋转；② 坡面上鞋底还要贴住坡。
+     做法是把脚掌的世界朝向强行恢复成「动画原本的朝向 × 贴坡旋转」，
+     局部四元数由父级（小腿）新朝向反解——这样脚的姿态完全由这里说了算，与膝盖怎么弯无关。 */
+  var tiltEff = 0;
+  if (tiltK > 0.002) {
+    C = foot.getWorldPosition(_ikC);
+    var base = supportAt(C.x, C.z, P.pos.y + 0.12);
+    var gx = (supportAt(C.x + 0.09, C.z, P.pos.y + 0.12) - base) / 0.09;
+    var gz = (supportAt(C.x, C.z + 0.09, P.pos.y + 0.12) - base) / 0.09;
+    var g2 = gx * gx + gz * gz;
+    if (g2 > 1e-6 && g2 < 0.36) {          /* tan 31° 以上当断崖，不当坡 */
+      _ikN.set(-gx, 1, -gz).normalize();
+      _ikQ.setFromUnitVectors(_ikUp, _ikN);
+      var ang2 = 2 * Math.acos(Math.min(1, Math.abs(_ikQ.w)));
+      _ikE.set(_ikQ.x, _ikQ.y, _ikQ.z);
+      if (ang2 > 1e-4 && _ikE.lengthSq() > 1e-10) {
+        tiltEff = Math.min(ang2, IK.tiltMax) * tiltK;
+        /* 世界朝向 = 贴坡旋转 × 动画原朝向 */
+        _ikWq.setFromAxisAngle(_ikE.normalize(), tiltEff).multiply(_ikF0);
+      }
+    }
+  }
+  if (tiltEff <= 0) _ikWq.copy(_ikF0);
+  foot.parent.getWorldQuaternion(_ikQp);            /* 小腿解算后的新朝向 */
+  foot.quaternion.copy(_ikQi.copy(_ikQp).invert().multiply(_ikWq));
+  footState[side === 'l' ? 'tiltL' : 'tiltR'] = tiltEff;
+}
+
 function updateFootContact(dt) {
   pawn.updateMatrixWorld(true);
-  var sides = ['l', 'r'], offsets = [], active = P.onGround && !climb && motionDebug.stumble <= 0;
+  /* 身体正前方（世界）：屈膝平面的极向量，膝盖永远朝这边拐 */
+  _ikF.set(Math.sin(P.face), 0, Math.cos(P.face));
+  var active = P.onGround && !climb && motionDebug.stumble <= 0 &&
+               ANIM.cur !== 'mantle' && ANIM.cur !== 'mantle2';
+  var sp = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+  /* 走动时脚掌不该被死死粘在坡上（那是滑步的观感），速度越高越放手 */
+  var tiltW = active ? Math.max(0, 1 - sp / 1.3) : 0;
+  var sdt = Math.max(dt, 0.0001);
+  var smooth = 1 - Math.exp(-IK.rate * sdt);
+  var sides = ['l', 'r'], want = [0, 0], has = [0, 0], ground = [0, 0];
+
+  /* ---- 第一遍：量每只脚自己的落差（目标踝高 − 当前踝高） ---- */
   for (var i = 0; i < 2; i++) {
-    var foot = boneByName['foot_' + sides[i]];
-    if (!foot) continue;
+    var side = sides[i], isL = i === 0;
+    var foot = boneByName['foot_' + side];
+    if (!foot) { footState[isL ? 'left' : 'right'] = false; continue; }
+    has[i] = 1;
     foot.getWorldPosition(footProbe);
-    var ground = supportAt(footProbe.x, footProbe.z, P.pos.y + 0.12);
-    var gap = footProbe.y - 0.10 - ground;
-    var contact = active && gap < 0.16 && gap > -0.35;
-    footState[i ? 'right' : 'left'] = contact;
-    footState[i ? 'rightGround' : 'leftGround'] = ground;
-    if (contact) offsets.push(Math.max(-0.12, Math.min(0.08, -gap)));
+    ground[i] = supportAt(footProbe.x, footProbe.z, P.pos.y + 0.12);
+    footState[isL ? 'left' : 'right'] = active;
+    footState[isL ? 'leftGround' : 'rightGround'] = ground[i];
+    if (active) {
+      var target = ground[i] + IK.ankleH;
+      /* 脚已经伸到平台外：脚下支撑比身体脚面低一大截，这时不该去够，让它自然垂着 */
+      if (target > P.pos.y - 0.30) {
+        want[i] = Math.max(-0.45, Math.min(0.50, target - footProbe.y));
+      }
+    }
   }
-  var target = offsets.length && active ? Math.min.apply(Math, offsets) : 0;
-  footState.pelvis += (target - footState.pelvis) * (1 - Math.exp(-12 * dt));
+
+  /* ---- 骨盆补偿：只补「两只脚都要一起动」的那部分 ----
+     关键在"公共量"：骨盆只有一个值，两脚不一样高（斜坡实测差 9.9cm）根本补不了，
+     那部分交给下面的逐腿 IK。反过来，两脚都要往下（平地站立时动画本身浮 2~4cm），
+     腿已经接近伸直（膝角 171°）没法再伸——只能整体下沉，这里就是干这个的。 */
+  var common = 0;
+  if (active) {
+    var mn = null;
+    for (var m = 0; m < 2; m++) if (has[m]) mn = (mn === null) ? want[m] : Math.min(mn, want[m]);
+    if (mn !== null) common = Math.max(-IK.bodyDown, Math.min(IK.bodyUp, mn));
+  }
+  footState.pelvis += (common - footState.pelvis) * (1 - Math.exp(-12 * sdt));
   if (boneByName.pelvis) boneByName.pelvis.position.y += footState.pelvis;
+  pawn.updateMatrixWorld(true);
+
+  /* ---- 第二遍：剩余差额逐腿 IK（公共量已被骨盆吃掉，剩下只有"抬"） ---- */
+  for (var k = 0; k < 2; k++) {
+    if (!has[k]) continue;
+    var isLeft = k === 0, kk = isLeft ? 'ikL' : 'ikR';
+    var res = want[k] - footState.pelvis;
+    if (res < 0) res = 0;
+    if (res > IK.rise) res = IK.rise;
+    footState[kk] += (res - footState[kk]) * smooth;
+    ikLeg(sides[k], footState[kk], tiltW);
+  }
   pawn.updateMatrixWorld(true);
 }
 
@@ -3830,12 +4006,15 @@ function fpsTick(t) {
         '\n模拟倍速 ' + settings.timeScale.toFixed(2) + '× / 诊断按真实时间刷新' +
         '\n抓沿 ' + motionDebug.ledge + ' / 阶段 ' + (climb ? (climb.t / climb.dur < 0.48 ? '接近/撑起' : (climb.t / climb.dur < 0.78 ? '越沿' : '落稳')) : '无') +
         '\n撞墙 ' + motionDebug.wall + ' / 踉跄 ' + motionDebug.stumble.toFixed(2) +
-        '\n脚接触 L/R ' + footState.left + '/' + footState.right + ' / 骨盆 ' + footState.pelvis.toFixed(3) +
+        '\n脚 IK L/R ' + footState.left + '/' + footState.right +
+        ' / 骨盆 ' + footState.pelvis.toFixed(3) +
+        ' / 踝补 ' + footState.ikL.toFixed(3) + '/' + footState.ikR.toFixed(3) +
+        ' / 贴坡 ' + (footState.tiltL * 57.3).toFixed(1) + '°/' + (footState.tiltR * 57.3).toFixed(1) + '°' +
         '\n渲染 ' + renderScale.toFixed(2) + 'x（上限 ' + DPR_CAP + '，' + (IS_MOBILE ? '手机档' : '桌面档') + '）平均帧 ' + (perfStat.avg * 1000).toFixed(1) + 'ms' +
         '\n手枪 ' + weapon.ammo + '/' + weapon.reserve + ' 冷却 ' + weapon.cooldown.toFixed(2) + ' 换弹 ' + weapon.reload.toFixed(2) + ' 散布 ' + (weapon.bloom * 1000).toFixed(1) + 'mrad' +
         '\n射击 ' + weapon.shots + ' 命中 ' + weapon.hits + ' / ' + weapon.last +
         '\n肢体接触 ' + bodyContact.hits + ' / 最深 ' + bodyContact.deepest.toFixed(2) + (bodyContact.parts ? ' @' + bodyContact.parts : '') + '（骨骼胶囊只做命中/接触，不挡移动）' +
-        '\n脚层：接触检测/骨盆补偿，非完整腿IK' +
+        '\n脚层：两骨 IK（大腿→小腿→脚踝，逐脚贴地 + 脚掌贴坡）' +
         '\n绿=实体 橙=逐构件栅栏 粉=坡屋面 蓝=主圆柱 金=随骨骼近似盒' +
         '\n主碰撞稳定圆柱；骨骼盒仅显示、不参与阻挡';
     }
@@ -3892,7 +4071,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.13.2';
+window.__worldVersion = 'v0.13.3';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   weapon: weapon, targets: targets, fire: fireWeapon, reload: reloadWeapon,
   fx: FX,
@@ -3907,6 +4086,8 @@ window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   shotCollider: shotCollider, shotOrigin: shotOrigin, shotDir: shotDir,
   heldPistol: heldPistol,
   motionDebug: motionDebug, footState: footState,
+  /* 诊断：脚部 IK 参数（踝高/上下限/贴坡上限/收敛速度） */
+  get ikCfg() { return IK; },
   supportAt: supportAt, bodyClear: bodyClear,
   get boneBoxes() { return boneViz.length; },
   get climbState() { return climb; },
