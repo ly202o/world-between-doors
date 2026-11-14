@@ -275,7 +275,19 @@ function extractAnim(file, limitF, wantRoot) {
       break;
     }
   }
-  return { dur: +(frames[frames.length - 1]).toFixed(4), n: nF, bones: outBones, bob, steps, root, rootBone };
+  /* 骨盆相对绑定姿态的位移（v0.12.7）：以前只留竖直分量（bob），
+     水平分量丢了 —— 撑上动作里骨盆是要往墙里探的，丢了它身体就"留在墙外/陷进墙里"。
+     pv = [x, y, z]，Three 坐标，相对第 0 帧。 */
+  let pv = null;
+  if (wantRoot && pt && (pt.X || pt.Y || pt.Z)) {
+    const p0 = toThreeV([sample(pt.X, 0), sample(pt.Y, 0), sample(pt.Z, 0)], SCALE);
+    pv = [];
+    for (let i = 0; i < nF; i++) {
+      const v = toThreeV([sample(pt.X, i), sample(pt.Y, i), sample(pt.Z, i)], SCALE);
+      pv.push([+(v[0] - p0[0]).toFixed(3), +(v[1] - p0[1]).toFixed(3), +(v[2] - p0[2]).toFixed(3)]);
+    }
+  }
+  return { dur: +(frames[frames.length - 1]).toFixed(4), n: nF, bones: outBones, bob, steps, root, rootBone, pv };
 }
 
 const ANIMS = {

@@ -4,6 +4,16 @@
 > 读完这一份，就应该能直接开始干活，不需要再问背景。
 > 章程见 `RULES.md`，玩家视角见 `GAME.md`，技术细节见 `DESIGN.md`。
 
+## 2026-11-14 · v0.12.7 高墙手动 / 穿模 / 去油
+
+- **高墙攀爬只能按空格**：`tryClimb(autoOnly)` —— 自动路径（跑撞预接近、空中小跳）遇到 tier2 直接 false；`doJump` 走手动路径并清 `stumble`。矮沿（≤1.30m）保持跑撞自动。
+- **不弹回**：撞墙踉跄会把人推离 0.35m，退了就够不到沿。顶面 0.40–2.35m 的墙只停住；3m 主屋墙/灌木/靶子仍踉跄。
+- **硬直**：mantle2 剪到 2.40s（2.35s 之后只是站着缓劲）+ 速率 1.55 → 1.55s（原 2.08s）；收尾冷却 0.35→0.20s。
+- **穿模真因**：烘焙只留了骨盆竖直 `bob`，丢了水平分量。撑上动作里骨盆相对根骨要后收 0.27m，丢了身体就压在墙面上/陷进去。现在烘 `pv`（xyz）写回骨盆。配套：抓沿上限 0.90→0.50m、起手点保底 `CLIMB_START_GAP` 0.36m、落点 `CLIMB_LAND_IN` 0.34m → `sH`=1.00。骨骼埋深 13cm → 5.5cm。
+- **去油**：MAT roughness 0.42→0.74、metalness 0.16→0.03。
+- 新接口 `__world.anchors`（骨盆/头/双手/双脚世界坐标，量穿模用）。
+- 教训：`bake_full.cjs` 里凡是"某个骨骼的平移"，竖直和水平都要一起留；只留一半的代价是位移和姿势对不上，表现为滑步或穿模。
+
 ## 2026-11-14 · v0.12.6 攀爬滑步根治（根骨位移）
 
 - 用户报「爬高墙有滑步」，**原因不在时长调参，而是位移和动画不是同一条曲线**：
@@ -186,7 +196,7 @@ export_anims.py   # UE 命令行导出动画 FBX 到 D:/temp/als_anim_out（副�
 export_jump.py    # 同上，只导 JumpWalk_LF/RF、JumpRun_LF/RF、FallLoop_Fast
 export_mantle.py  # v0.11.39：导 ALS_N_Mantle_1m_LH/RH、Mantle_2m（在 Actions/ 下，不在 Base/）
 build_rig.cjs     # AnimMan.fbx → _rig.js（几何 + 蒙皮权重 + 骨骼绑定姿态）
-bake_full.cjs     # 动画 FBX → _anims.js（每骨绝对局部旋转 + mantle/mantle2 的 root 根骨位移）；跳类裁到 22 帧
+bake_full.cjs     # 动画 FBX → _anims.js（每骨绝对局部旋转 + mantle/mantle2 的 root 根骨位移与 pv 骨盆位移）；跳类裁到 22 帧
 inject_anims.cjs  # v0.12.6：把 _anims.js 注回 world01.html 的 __ANIMS 块（改完烘焙必须跑一次）
 
 UE 命令行：`/d/app/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe D:/temp/als_export/AdvancedLocomotionSystemV.uproject -ExecutePythonScript="tools/anim/<脚本>.py" -unattended -nosplash -stdout`（约 40s）。烘完要把 `_anims.js` 内联回 `world01.html` 的第 3 个 script 块。
@@ -423,8 +433,8 @@ UE 命令行：`/d/app/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe D:/temp
 | 自由 | `freePitch` ±1.45 rad，`freeDist` 1.5 – 60 m；滚轮系数 `exp(dY × 0.0011)`；双指 = `dist0 × d0/d`；`freeDist < 0.9` 藏身体；最低俯角 `asin((0.35 − follow.y − 1.42) / dist)` |
 | 自由默认落点 | `FREE_PITCH_DEF` 0.66 / `FREE_DIST_DEF_L` 23 / `FREE_DIST_DEF_P` 20（沿用旧 `TOP_PITCH` / `TOP_DIST`）；`freeIntro` 0.55 s 缓动，用户一动清 0 |
 | 主题（默认深色） | `THEMES.light/dark` + `applyTheme()`；`T` 键 / `#themeBtn`；CSS 变量走 `<html data-theme>`；深色 hemi+sun = 0.62+0.80（白档 1.45+1.84）；`HOUSE_MATS` 注册房子内部材质；地面网格线色是 uniform `uGridColor` |
-| 动画 | `__ANIMS` 14 段；`mantle` = ALS_N_Mantle_1m_RH（1.5333s / 47 帧）、`mantle2` = ALS_N_Mantle_2m（2.7s / 82 帧）；这两段带 `root`（根骨位移 Δ=[0,1,0.65] / [0,2,0.65]） |
-| 攀爬 | `climb` / `tryClimb()` / `advanceClimb()`；高 0.40–2.35m 分两档（≤1.30 `mantle`，>1.30 `mantle2`）；**位移由 `__ANIMS[*].root` 根骨曲线驱动**（v0.12.6，`CLIMB_RATE1`1.45 / `CLIMB_RATE2`1.30 → 1.06s / 2.08s）；多余水平距离走 `residual` 摊到 40%–90% 尾段；翻栏竖直是 `peakY+sin(π·进度)` 弧线；`update` 物理段包在 `if(climb)…else…` 内 |
+| 动画 | `__ANIMS` 14 段；`mantle` = ALS_N_Mantle_1m_RH（1.5333s / 47 帧）、`mantle2` = ALS_N_Mantle_2m（2.7s / 82 帧）；这两段带 `root`（根骨 Δ=[0,1,0.65] / [0,2,0.65]）与 `pv`（骨盆三分量位移，后收 0.27m） |
+| 攀爬 | `climb` / `tryClimb(autoOnly)` / `advanceClimb()`；高 0.40–2.35m 分两档（≤1.30 `mantle` 可跑撞自动，>1.30 `mantle2` 只能空格）；抓沿距离上限 0.50m、起手保底离墙 0.36m、落点进深 0.34m；**位移由 `__ANIMS[*].root` 根骨曲线驱动**（v0.12.6，`CLIMB_RATE1`1.45 / `CLIMB_RATE2`1.30 → 1.06s / 2.08s）；多余水平距离走 `residual` 摊到 40%–90% 尾段；翻栏竖直是 `peakY+sin(π·进度)` 弧线；`update` 物理段包在 `if(climb)…else…` 内 |
 | 碰撞可视化 | `colViz` 一个 `LineSegments`（`depthTest:false`，`pebble/flat` 不画）+ 玩家胶囊 r0.36/h1.86；`C` 键 / `#colBtn` |
 | 网格碰撞覆盖 | `fillCollisionGaps()` / `collisionAudit(fill)`（v0.12.4）：建完场景后遍历网格+实例，几何包围盒 8 角点查覆盖，缺的补 AABB；复核 `missing` 必须 0，数字进 F2 面板 |
 | 碰撞分类 | 阻挡：solid/rubble/fence/roof/canopy/bush/target/stand/auto；不阻挡但可被射线打中：pebble(≤0.5m 碎屑)/flat(≤0.12m 薄板)/leaf(树冠)；`NON_CLIMB_KIND` = bush/target/stand 不许攀爬 |
