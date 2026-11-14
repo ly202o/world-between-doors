@@ -4,6 +4,18 @@
 > 读完这一份，就应该能直接开始干活，不需要再问背景。
 > 章程见 `RULES.md`，玩家视角见 `GAME.md`，技术细节见 `DESIGN.md`。
 
+## 2026-11-15 · v0.13.5 右侧可折叠侧栏 + 默认静音 + 清单四状态
+
+- **清单的形态演化过三次**：独立 md → 独立 HTML → 嵌进游戏的浮动面板 → **整条可折叠侧栏**。用户的原话是"不是用按钮，而是一个真正的可折叠侧边栏"。以后要加任何"玩家要看的表"，优先做成侧栏，不要再加漂浮卡片。
+- **侧栏几何**：`#side` 固定右侧、`height: 100%`、宽 330px（手机 88vw），收起 `translateX(101%)`（多 1% 是为了把 box-shadow 也推出去，否则右缘留一道阴影边），0.24s transform 过渡。把手是独立元素 `#sideTab`（26px，`writing-mode: vertical-rl`），展开时加 `.hide` 淡出让开——别把把手放进侧栏里，否则整条一平移把手也跟着出屏幕。
+- **输入拦截统一收口 `panelOpen()`**：原来 8 处散落的 `if (settingsOpen)` 全换成 `panelOpen()`（= settingsOpen || sideOpen），涉及滚轮缩放、canvas pointerdown、pointermove、轻点跳、转身触发、开火、换弹、准星显示。再加面板只改这一个函数。
+- **面板打开时仍然允许 WASD 走路**（和设置面板既有约定一致），但 `<textarea>` 要能打字 → `keydown` 最前面加：`TEXTAREA / INPUT / SELECT` 直接 return（连 `m` 显隐鼠标都不响应）。
+- **清单四状态** `store[id].s ∈ {pass, fail, todo, ''}`；`todo` 单独样式 `tdone` + 金色；进度条三段。待办种子用 `d0:'todo'` 在 build 时落进 store。**用户明确要求：暂时通过但后期要做/有设想的东西必须有地方记，不能算通过。**
+- **默认静音 = 不建 AudioContext**，不是把 gain 调 0。`audioUnlock()` 开头 `if (SOUND.muted) return`，所以手势再多也不会启动音频管线；`wavPlay` 同样早退；`sndHint()` 在静音时强制 `show = true`（因为徽标就是开声音的开关）。key `world01.sound.v1`，首次进入就写 `'off'`。
+- **调试必须不出声**：`D:/temp/run_with_edge.sh` 已加 `--mute-audio`。以后所有无头测试都不会再从用户电脑里发声。**这是硬要求，别再漏。**
+- **同步维护**：`docs/TESTLIST-20261114.html` 和游戏内清单共用 `w01.testlist.v2`，每次改动要同时更新 DATA（现在是 21 条：17 历史 + 2 个 v0.13.5 + 2 个待办）。
+- 验证：`w01_sidebar` 66/66、`tlf` 23/23、ik 29/29、look 16/16、turn 13/13、v130 14/14、v131 17/17、adapt 4/4、孤立 0 请求。
+
 ## 2026-11-14 · v0.13.4 头部视线跟随
 
 - **只动 `neck_01` + `head`，绝不能动 spine**：`spine_03` 是手臂的父级，脊柱一转手臂和枪就跟着转，枪口立刻离开准星，v0.13.1 解出来的持枪姿势全废。这是硬约束。

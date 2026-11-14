@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14151b">
+<title>WORLD 01 · 测试清单 v0.13.4</title>
+<style>
+  :root{
+    --bg:#14151b; --card:#1b1d25; --card2:#20232d; --line:#2a2e3a;
+    --tx:#e7e4db; --dim:#8b8fa0; --dim2:#666b7d; --ac:#cdb27a; --ac2:#e0c68d;
+    --bad:#b4553f;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--tx)}
+  body{
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    padding:0 0 calc(30px + env(safe-area-inset-bottom));
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:760px; margin:0 auto; padding:0 14px}
+
+  header{padding:24px 0 10px}
+  h1{margin:0 0 6px; font-size:21px; font-weight:650; letter-spacing:.02em}
+  h1 em{font-style:normal; color:var(--ac)}
+  .sub{margin:0; color:var(--dim); font-size:12.5px; letter-spacing:.04em}
+
+  .bar{margin:15px 0 8px; height:3px; background:var(--line); border-radius:2px; overflow:hidden; display:flex}
+  .bar i{display:block; height:100%; width:0; transition:width .25s ease}
+  .bar i.ok{background:var(--ac)}
+  .bar i.no{background:var(--bad)}
+  .row{display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap}
+  .prog{font:12.5px/1 ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--ac); letter-spacing:.05em; margin-right:auto}
+  .prog b{color:var(--bad); font-weight:600}
+  button.mini{
+    font:12.5px/1 inherit; color:var(--dim); background:none; border:1px solid var(--line);
+    padding:7px 11px; border-radius:6px; cursor:pointer; touch-action:manipulation
+  }
+  button.mini:active{background:var(--card2)}
+
+  .note{
+    margin:0 0 18px; padding:11px 13px; border-radius:8px; background:var(--card);
+    border-left:2px solid var(--ac); color:#b9b5a9; font-size:13px; line-height:1.65
+  }
+  .note b{color:var(--tx)}
+
+  ul{list-style:none; margin:0; padding:0}
+  li{
+    padding:13px 13px 11px; margin-bottom:9px;
+    background:var(--card); border:1px solid var(--line); border-left:2px solid transparent;
+    border-radius:9px; transition:border-color .18s ease, background .18s ease
+  }
+  li.pri{border-left-color:rgba(205,178,122,.45)}
+  li.pass{border-left-color:var(--ac); background:#1c1f22}
+  li.fail{border-left-color:var(--bad); background:#201b1a}
+
+  .h{display:flex; align-items:center; gap:8px; margin-bottom:5px}
+  .h b{font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--ac2); letter-spacing:.03em}
+  .h time{font:11.5px/1 ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--dim2)}
+  .h .st{
+    margin-left:auto; font-size:10.5px; letter-spacing:.1em; padding:2px 6px; border-radius:4px;
+    border:1px solid; opacity:0
+  }
+  li.pass .h .st{opacity:1; color:var(--ac); border-color:rgba(205,178,122,.4)}
+  li.fail .h .st{opacity:1; color:#d98070; border-color:rgba(180,85,63,.5)}
+  .tag{
+    font-size:10.5px; letter-spacing:.08em; color:var(--ac);
+    border:1px solid rgba(205,178,122,.35); border-radius:4px; padding:2px 5px
+  }
+
+  .w{margin:0 0 6px; font-size:14.5px; line-height:1.55; color:var(--tx)}
+  .t,.e{margin:0; font-size:12.5px; line-height:1.6; color:var(--dim); display:flex; gap:7px}
+  .e{margin-top:3px; color:#9aa08f}
+  .t span,.e span{flex:0 0 14px; color:var(--dim2); font:11px/1.9 ui-monospace,Menlo,monospace}
+  .e span{color:#6f7a5e}
+
+  .acts{display:flex; gap:7px; margin-top:10px}
+  .b{
+    font:13px/1 inherit; padding:8px 12px; border-radius:6px; cursor:pointer;
+    background:none; border:1px solid #363b48; color:var(--dim);
+    touch-action:manipulation; transition:all .15s ease; white-space:nowrap
+  }
+  .b:active{transform:scale(.97)}
+  .b.pass.on{background:var(--ac); border-color:var(--ac); color:#16171d; font-weight:600}
+  .b.fail.on{background:var(--bad); border-color:var(--bad); color:#fff; font-weight:600}
+  .b.todo.on{background:#cdb27a; border-color:#cdb27a; color:#16171d; font-weight:600}
+  .b.note{margin-left:auto}
+  .b.note.has{color:var(--ac2); border-color:rgba(205,178,122,.5)}
+
+  .fb{margin-top:9px}
+  .fb textarea{
+    width:100%; min-height:72px; resize:vertical; padding:9px 10px; border-radius:7px;
+    background:#16181f; color:var(--tx); border:1px solid #313644;
+    font:16px/1.55 inherit; outline:none
+  }
+  .fb textarea:focus{border-color:rgba(205,178,122,.55)}
+  .fb textarea::placeholder{color:#555a6a}
+  .show{
+    margin:9px 0 0; padding:9px 11px; border-radius:7px; background:#16181f;
+    font-size:12.5px; line-height:1.6; color:#b6b2a6; white-space:pre-wrap; word-break:break-word
+  }
+  .show::before{content:"反馈 · "; color:var(--dim2)}
+
+  h2{margin:30px 0 10px; font-size:12.5px; font-weight:600; letter-spacing:.1em; color:var(--dim)}
+  .lim{background:var(--card); border:1px solid var(--line); border-radius:9px; padding:4px 15px}
+  .lim p{margin:0; padding:10px 0; font-size:13px; line-height:1.65; color:#a9ada0; border-bottom:1px solid #23262f}
+  .lim p:last-child{border-bottom:0}
+  .lim b{color:var(--tx); font-weight:600}
+
+  #all{
+    width:100%; min-height:110px; margin-top:10px; padding:10px; border-radius:8px;
+    background:var(--card); color:var(--tx); border:1px solid #313644; font:16px/1.6 inherit; outline:none
+  }
+  #all:focus{border-color:rgba(205,178,122,.55)}
+
+  .export{display:flex; gap:8px; margin-top:14px}
+  .export button{flex:1; padding:13px 10px; font-size:14px; border-radius:8px; cursor:pointer;
+    background:var(--card2); border:1px solid #363b48; color:var(--tx); touch-action:manipulation}
+  .export button.primary{background:var(--ac); border-color:var(--ac); color:#16171d; font-weight:600}
+  .export button:active{transform:scale(.985)}
+
+  #out{
+    width:100%; min-height:200px; margin-top:10px; padding:11px; border-radius:8px;
+    background:#101116; color:var(--tx); border:1px solid #313644;
+    font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace
+  }
+  footer{margin-top:24px; color:var(--dim2); font-size:12px; line-height:1.8; text-align:center}
+  .toast{
+    position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(14px);
+    background:var(--ac); color:#16171d; font-size:13px; font-weight:600;
+    padding:10px 18px; border-radius:20px; opacity:0; pointer-events:none;
+    transition:all .22s ease; z-index:99
+  }
+  .toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>WORLD 01 · <em>测试清单</em></h1>
+    <p class="sub">v0.11.42 → v0.13.4 ／ 17 条 ／ 逐条记录通过 / 不通过</p>
+    <div class="bar"><i class="ok" id="barOk"></i><i class="no" id="barNo"></i></div>
+    <div class="row">
+      <span class="prog" id="prog">0 通过 · 0 不通过 · 17 未测</span>
+      <button class="mini" id="reset">清空</button>
+    </div>
+    <p class="note">
+      这 17 条不是 17 个文件，是同一份 <b>world01.html</b> 层层叠上去的。打开当前这份，全部功能都在。
+      测完点「通过 / 不通过」，有问题点「写反馈」。记录存在本机浏览器里，关掉再开还在。
+    </p>
+  </header>
+
+  <ul id="list"></ul>
+
+  <h2>这几条不是 bug</h2>
+  <div class="lim">
+    <p><b>侧走、后退还是整个人转过去</b>，没有真正的侧步动画。8 方向步态的 FBX 没导出，本机 UE 引擎目录是空的。</p>
+    <p><b>180° 转身是连着演两段 90°</b>，不是一段完整的 180°。</p>
+    <p><b>没有翻滚落地。</b></p>
+    <p><b>没有手机真机数据。</b>只在无头软件渲染里验证过，帧率以你手上那台为准。</p>
+    <p><b>第一人称不是真第一人称骨架。</b>是把相机移到脑袋前面 + 抬手，所以看不到自己的身体。</p>
+  </div>
+
+  <h2>整体感受（可选）</h2>
+  <textarea id="all" placeholder="哪里最别扭、哪里最爽、下一步想先要什么……随便写，不用组织语言"></textarea>
+
+  <div class="export">
+    <button class="primary" id="copy">复制反馈</button>
+    <button id="save">存成 txt</button>
+  </div>
+  <textarea id="out" hidden readonly></textarea>
+
+  <footer>报问题给我三句话：<b>在哪 · 按了什么 · 看到什么</b></footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+var DATA = [
+  {id:'42',  ver:'v0.11.42', t:'00:55', w:'PC 鼠标灵敏度调低；攀爬上墙收尾不再滑一下',
+   a:'电脑上转视角；爬一次矮墙', e:'视角不飘；爬上后脚不蹭地'},
+  {id:'43',  ver:'v0.11.43', t:'01:55', w:'设置能保存了；栅栏判定按轴向修正',
+   a:'改个设置 → 刷新页面', e:'设置还在；沿栅栏走不被卡住'},
+  {id:'44',  ver:'v0.11.44', t:'02:33', w:'栅栏改成逐根柱子、逐块板子的碰撞；坡屋顶能站',
+   a:'贴着栅栏走；跳上坡屋顶', e:'柱子和横板各自挡人；屋顶站得住'},
+  {id:'45',  ver:'v0.11.45', t:'02:45', w:'三轮自审：输入状态、材质、运动稳定性',
+   a:'不用专门测，跳过', e:''},
+  {id:'120', ver:'v0.12.0', t:'02:56', w:'第一把枪（纯几何拼的半自动手枪）',
+   a:'已被 14:53 那版整体重做，跳过', e:''},
+  {id:'121', ver:'v0.12.1', t:'03:11', w:'矮台阶能连续走上去；翻栅栏落到另一侧地面；倍速可保存',
+   a:'连走三级台阶；对着栅栏按跳；改倍速后刷新', e:'台阶不卡边；翻过去站在地面、不是窄顶；倍速还在'},
+  {id:'122', ver:'v0.12.2', t:'03:22', w:'修设置面板打开时残留的输入状态',
+   a:'拖视角到一半 → 打开设置 → 关掉', e:'视角不会自己乱跳'},
+  {id:'123', ver:'v0.12.3', t:'11:14', w:'设置里能调走 / 跑 / 快跑速度；全场景碰撞补全',
+   a:'拉速度条；贴着房子各部件走', e:'速度有变化；不穿门廊柱、烟囱、灌木'},
+  {id:'124', ver:'v0.12.4', t:'12:05', w:'删掉上一版加的角色配件；碰撞自检做到遗漏 0',
+   a:'看角色身上', e:'没有多余部件（蓝灰身体 + 深色面罩）'},
+  {id:'125', ver:'v0.12.5', t:'13:26', w:'2m 高墙也能爬，按墙高自动选 1m / 2m 动作',
+   a:'走到 2m 高墙前按空格', e:'播 2m 撑上，人真的上去了'},
+  {id:'126', ver:'v0.12.6', t:'13:45', w:'攀爬位移改由动画本身驱动 —— 修掉滑步',
+   a:'爬墙时盯脚', e:'脚不在地上滑'},
+  {id:'127', ver:'v0.12.7', t:'14:20', w:'高墙改成必须按空格才爬；动作从 2s 缩到 1.55s；修穿模；材质去油光',
+   a:'不按空格直接撞高墙；再按空格爬一次；爬时看身体', e:'只踉跄不自动爬；爬得干脆不拖；身体不插进墙；材质哑光'},
+  {id:'130', ver:'v0.13.0', t:'14:53', pri:1, w:'手机降像素比 + 关抗锯齿 + 自动降分辨率；手枪整个重做',
+   a:'手机开局走一圈；连开几枪、打空、按 R 换弹', e:'不掉帧；后坐力先猛退再收；滑套会动；准星随散布张合；有抛壳曳光弹孔；换弹五段'},
+  {id:'131', ver:'v0.13.1', t:'16:00', pri:1, w:'全场只剩一把枪；有枪声了；ALS 的转身步 / 界面音 / 环境音复刻',
+   a:'V 切三种视角；开火；跑起来急转；站着静听', e:'三种视角是同一把枪；枪声压过脚步；急转有碾脚声；风声带鸟叫、循环无缝'},
+  {id:'132', ver:'v0.13.2', t:'18:05', pri:1, w:'站定转视角会真的迈步转身（90°）',
+   a:'站定不动，把视角直接甩到身后', e:'迈步碾脚转身，不是模型原地滑一圈'},
+  {id:'133', ver:'v0.13.3', t:'18:40', pri:1, w:'脚真的踩在斜坡上，鞋底顺坡倾斜',
+   a:'走上偏坡屋顶，侧着看双脚', e:'两脚都踩在坡面；不再一只悬空、一只陷进去'},
+  {id:'134', ver:'v0.13.4', t:'19:05', pri:1, w:'边走边转视角，头先转过去看',
+   a:'按住方向键走，同时把视角甩到侧面', e:'头先转过去，身体继续朝走的方向；最多约 65°'},
+  {id:'1351', ver:'v0.13.5', t:'00:20', pri:1, w:'右侧改成可折叠侧栏：通过 / 不通过 / 待办 / 反馈，一键复制',
+   a:'点屏幕右缘那条竖标签「清单」', e:'整条侧栏从右边滑出；点「收起」或按 Esc 滑回去'},
+  {id:'1352', ver:'v0.13.5', t:'00:30', pri:1, w:'默认静音：打开不再先响一声；徽标 / 侧栏顶部都能切',
+   a:'打开页面先别点，听有没有声音', e:'完全没声；左下角写着「🔇 静音」；点它能开声音'},
+  {id:'t1', ver:'待办', t:'—', todo:1, d0:'todo', w:'8 方向步态：Walk / Run 的 B、LB、RB、LF、RF 五种还没导出来',
+   a:'先不用测', e:'后期从 ALS 工程把 FBX 导出来再做'},
+  {id:'t2', ver:'待办', t:'—', todo:1, d0:'todo', w:'180° 转身、落地翻滚（LandRoll）同样缺素材',
+   a:'先不用测', e:'本机 UE 5.9 引擎目录是空的，暂时导不出来'}
+];
+
+var KEY = 'w01.testlist.v2', KEY_ALL = 'w01.testlist.all.v2';
+var store = {};
+try { store = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { store = {}; }
+
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {}
+}
+function toast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('on');
+  clearTimeout(toast._t); toast._t = setTimeout(function () { el.classList.remove('on'); }, 1400);
+}
+
+var list = document.getElementById('list');
+DATA.forEach(function (d) {
+  if (!store[d.id]) store[d.id] = {};
+  if (d.d0 && !store[d.id].s) store[d.id].s = d.d0;   /* 待办条目默认就落在待办里 */
+  var st = store[d.id] || {};
+  var li = document.createElement('li');
+  li.setAttribute('data-id', d.id);
+  if (d.pri) li.classList.add('pri');
+  var h = '<div class="h"><b>' + d.ver + '</b><time>' + d.t + '</time>';
+  if (d.pri) h += '<span class="tag">先测</span>';
+  h += '<span class="st"></span></div>';
+  h += '<p class="w">' + d.w + '</p>';
+  h += '<p class="t"><span>测</span>' + d.a + '</p>';
+  if (d.e) h += '<p class="e"><span>→</span>' + d.e + '</p>';
+  h += '<div class="acts">';
+  h += '<button class="b pass" data-s="pass">通过</button>';
+  h += '<button class="b fail" data-s="fail">不通过</button>';
+  h += '<button class="b todo" data-s="todo">待办</button>';
+  h += '<button class="b note" data-n="1">写反馈</button>';
+  h += '</div>';
+  h += '<div class="fb" hidden><textarea placeholder="看到什么？越具体越好：在哪个位置、按了什么、屏幕上出现了什么"></textarea></div>';
+  h += '<p class="show" hidden></p>';
+  li.innerHTML = h;
+  list.appendChild(li);
+
+  var ta = li.querySelector('textarea');
+  var show = li.querySelector('.show');
+  var noteBtn = li.querySelector('.b.note');
+
+  if (st.note) { ta.value = st.note; show.textContent = st.note; show.hidden = false; noteBtn.classList.add('has'); }
+
+  li.querySelectorAll('.b[data-s]').forEach(function (btn) {
+    btn.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var s = btn.getAttribute('data-s');
+      store[d.id] = store[d.id] || {};
+      store[d.id].s = (store[d.id].s === s) ? '' : s;   /* 再点一次取消 */
+      save(); render(li, d);
+    }, { passive: true });
+  });
+
+  noteBtn.addEventListener('click', function (ev) {
+    ev.stopPropagation();
+    var fb = li.querySelector('.fb');
+    fb.hidden = !fb.hidden;
+    if (!fb.hidden) { ta.focus(); noteBtn.classList.add('has'); }
+  }, { passive: true });
+
+  ta.addEventListener('input', function () {
+    store[d.id] = store[d.id] || {};
+    store[d.id].note = ta.value;
+    save();
+    show.textContent = ta.value;
+    show.hidden = !ta.value;
+    noteBtn.classList.toggle('has', !!ta.value);
+  }, { passive: true });
+
+  render(li, d);
+});
+
+function render(li, d) {
+  var st = store[d.id] || {};
+  li.classList.toggle('pass', st.s === 'pass');
+  li.classList.toggle('fail', st.s === 'fail');
+  li.classList.toggle('todo', st.s === 'todo');
+  li.querySelector('.st').textContent = st.s === 'pass' ? '通过' : (st.s === 'fail' ? '不通过' : (st.s === 'todo' ? '待办' : ''));
+  li.querySelectorAll('.b[data-s]').forEach(function (b) {
+    b.classList.toggle('on', b.getAttribute('data-s') === st.s);
+  });
+  tally();
+}
+
+function tally() {
+  var ok = 0, no = 0, td = 0;
+  DATA.forEach(function (d) { var s = (store[d.id] || {}).s;
+    if (s === 'pass') ok++; else if (s === 'fail') no++; else if (s === 'todo') td++; });
+  var rest = DATA.length - ok - no - td;
+  document.getElementById('prog').innerHTML = ok + ' 通过 · <b>' + no + ' 不通过</b> · <b>' + td + ' 待办</b> · ' + rest + ' 未测';
+  document.getElementById('barOk').style.width = (ok / DATA.length * 100) + '%';
+  document.getElementById('barNo').style.width = (no / DATA.length * 100) + '%';
+}
+
+document.getElementById('reset').addEventListener('click', function () {
+  if (!confirm('清空所有通过 / 不通过和反馈文字？')) return;
+  store = {}; save();
+  try { localStorage.removeItem(KEY_ALL); } catch (e) {}
+  document.getElementById('all').value = '';
+  location.reload();
+}, { passive: true });
+
+var allEl = document.getElementById('all');
+try { allEl.value = localStorage.getItem(KEY_ALL) || ''; } catch (e) {}
+allEl.addEventListener('input', function () {
+  try { localStorage.setItem(KEY_ALL, allEl.value); } catch (e) {}
+}, { passive: true });
+
+function buildText() {
+  var ok = [], no = [], td = [], blank = [], lines = [];
+  DATA.forEach(function (d) {
+    var st = store[d.id] || {};
+    var row = { d: d, st: st };
+    if (st.s === 'pass') ok.push(row);
+    else if (st.s === 'fail') no.push(row);
+    else if (st.s === 'todo') td.push(row);
+    else blank.push(row);
+  });
+  lines.push('WORLD 01 v0.13.5 测试反馈');
+  lines.push('通过 ' + ok.length + ' / 不通过 ' + no.length + ' / 待办 ' + td.length + ' / 未测 ' + blank.length + '（共 ' + DATA.length + '）');
+  if (no.length) {
+    lines.push('');
+    lines.push('【不通过】');
+    no.forEach(function (r) {
+      lines.push('- ' + r.d.ver + ' ' + r.d.w);
+      if (r.st.note) lines.push('  反馈：' + r.st.note.replace(/\n/g, ' / '));
+    });
+  }
+  if (td.length) {
+    lines.push('');
+    lines.push('【待办 / 设想】');
+    td.forEach(function (r) {
+      lines.push('- ' + r.d.ver + ' ' + r.d.w);
+      if (r.st.note) lines.push('  反馈：' + r.st.note.replace(/\n/g, ' / '));
+    });
+  }
+  if (ok.length) {
+    lines.push('');
+    lines.push('【通过】');
+    ok.forEach(function (r) {
+      lines.push('- ' + r.d.ver + (r.st.note ? ' 反馈：' + r.st.note.replace(/\n/g, ' / ') : ''));
+    });
+  }
+  if (blank.length) {
+    lines.push('');
+    lines.push('【未测】' + blank.map(function (r) { return r.d.ver; }).join('、'));
+  }
+  var a = allEl.value.trim();
+  if (a) { lines.push(''); lines.push('【整体感受】'); lines.push(a); }
+  return lines.join('\n');
+}
+
+document.getElementById('copy').addEventListener('click', function () {
+  var txt = buildText();
+  var done = function () { toast('已复制，粘贴给我就行'); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(done, function () { fallback(txt); });
+  } else fallback(txt);
+  function fallback(t) {
+    var out = document.getElementById('out');
+    out.hidden = false; out.value = t;
+    out.focus(); out.select();
+    try { document.execCommand('copy'); done(); }
+    catch (e) { toast('已生成，长按全选复制'); }
+  }
+}, { passive: true });
+
+document.getElementById('save').addEventListener('click', function () {
+  var blob = new Blob([buildText()], { type: 'text/plain;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'world01-测试反馈.txt';
+  document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  toast('已存成 txt');
+}, { passive: true });
+
+tally();
+</script>
+</body>
+</html>

@@ -108,14 +108,55 @@
   #settingsBtn { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 182px); display: block; }
   #mouseBtn  { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 224px); display: block; }
   #mouseBtn  { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 224px); }
-  #settingsPanel { position: fixed; z-index: 1100; right: 14px; top: calc(env(safe-area-inset-top, 0px) + 224px); width: 290px; max-width: calc(100vw - 28px); max-height: calc(100vh - 244px); overflow: auto; box-sizing: border-box; padding: 14px; background: #202630; color: #eef2f6; border: 1px solid #687382; border-radius: 12px; font: 13px/1.6 sans-serif; touch-action: pan-y; }
-  #settingsPanel[hidden] { display: none; }
-  #settingsPanel label { display: block; margin: 8px 0; }
-  #settingsPanel input[type=range] { width: 100%; }
-  #settingsPanel button, #settingsPanel select { padding: 5px 8px; }
-  #debugInfo { white-space: pre-wrap; font: 12px/1.6 monospace; }
-  #settingsPanel .settingGroup { border-top: 1px solid #53606f; margin-top: 9px; padding-top: 6px; }
-  #settingsPanel .settingGroup strong { display: block; color: #cbd6e1; }
+  /* 右侧可折叠侧栏的把手：贴着屏幕右缘的一条竖标签，点开才滑出整条 */
+  #sideTab {
+    position: fixed; right: 0; top: 50%; transform: translateY(-50%); z-index: 1200;
+    width: 26px; padding: 13px 0; border: 1px solid var(--on-bg); border-right: none;
+    border-radius: 10px 0 0 10px; background: var(--panel); color: var(--ink);
+    box-shadow: 0 2px 10px var(--shadow-snd);
+    font: 600 12px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    letter-spacing: .22em; writing-mode: vertical-rl; text-orientation: mixed;
+    transition: opacity .18s ease, transform .18s ease;
+  }
+  /* 右侧可折叠侧栏：整条固定在右边，用 transform 滑进滑出（不做宽度动画，手机更稳） */
+  #sideTab.hide { opacity: 0; transform: translateY(-50%) translateX(16px); pointer-events: none; }
+  #side {
+    position: fixed; z-index: 1210; right: 0; top: 0; height: 100%;
+    width: 330px; max-width: 88vw; display: flex; flex-direction: column; box-sizing: border-box;
+    background: #202630; color: #eef2f6; border-left: 1px solid #687382;
+    box-shadow: -10px 0 28px rgba(0, 0, 0, .38); font: 13px/1.6 sans-serif;
+    transform: translateX(101%); transition: transform .24s cubic-bezier(.2, .75, .25, 1);
+    padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  #side.open { transform: translateX(0); }
+  #side .tHead { flex: none; padding: 11px 14px 7px; border-bottom: 1px solid #53606f; }
+  #side .tHeadTop { display: flex; align-items: center; gap: 6px; }
+  #side .tHeadTop strong { flex: 1; }
+  #side .tHeadTop button { padding: 2px 9px; border-radius: 6px; border: 1px solid #5d6a79; background: #2a323d; color: #dfe7f2; font-size: 12px; white-space: nowrap; }
+  #side .tProg { color: #9fb0c2; font-size: 12px; margin: 4px 0; }
+  #side .tBar { display: flex; height: 4px; border-radius: 2px; background: #39424f; overflow: hidden; }
+  #side .tBar i { display: block; height: 100%; width: 0; transition: width .18s ease; }
+  #side #testBarOk { background: #4f8a61; }
+  #side #testBarNo { background: #b4553f; }
+  #side #testBarTodo { background: #cdb27a; }
+  #testScroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 14px 12px; touch-action: pan-y; }
+  #side .tItem { border-bottom: 1px solid #3c4654; padding: 8px 0 9px; }
+  #side .tItem.done .tTop, #side .tItem.tdone .tTop { opacity: .5; }
+  #side .tTop { display: flex; gap: 6px; align-items: baseline; }
+  #side .tVer { flex: none; color: #cdb27a; font-weight: 700; font-size: 12px; }
+  #side .tWhat { flex: 1; }
+  #side .tHow { color: #9fb0c2; font-size: 12px; margin-top: 3px; }
+  #side .tActs { display: flex; gap: 4px; margin-top: 6px; }
+  #side .tBtn { flex: 1; padding: 4px 0; border-radius: 6px; border: 1px solid #5d6a79; background: #2a323d; color: #dfe7ef; font-size: 12px; }
+  #side .tBtn.ok.s { background: #3c6b4a; border-color: #6aa07c; color: #eaf6ee; }
+  #side .tBtn.no.s { background: #7a3a30; border-color: #b4553f; color: #f8ece9; }
+  #side .tBtn.td.s { background: #6a5a34; border-color: #cdb27a; color: #f6efdf; }
+  #side .tNote { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; min-height: 42px; padding: 5px 6px; border-radius: 6px; border: 1px solid #5d6a79; background: #171c23; color: #eef2f6; font: 12px/1.5 sans-serif; resize: vertical; }
+  #side .tNote[hidden] { display: none; }
+  #side #testAll { display: block; width: 100%; box-sizing: border-box; min-height: 56px; margin: 8px 0 0; padding: 6px; border-radius: 6px; border: 1px solid #5d6a79; background: #171c23; color: #eef2f6; font: 12px/1.5 sans-serif; }
+  #side .tFoot { flex: none; display: flex; align-items: center; gap: 9px; padding: 9px 14px; border-top: 1px solid #53606f; }
+  #side .tFoot button { padding: 6px 12px; border-radius: 6px; border: 1px solid #5d6a79; background: #2a323d; color: #dfe7f2; font-size: 12px; }
+  #side #testMsg { color: #9fb0c2; font-size: 12px; }
   #fireBtn { right: 14px; bottom: calc(env(safe-area-inset-bottom, 0px) + 150px); width: 64px; height: 44px; }
   #reloadBtn { right: 88px; bottom: calc(env(safe-area-inset-bottom, 0px) + 150px); }
   #weaponHud { position: fixed; left: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 54px); color: var(--ink); font: 12px/1.6 sans-serif; pointer-events: none; z-index: 180; }
@@ -144,7 +185,7 @@
 <body>
 <canvas id="c"></canvas>
 <div id="err"></div>
-<div id="snd">🔇 点这里开声音</div>
+<div id="snd">🔇 静音 · 点这里开声音</div>
 <div id="fps">— FPS</div>
 <div id="helpBadge" title="按 H 显示 / 隐藏操作说明">H</div>
 <button id="fireBtn" class="pill">射击</button>
@@ -179,7 +220,24 @@
   <button id="settingsReset" type="button">恢复默认</button>
   <button id="settingsClose" type="button">关闭</button>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.13.2</div>
+<button id="sideTab" type="button" aria-label="展开测试清单">清单</button>
+<aside id="side" aria-label="测试清单">
+  <div class="tHead">
+    <div class="tHeadTop">
+      <strong>测试清单 <span id="testVer" style="color:#cdb27a"></span></strong>
+      <button id="soundBtn" type="button">🔇 静音</button>
+      <button id="testClose" type="button">收起</button>
+    </div>
+    <div class="tProg" id="testProg"></div>
+    <div class="tBar"><i id="testBarOk"></i><i id="testBarNo"></i><i id="testBarTodo"></i></div>
+  </div>
+  <div id="testScroll">
+    <div id="testList"></div>
+    <textarea id="testAll" placeholder="整体感受 / 总评（可留空）"></textarea>
+  </div>
+  <div class="tFoot"><button id="testCopy" type="button">复制反馈</button><span id="testMsg"></span></div>
+</aside>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.13.5</div>
 <script>
 /**
  * @license
@@ -1306,6 +1364,37 @@ scene.add(pawn);
    WebAudio 被拦时自动切 <audio> 备用链路。 */
 var AC = null, AM = null, AUDIO_ON = false, ANA = null, ANA_BUF = null, _acTry = 0;
 var SFX_BUF = {}, SFX_READY = false;
+
+/* ---------------- 静音（默认静音） ----------------
+   第一次打开这个文件不该先响一声，也不该在别人电脑上突然出声。
+   静音时连 AudioContext 都不建：从源头保证零声音，而不是把音量调成 0
+   （调 0 仍然占着音频管线，手机上还多一份开销）。 */
+var SOUND = { muted: true };
+try {
+  var _sndPref = localStorage.getItem('world01.sound.v1');
+  if (_sndPref === 'on') SOUND.muted = false;
+  else if (!_sndPref) localStorage.setItem('world01.sound.v1', 'off');   /* 首次进来就把"默认静音"落成明确状态 */
+} catch (_) {}
+function setMuted(v) {
+  SOUND.muted = !!v;
+  try { localStorage.setItem('world01.sound.v1', SOUND.muted ? 'off' : 'on'); } catch (_) {}
+  if (AM) AM.gain.value = SOUND.muted ? 0 : 1;
+  if (WAV_READY) {
+    for (var g in WAV_POOL) {
+      for (var i = 0; i < WAV_POOL[g].length; i++) WAV_POOL[g][i].muted = SOUND.muted;
+    }
+  }
+  if (SOUND.muted) {
+    if (AC && AC.suspend) { var p0 = AC.suspend(); if (p0 && p0.catch) p0.catch(function () {}); }
+    if (sndEl) sndEl.textContent = '🔇 静音 · 点这里开声音';
+    sndHint(true);
+  } else {
+    if (AC && AC.resume) { var p1 = AC.resume(); if (p1 && p1.catch) p1.catch(function () {}); }
+    if (sndEl) sndEl.textContent = '🔊 声音已开';
+    sndHint(false);
+  }
+  if (typeof syncSoundBtn === 'function') syncSoundBtn();
+}
 function audioInit() {
   if (AC) return AC;
   var C = window.AudioContext || window.webkitAudioContext;
@@ -1315,7 +1404,7 @@ function audioInit() {
     if (AC && AC.state === 'running') { _sndTried = 0; _audioGood = true; sndHint(false); }
   };
   AM = AC.createGain();
-  AM.gain.value = 1.0;
+  AM.gain.value = SOUND.muted ? 0 : 1;
   AM.connect(AC.destination);
   /* 诊断用分析节点（也方便量化"到底有没有出声"） */
   ANA = AC.createAnalyser();
@@ -1357,6 +1446,7 @@ var _acInGesture = false;   /* 这个 AudioContext 是不是在手势里创建�
 var _audioGood = false;     /* WebAudio 已确认能响 */
 
 function audioUnlock(ev) {
+  if (SOUND.muted) return;          /* 静音：连解锁都不做，浏览器根本不会去起音频管线 */
   var gesture = !!(ev && ev.type);
   /* 已在响：什么都不做。
      WebAudio 正常（_audioGood + running）或备用 <audio> 已确认能响（_wavOk），都直接早退——
@@ -1412,11 +1502,13 @@ function audioUnlock(ev) {
 /* 声音没起来才显示提示；起来了就不占画面 */
 var sndEl = null, _sndTried = 0;
 function sndHint(show) {
+  if (SOUND.muted) show = true;     /* 静音时这个徽标就是"开声音"的开关，得一直在 */
   if (!sndEl) sndEl = document.getElementById('snd');
   if (!sndEl) return;
   sndEl.style.display = show ? 'block' : 'none';
 }
 function sndCheck() {
+  if (SOUND.muted) { sndHint(true); return; }
   if (_wavOk) { sndHint(false); return; }
   if (!AC) { sndHint(true); initWavFallback(); return; }
   if (AC.state === 'running') { sndHint(false); _sndTried = 0; _audioGood = true; return; }
@@ -1468,7 +1560,7 @@ function initWavFallback() {
 }
 
 function wavPlay(kind) {
-  if (!WAV_READY) return false;
+  if (SOUND.muted || !WAV_READY) return false;
   var arr = WAV_POOL[kind];
   if (!arr || !arr.length) return false;
   var i = WAV_IDX[kind] = ((WAV_IDX[kind] | 0) + 1) % arr.length;
@@ -1550,9 +1642,17 @@ document.addEventListener('visibilitychange', function () {
   function bind() {
     el = document.getElementById('snd');
     if (!el) return;
+    /* 这个徽标就是静音开关：静音中点一下开声音，开着时点一下静音。
+       touchstart 和 mousedown 会连着来两次，去重，否则一碰就开又关。 */
+    var _lastHit = 0;
     function hit(e) {
       if (e && e.stopPropagation) e.stopPropagation();
       if (e && e.preventDefault) e.preventDefault();
+      var now = performance.now();
+      if (now - _lastHit < 500) return;
+      _lastHit = now;
+      if (!SOUND.muted) { setMuted(true); return; }
+      setMuted(false);
       audioUnlock(e);
       setTimeout(function () {
         if (AC && AC.state === 'running') { sfxStep(1); sndHint(false); return; }
@@ -1566,6 +1666,7 @@ document.addEventListener('visibilitychange', function () {
     }
     el.addEventListener('touchstart', hit, { passive: false });
     el.addEventListener('mousedown', hit);
+    sndHint(SOUND.muted);      /* 静音就先把徽标亮着 */
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
   else bind();
@@ -1967,6 +2068,7 @@ function resetInput() {
 }
 function showSettings(on) {
   settingsOpen = !!on;
+  if (settingsOpen && sideOpen) showSide(false);        /* 右侧同一块地方，互斥 */
   settingsPanel.hidden = !settingsOpen;
   document.getElementById('settingsBtn').classList.toggle('on', settingsOpen);
   /* 面板不吞键盘移动，但打开时必须切断残留的画面指针/触摸手势。 */
@@ -1985,6 +2087,202 @@ settingsPanel.addEventListener('pointerdown', function (e) { e.stopPropagation()
 settingsPanel.addEventListener('wheel', function (e) { e.stopPropagation(); });
 document.getElementById('settingsBtn').addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); showSettings(!settingsOpen); });
 document.getElementById('settingsClose').onclick = function () { showSettings(false); };
+
+/* ---------------- 测试清单：右侧可折叠侧栏 ----------------
+   收起时右缘只留一条竖标签，点开从右边滑出整条（整条也是独立滚动区）。
+   每条四个动作：通过 / 不通过 / 待办 / 反馈。
+   「待办」＝现在能用、但后期还要做或另有设想 —— 和「不通过」分开记账，
+   否则"先算过"之后要做的事就会丢。
+   记录存在 localStorage，和 docs/TESTLIST-*.html 用同一套 key，两边互通。 */
+var TEST_ITEMS = [
+  {id:'42',   ver:'v0.11.42', w:'PC 鼠标灵敏度调低；攀爬上墙收尾不再滑一下', a:'电脑上转视角；爬一次矮墙'},
+  {id:'43',   ver:'v0.11.43', w:'设置能保存了；栅栏判定按轴向修正', a:'改个设置 → 刷新页面'},
+  {id:'44',   ver:'v0.11.44', w:'栅栏改成逐根柱子、逐块板子的碰撞；坡屋顶能站', a:'贴着栅栏走；跳上坡屋顶'},
+  {id:'45',   ver:'v0.11.45', w:'三轮自审：输入状态、材质、运动稳定性', a:'不用专门测，跳过'},
+  {id:'120',  ver:'v0.12.0',  w:'第一把枪（纯几何拼的半自动手枪）', a:'已被 14:53 那版整体重做，跳过'},
+  {id:'121',  ver:'v0.12.1',  w:'矮台阶能连续走上去；翻栅栏落到另一侧地面；倍速可保存', a:'连走三级台阶；对着栅栏按跳；改倍速后刷新'},
+  {id:'122',  ver:'v0.12.2',  w:'修设置面板打开时残留的输入状态', a:'拖视角到一半 → 打开设置 → 关掉'},
+  {id:'123',  ver:'v0.12.3',  w:'设置里能调走 / 跑 / 快跑速度；全场景碰撞补全', a:'拉速度条；贴着房子各部件走'},
+  {id:'124',  ver:'v0.12.4',  w:'删掉上一版加的角色配件；碰撞自检做到遗漏 0', a:'看角色身上'},
+  {id:'125',  ver:'v0.12.5',  w:'2m 高墙也能爬，按墙高自动选 1m / 2m 动作', a:'走到 2m 高墙前按空格'},
+  {id:'126',  ver:'v0.12.6',  w:'攀爬位移改由动画本身驱动 —— 修掉滑步', a:'爬墙时盯脚'},
+  {id:'127',  ver:'v0.12.7',  w:'高墙改成必须按空格才爬；动作从 2s 缩到 1.55s；修穿模；材质去油光', a:'不按空格直接撞高墙；再按空格爬一次；爬时看身体'},
+  {id:'130',  ver:'v0.13.0',  w:'手机降像素比 + 关抗锯齿 + 自动降分辨率；手枪整个重做', a:'手机开局走一圈；连开几枪、打空、按 R 换弹'},
+  {id:'131',  ver:'v0.13.1',  w:'全场只剩一把枪；有枪声了；ALS 的转身步 / 界面音 / 环境音复刻', a:'V 切三种视角；开火；跑起来急转；站着静听'},
+  {id:'132',  ver:'v0.13.2',  w:'站定转视角会真的迈步转身（90°）', a:'站定不动，把视角直接甩到身后'},
+  {id:'133',  ver:'v0.13.3',  w:'脚真的踩在斜坡上，鞋底顺坡倾斜', a:'走上偏坡屋顶，侧着看双脚'},
+  {id:'134',  ver:'v0.13.4',  w:'边走边转视角，头先转过去看', a:'按住方向键走，同时把视角甩到侧面'},
+  {id:'1351', ver:'v0.13.5',  w:'右侧栏：可折叠测试清单，通过 / 不通过 / 待办 / 反馈，一键复制', a:'点屏幕右缘的竖标签；勾几条；点「复制反馈」'},
+  {id:'1352', ver:'v0.13.5',  w:'默认静音：打开不再先响一声，徽标 / 侧栏顶部都能切', a:'打开页面先听有没有声音；再点左下角声音徽标'},
+  {id:'t1',   ver:'待办', d0:'todo', w:'8 方向步态：Walk / Run 的 B、LB、RB、LF、RF 还没导出来', a:'素材在 ALS 工程里没导；现在靠转身 + 步态混合顶着'},
+  {id:'t2',   ver:'待办', d0:'todo', w:'180° 转身、落地翻滚（LandRoll）同样缺素材', a:'UE 5.9 引擎目录是空的，暂时导不出来'}
+];
+var TEST_KEY = 'w01.testlist.v2', TEST_ALL_KEY = 'w01.testlist.all.v2';
+var sideOpen = false;
+var sideEl = document.getElementById('side');
+var sideTabEl = document.getElementById('sideTab');
+var testStore = {};
+try { testStore = JSON.parse(localStorage.getItem(TEST_KEY) || '{}') || {}; } catch (_) { testStore = {}; }
+function panelOpen() { return settingsOpen || sideOpen; }
+function testSave() {
+  try { localStorage.setItem(TEST_KEY, JSON.stringify(testStore)); } catch (_) {}
+}
+function testTally() {
+  var ok = 0, no = 0, td = 0, n = TEST_ITEMS.length, i, s;
+  for (i = 0; i < n; i++) {
+    s = (testStore[TEST_ITEMS[i].id] || {}).s || '';
+    if (s === 'pass') ok++; else if (s === 'fail') no++; else if (s === 'todo') td++;
+  }
+  document.getElementById('testProg').innerHTML =
+    ok + ' 通过 · <b style="color:#e08c78">' + no + ' 不通过</b> · <b style="color:#cdb27a">' + td + ' 待办</b> · ' +
+    (n - ok - no - td) + ' 未测';
+  document.getElementById('testBarOk').style.width = (ok / n * 100) + '%';
+  document.getElementById('testBarNo').style.width = (no / n * 100) + '%';
+  document.getElementById('testBarTodo').style.width = (td / n * 100) + '%';
+}
+function testPaint(id) {
+  var el = document.querySelector('#testList .tItem[data-id="' + id + '"]');
+  if (!el) return;
+  var s = (testStore[id] || {}).s || '';
+  el.classList.toggle('done', s === 'pass' || s === 'fail');
+  el.classList.toggle('tdone', s === 'todo');
+  var bs = el.querySelectorAll('.tBtn');
+  for (var i = 0; i < bs.length; i++) {
+    var k = bs[i].getAttribute('data-s');
+    if (k === 'note') continue;
+    bs[i].classList.toggle('s', k === s);
+  }
+  testTally();
+}
+(function testBuild() {
+  var host = document.getElementById('testList'), html = '', i, d;
+  for (i = 0; i < TEST_ITEMS.length; i++) {
+    d = TEST_ITEMS[i];
+    html += '<div class="tItem" data-id="' + d.id + '">' +
+      '<div class="tTop"><span class="tVer">' + d.ver + '</span><span class="tWhat">' + d.w + '</span></div>' +
+      (d.a ? '<div class="tHow">' + d.a + '</div>' : '') +
+      '<div class="tActs">' +
+        '<button class="tBtn ok" data-s="pass" type="button">通过</button>' +
+        '<button class="tBtn no" data-s="fail" type="button">不通过</button>' +
+        '<button class="tBtn td" data-s="todo" type="button">待办</button>' +
+        '<button class="tBtn" data-s="note" type="button">反馈</button>' +
+      '</div>' +
+      '<textarea class="tNote" placeholder="哪里不对 / 后期想改成什么样…" hidden></textarea>' +
+    '</div>';
+  }
+  host.innerHTML = html;
+  for (i = 0; i < TEST_ITEMS.length; i++) {
+    d = TEST_ITEMS[i];
+    var st = testStore[d.id] || (testStore[d.id] = {});
+    if (d.d0 && !st.s) st.s = d.d0;          /* 待办条目默认就落在"待办"里 */
+    var el = host.querySelector('.tItem[data-id="' + d.id + '"]');
+    if (st.n) { var ta = el.querySelector('.tNote'); ta.value = st.n; ta.hidden = false; }
+    testPaint(d.id);
+  }
+  try {
+    var all = localStorage.getItem(TEST_ALL_KEY);
+    if (all) document.getElementById('testAll').value = all;
+  } catch (_) {}
+})();
+document.getElementById('testList').addEventListener('click', function (e) {
+  var b = e.target.closest ? e.target.closest('.tBtn') : null;
+  if (!b) return;
+  var item = b.closest('.tItem');
+  if (!item) return;
+  var id = item.getAttribute('data-id');
+  var s = b.getAttribute('data-s');
+  var st = testStore[id] || (testStore[id] = {});
+  if (s === 'note') {
+    var ta = item.querySelector('.tNote');
+    ta.hidden = !ta.hidden;
+    if (!ta.hidden) ta.focus();
+    return;
+  }
+  st.s = (st.s === s) ? '' : s;              /* 再点同一状态就取消 */
+  testSave();
+  testPaint(id);
+});
+document.getElementById('testList').addEventListener('input', function (e) {
+  var t = e.target;
+  if (!t.classList || !t.classList.contains('tNote')) return;
+  var item = t.closest('.tItem');
+  if (!item) return;
+  var id = item.getAttribute('data-id');
+  var st = testStore[id] || (testStore[id] = {});
+  st.n = t.value;
+  testSave();
+});
+document.getElementById('testAll').addEventListener('input', function () {
+  try { localStorage.setItem(TEST_ALL_KEY, this.value); } catch (_) {}
+});
+function testBuildText() {
+  var ok = [], no = [], td = [], rest = [], i, d, st, s, line;
+  for (i = 0; i < TEST_ITEMS.length; i++) {
+    d = TEST_ITEMS[i]; st = testStore[d.id] || {}; s = st.s || '';
+    line = d.ver + ' ' + d.w + (st.n ? '｜反馈：' + st.n : '');
+    if (s === 'pass') ok.push(line);
+    else if (s === 'fail') no.push(line);
+    else if (s === 'todo') td.push(line);
+    else rest.push(d.ver + ' ' + d.w);
+  }
+  var all = (document.getElementById('testAll').value || '').trim();
+  var out = ['WORLD 01 ' + (window.__worldVersion || '') + ' 测试反馈',
+             '通过 ' + ok.length + ' / 不通过 ' + no.length + ' / 待办 ' + td.length + ' / 未测 ' + rest.length, '',
+             '【不通过】'];
+  out = out.concat(no.length ? no : ['（无）']);
+  out.push('', '【待办 / 设想】');
+  out = out.concat(td.length ? td : ['（无）']);
+  out.push('', '【通过】');
+  out = out.concat(ok.length ? ok : ['（无）']);
+  out.push('', '【未测】');
+  out = out.concat(rest.length ? rest : ['（无）']);
+  out.push('', '【整体感受】', all || '（留空）');
+  return out.join('\n');
+}
+document.getElementById('testCopy').onclick = function () {
+  var txt = testBuildText(), msg = document.getElementById('testMsg');
+  function done(ok) { msg.textContent = ok ? '已复制，直接粘给我' : '复制不了，长按手动选'; }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(function () { done(true); }, function () { done(false); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (_) {}
+    document.body.removeChild(ta);
+    done(ok);
+  }
+};
+function syncSoundBtn() {
+  var b = document.getElementById('soundBtn');
+  if (!b) return;
+  b.textContent = SOUND.muted ? '🔇 静音' : '🔊 有声';
+}
+function showSide(on) {
+  sideOpen = !!on;
+  if (sideOpen && settingsOpen) showSettings(false);   /* 右侧同一块地方，互斥 */
+  sideEl.classList.toggle('open', sideOpen);
+  sideTabEl.classList.toggle('hide', sideOpen);
+  if (sideOpen) {
+    document.getElementById('testVer').textContent = window.__worldVersion || '';
+    syncSoundBtn();
+  }
+  mouse.down = false;
+  if (sideOpen) {
+    touch.active = look.active = false;
+    touch.id = look.id = -1;
+    look.dragging = false;
+    ptrs = {};
+    pinch.on = false;
+    if (document.exitPointerLock) document.exitPointerLock();
+  }
+}
+sideEl.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+sideEl.addEventListener('wheel', function (e) { e.stopPropagation(); });
+sideTabEl.addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); showSide(true); });
+document.getElementById('testClose').addEventListener('click', function () { showSide(false); });
+document.getElementById('soundBtn').addEventListener('click', function () { setMuted(!SOUND.muted); });
 document.getElementById('timeScale').oninput = function () { settings.timeScale = Math.max(0.25, Math.min(2, +this.value)); syncSettings(); saveSettings(); };
 document.getElementById('mouseSensitivity').oninput = function () { settings.mouse = +this.value; syncSettings(); saveSettings(); };
 document.getElementById('touchSensitivity').oninput = function () { settings.touch = +this.value; syncSettings(); saveSettings(); };
@@ -2152,18 +2450,26 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 射击键 开火 · 换弹键 装填 · 轻点 跳/攀 · 自由视角里双指缩放、45°键锁死视角、主题键切主题、碰撞键看碰撞体　·　v0.12.7';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 射击键 开火 · 换弹键 装填 · 轻点 跳/攀 · 右缘竖标签拉开测试清单 · 自由视角里双指缩放、45°键锁死视角　·　v0.13.5';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 左键 射击 · R 换弹 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · 自由视角里滚轮缩放、L 锁死 45° 视角 · T 切主题 · C 看碰撞体 · F2 设置 · H 显示/隐藏本说明　·　v0.12.7';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 左键 射击 · R 换弹 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · F2 设置 · F3 测试清单 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.13.5';
 }
 
 window.addEventListener('keydown', function (e) {
   var k = e.key.toLowerCase();
+  /* 清单面板里的输入框要能正常打字：WASD / 空格 不能被游戏抢走 */
+  var tg = e.target;
+  if (tg && (tg.tagName === 'TEXTAREA' || tg.tagName === 'INPUT' || tg.tagName === 'SELECT')) {
+    if (k === 'escape') tg.blur();
+    return;
+  }
   if (k === 'm' && !e.repeat) { toggleMousePointer(); return; }
   if (k === 'f2' && !e.repeat) { e.preventDefault(); showSettings(!settingsOpen); return; }
+  if (k === 'f3' && !e.repeat) { e.preventDefault(); showSide(!sideOpen); return; }
   if (settingsOpen && k === 'escape') { showSettings(false); return; }
+  if (sideOpen && k === 'escape') { showSide(false); return; }
   if (k === ' ' || k === 'spacebar' || k.indexOf('arrow') === 0) e.preventDefault();
   if (e.repeat) return;
   if (k === 'h' && !TOUCH_UI) { setTip(!tipShown); return; }   /* 桌面：一个键管显示与隐藏 */
@@ -2207,7 +2513,7 @@ function zoomFree(k) {
   else if (freeDist > FREE_DIST_MAX) freeDist = FREE_DIST_MAX;
 }
 window.addEventListener('wheel', function (e) {
-  if (settingsOpen || !freeMode) return;
+  if (panelOpen() || !freeMode) return;
   e.preventDefault();
   zoomFree(Math.exp(e.deltaY * 0.0011));
   hideTip();
@@ -2250,7 +2556,7 @@ function turnBy(dx, dy, sensitivity) {
 }
 
 canvas.addEventListener('pointerdown', function (e) {
-  if (settingsOpen) return;
+  if (panelOpen()) return;
   if (e.pointerType === 'mouse') {
     if (e.button !== 0) return;
     fireWeapon();
@@ -2305,7 +2611,7 @@ canvas.addEventListener('pointerdown', function (e) {
 }, { passive: false });
 
 window.addEventListener('pointermove', function (e) {
-  if (settingsOpen) return;
+  if (panelOpen()) return;
   if (e.pointerType === 'mouse') {
     if (plLocked) {
       /* 锁定态：直接用 movement 差值，不需要按住任何键 */
@@ -2366,7 +2672,7 @@ function releasePointer(e) {
     touch.active = false; touch.id = -1;
   }
   if (look.active && e.pointerId === look.id) {
-    if (!settingsOpen && e.type !== 'pointercancel' && !look.dragging && performance.now() - look.t0 < 280) {
+    if (!panelOpen() && e.type !== 'pointercancel' && !look.dragging && performance.now() - look.t0 < 280) {
       doJump();
       if (navigator.vibrate) { try { navigator.vibrate(9); } catch (_) {} }
     }
@@ -2990,7 +3296,7 @@ function update(dt) {
          0.12s 的冷却不够，会出现"触发→被 sp>0.5 取消→立刻再触发"的抖动。 */
       TURN.on = false; TURN.cool = 0.3;
     }
-  } else if (!climb && P.onGround && !settingsOpen && sp < 0.45 && TURN.cool <= 0 && TURN.settle > 0.12) {
+  } else if (!climb && P.onGround && !panelOpen() && sp < 0.45 && TURN.cool <= 0 && TURN.settle > 0.12) {
     if (Math.abs(diff) > 1.05) {                /* 60° 以上才值得演一段转身 */
       TURN.on = true;
       TURN.dir = diff > 0 ? 1 : -1;
@@ -3759,7 +4065,7 @@ function decalNormal(c, p, out) {
 }
 
 function reloadWeapon() {
-  if (settingsOpen || climb || weapon.reload > 0) return false;
+  if (panelOpen() || climb || weapon.reload > 0) return false;
   if (weapon.ammo === weapon.capacity || weapon.reserve <= 0) return false;
   weapon.reload = weapon.reloadDur;
   weapon.dry = 0;
@@ -3774,7 +4080,7 @@ function gunMuzzleWorld(out) {
   return out.set(0, 0.021, -0.186).applyMatrix4(heldPistol.matrixWorld);
 }
 function fireWeapon() {
-  if (settingsOpen || climb) return false;
+  if (panelOpen() || climb) return false;
   if (weapon.reload > 0 || weapon.cooldown > 0) return false;
   /* 空仓：不是静默失败，给一次干击顿挫 —— 玩家要立刻知道"不是没点中，是没子弹了" */
   if (weapon.ammo <= 0) {
@@ -3979,7 +4285,7 @@ function updateWeapon(dt) {
   aimPoint.copy(shotDir).multiplyScalar(12).add(shotOrigin).project(camera);
   aimEl.style.left = ((aimPoint.x + 1) * innerWidth / 2) + 'px';
   aimEl.style.top = ((1 - aimPoint.y) * innerHeight / 2) + 'px';
-  aimEl.style.display = settingsOpen || climb || aimPoint.z > 1 ? 'none' : 'block';
+  aimEl.style.display = panelOpen() || climb || aimPoint.z > 1 ? 'none' : 'block';
   aimEl.classList.toggle('hit', weapon.hitTime > 0);
   aimEl.classList.toggle('empty', weapon.ammo === 0);
 
@@ -4107,7 +4413,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.13.4';
+window.__worldVersion = 'v0.13.5';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   weapon: weapon, targets: targets, fire: fireWeapon, reload: reloadWeapon,
   fx: FX,
@@ -4126,6 +4432,16 @@ window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   get ikCfg() { return IK; },
   /* 诊断：头部视线跟随（当前偏角/上限/颈头分配） */
   get look() { return LOOK; },
+  /* 诊断：右侧栏测试清单（开合标志 / 勾选表 / 导出文本） */
+  showSide: function (on) { showSide(on); },
+  get sideOpen() { return sideOpen; },
+  get testStore() { return testStore; },
+  testExport: function () { return testBuildText(); },
+  testSet: function (id, s, n) { var st = testStore[id] || (testStore[id] = {}); st.s = s; if (n !== undefined) st.n = n; testSave(); testPaint(id); return 1; },
+  /* 诊断：静音开关与音频上下文状态 */
+  get sound() { return SOUND; },
+  setMuted: function (v) { setMuted(v); return SOUND.muted; },
+  get acState() { return AC ? AC.state : 'none'; },
   supportAt: supportAt, bodyClear: bodyClear,
   get boneBoxes() { return boneViz.length; },
   get climbState() { return climb; },
