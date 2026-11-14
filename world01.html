@@ -215,6 +215,7 @@
   <div class="settingGroup"><strong>鼠标</strong><span>显示/隐藏快捷键：M；F2 不会自动显示鼠标</span></div>
   <label>主题 <select id="settingsTheme"><option value="dark">深色</option><option value="light">白色</option></select></label>
   <label><input id="settingsCollision" type="checkbox">实际移动碰撞体</label>
+  <label><input id="settingsAmb" type="checkbox">环境音（风 / 鸟叫，默认关）</label>
   <pre id="debugInfo"></pre>
   <div id="settingsStatus">设置修改后自动保存到本浏览器</div>
   <button id="settingsReset" type="button">恢复默认</button>
@@ -237,7 +238,7 @@
   </div>
   <div class="tFoot"><button id="testCopy" type="button">复制反馈</button><span id="testMsg"></span></div>
 </aside>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.13.5</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.13.6</div>
 <script>
 /**
  * @license
@@ -476,6 +477,18 @@ function addCollider(mesh, w, d, h) {
     reach: Math.sqrt(w * w + d * d) / 2 + PLAYER_R + 0.6
   });
 }
+/* 圆柱碰撞体（树干用）：水平按"圆 vs 圆"解，不再用方盒硬套。
+   方盒在圆的四个角上会多顶出 ~8cm，贴着树走会被"看不见的角"挡住 —— 就是"碰撞太粗糙"。 */
+function addPost(x, y, z, r, h) {
+  colliders.push({
+    mesh: null, x: x, z: z,
+    hw: r, hd: r, c: 1, s: 0, round: 1,
+    bottom: y - h / 2, top: y + h / 2, kind: 'solid',
+    reach: r + PLAYER_R + 0.6
+  });
+  return colliders[colliders.length - 1];
+}
+
 /* ---------------- 网格 ↔ 碰撞 登记与自检（v0.12.4） ----------------
    用户要求"所有可见网格都要有碰撞，不要漏"。这里不逐个 new 碰撞体——
    那会把 draw call 和逐帧遍历都拖垮——而是【覆盖式登记】：
@@ -484,7 +497,9 @@ function addCollider(mesh, w, d, h) {
      没包住的 → 按包围盒补一个近似碰撞体（kind = auto / leaf / flat / pebble）；
      不该有碰撞的（角色、枪、调试线框、地面）→ 明确豁免并记录理由。
    审计结果写进 F2 面板，遗漏数必须是 0，缺一个都能看出来。 */
-var NON_BLOCKING_KIND = { pebble: 1, leaf: 1, flat: 1 };   /* 登记了碰撞，但不挡移动（见下） */
+/* v0.13.6：碎石从"不挡移动"里摘出来了 —— 用户反馈"地上很多碎石没有碰撞"。
+   小的靠 STEP_UP（0.35m）自动踩过去，只有真的高于台阶的才挡人。 */
+var NON_BLOCKING_KIND = { leaf: 1, flat: 1 };   /* 登记了碰撞，但不挡移动（见下） */
 /* 挡人但不该被"撑上去"的：灌木会踩塌、靶子是道具、碎石太碎。
    否则跑过去会自动翻上灌木顶站着，和之前站栅栏顶是同一类怪事。 */
 var NON_CLIMB_KIND = { bush: 1, target: 1, stand: 1 };
@@ -856,7 +871,7 @@ var stoneMat = new THREE.MeshStandardMaterial({ color: 0xeaeff3, roughness: 0.95
      树冠用两层压扁的低多边形球：单个正球在纯白世界里像一颗雪球，加一层小的就有"树"的轮廓 */
   function tree(x, z) {
     part(0.3, 2.0, 0.3, x, 1.0, z);
-    collider(x, 1.0, z, 0, 0.4, 0.4, 2.0);
+    addPost(x, 1.0, z, 0.17, 2.0);        /* 圆柱：贴合树干，不再有"看不见的角" */
     var c1 = new THREE.Mesh(new THREE.IcosahedronGeometry(1.15, 0), leafMat);
     c1.position.set(x, 2.75, z); c1.scale.set(1.15, 0.92, 1.15);
     var c2 = new THREE.Mesh(new THREE.IcosahedronGeometry(0.72, 0), leafMat);
@@ -881,6 +896,29 @@ var stoneMat = new THREE.MeshStandardMaterial({ color: 0xeaeff3, roughness: 0.95
   instance(batch, propMat, true);
 })();
 
+/* ---------------- 出生点旁边的试脚斜坡（v0.13.6） ----------------
+   用户反馈"出生点给点斜坡测试"：脚 IK 之前必须跑到屋顶上才能验证，太远。
+   这里在出生点东边放一个小土坡 —— 4.6m 宽、0.85m 高，坡度约 20°（屋顶是 18°），
+   左右两侧都能上，走两步就到。
+   碰撞复用屋顶那套"三角棱柱 + roof 斜率"，所以坡面支撑和真屋顶完全同一条代码路径。 */
+var RAMP = { x: 5.6, z: 0.4, w: 4.6, d: 3.4, h: 0.85 };
+(function spawnRamp() {
+  var sh = new THREE.Shape();
+  sh.moveTo(-RAMP.w / 2, 0); sh.lineTo(RAMP.w / 2, 0); sh.lineTo(0, RAMP.h); sh.closePath();
+  var g = new THREE.ExtrudeGeometry(sh, { depth: RAMP.d, bevelEnabled: false });
+  g.translate(0, 0, -RAMP.d / 2);
+  var m = new THREE.Mesh(g, stoneMat);
+  m.position.set(RAMP.x, 0, RAMP.z);
+  m.castShadow = true; m.receiveShadow = true;
+  m.userData.baseMat = stoneMat;
+  scene.add(m);
+  addCollider({ position: { x: RAMP.x, y: RAMP.h / 2, z: RAMP.z }, rotation: { y: 0 } },
+              RAMP.w, RAMP.d, RAMP.h);
+  var c = colliders[colliders.length - 1];
+  c.kind = 'roof'; c.rise = RAMP.h; c.base = 0;
+  blockers.push(m);
+})();
+
 /* 地面散石：近处可见，远处被雾吃掉，提供移动参照 */
 (function stones() {
   var N = 240;
@@ -895,6 +933,7 @@ var stoneMat = new THREE.MeshStandardMaterial({ color: 0xeaeff3, roughness: 0.95
     var sz = 0.06 + hash(i, 13) * 0.18;
     var sx = Math.cos(ang) * rad, szz = Math.sin(ang) * rad;
     if (inYard(sx, szz, 0.5) || inDrive(sx, szz, 0.5)) continue;   /* 院子里、车道上不放石头 */
+    if (Math.abs(sx - RAMP.x) < RAMP.w / 2 + 0.4 && Math.abs(szz - RAMP.z) < RAMP.d / 2 + 0.4) continue;  /* 土坡上不放 */
 
     dm.position.set(sx, sz * 0.5, szz);
     dm.scale.set(sz, sz * (0.45 + hash(i, 14) * 1.1), sz * (0.7 + hash(i, 16) * 0.6));
@@ -1369,11 +1408,12 @@ var SFX_BUF = {}, SFX_READY = false;
    第一次打开这个文件不该先响一声，也不该在别人电脑上突然出声。
    静音时连 AudioContext 都不建：从源头保证零声音，而不是把音量调成 0
    （调 0 仍然占着音频管线，手机上还多一份开销）。 */
-var SOUND = { muted: true };
+var SOUND = { muted: true, amb: false };   /* muted=总开关；amb=背景环境音（风/鸟叫），单独一格 */
 try {
   var _sndPref = localStorage.getItem('world01.sound.v1');
   if (_sndPref === 'on') SOUND.muted = false;
   else if (!_sndPref) localStorage.setItem('world01.sound.v1', 'off');   /* 首次进来就把"默认静音"落成明确状态 */
+  if (localStorage.getItem('world01.amb.v1') === 'on') SOUND.amb = true;
 } catch (_) {}
 function setMuted(v) {
   SOUND.muted = !!v;
@@ -1861,6 +1901,9 @@ function sfxUi() {
    只在"音频真的能响"的时候起，避免 iOS 上 unheard 的挂起 source 占资源。 */
 var AMB_SRC = null, AMB_GAIN = null, AMB_VOL = 0.16;
 function startAmbient() {
+  /* 环境音默认关（用户 v0.13.5 反馈）：风 / 鸟叫是循环的，不是每个人都想一直听。
+     枪声、脚步、UI 音不受影响——它们跟着总开关走。 */
+  if (!SOUND.amb) return;
   if (AMB_SRC || !AC || AC.state !== 'running') return;
   var arr = SFX_BUF.amb;
   if (!arr || !arr.length) return;
@@ -1873,6 +1916,17 @@ function startAmbient() {
   src.connect(g); g.connect(AM);
   src.start();
   AMB_SRC = src; AMB_GAIN = g;
+}
+function setAmb(v) {
+  SOUND.amb = !!v;
+  try { localStorage.setItem('world01.amb.v1', SOUND.amb ? 'on' : 'off'); } catch (_) {}
+  if (!SOUND.amb && AMB_SRC) {
+    try { AMB_SRC.stop(); } catch (_) {}
+    AMB_SRC = null; AMB_GAIN = null;
+  }
+  if (SOUND.amb) startAmbient();
+  var cb = document.getElementById('settingsAmb');
+  if (cb) cb.checked = SOUND.amb;
 }
 function ambientTick() {   /* 每帧调一次，代价只有一次 null 判断 */
   if (!AMB_SRC) { startAmbient(); return; }
@@ -2056,6 +2110,7 @@ function syncSettings() {
   document.getElementById('followView').checked = !!settings.followView;
   document.getElementById('settingsTheme').value = themeName;
   document.getElementById('settingsCollision').checked = !!colVizOn;
+  document.getElementById('settingsAmb').checked = !!SOUND.amb;
 }
 function resetInput() {
   keys = Object.create(null);
@@ -2099,7 +2154,6 @@ var TEST_ITEMS = [
   {id:'43',   ver:'v0.11.43', w:'设置能保存了；栅栏判定按轴向修正', a:'改个设置 → 刷新页面'},
   {id:'44',   ver:'v0.11.44', w:'栅栏改成逐根柱子、逐块板子的碰撞；坡屋顶能站', a:'贴着栅栏走；跳上坡屋顶'},
   {id:'45',   ver:'v0.11.45', w:'三轮自审：输入状态、材质、运动稳定性', a:'不用专门测，跳过'},
-  {id:'120',  ver:'v0.12.0',  w:'第一把枪（纯几何拼的半自动手枪）', a:'已被 14:53 那版整体重做，跳过'},
   {id:'121',  ver:'v0.12.1',  w:'矮台阶能连续走上去；翻栅栏落到另一侧地面；倍速可保存', a:'连走三级台阶；对着栅栏按跳；改倍速后刷新'},
   {id:'122',  ver:'v0.12.2',  w:'修设置面板打开时残留的输入状态', a:'拖视角到一半 → 打开设置 → 关掉'},
   {id:'123',  ver:'v0.12.3',  w:'设置里能调走 / 跑 / 快跑速度；全场景碰撞补全', a:'拉速度条；贴着房子各部件走'},
@@ -2114,6 +2168,11 @@ var TEST_ITEMS = [
   {id:'134',  ver:'v0.13.4',  w:'边走边转视角，头先转过去看', a:'按住方向键走，同时把视角甩到侧面'},
   {id:'1351', ver:'v0.13.5',  w:'右侧栏：可折叠测试清单，通过 / 不通过 / 待办 / 反馈，一键复制', a:'点屏幕右缘的竖标签；勾几条；点「复制反馈」'},
   {id:'1352', ver:'v0.13.5',  w:'默认静音：打开不再先响一声，徽标 / 侧栏顶部都能切', a:'打开页面先听有没有声音；再点左下角声音徽标'},
+  {id:'1361', ver:'v0.13.6',  w:'右侧栏改成并行的：开着也能转视角、走路、开枪', a:'拉开清单不收起，直接拖画面转视角'},
+  {id:'1362', ver:'v0.13.6',  w:'地上的碎石有碰撞了：矮的自动踩过去，高的挡人', a:'往石堆里走'},
+  {id:'1363', ver:'v0.13.6',  w:'树干碰撞改成圆柱，贴树走不再被看不见的角挡住', a:'绕着树贴边走一圈'},
+  {id:'1364', ver:'v0.13.6',  w:'出生点东边加了个 20° 土坡，专门测贴脚', a:'出生后往东走两步，站坡上侧看双脚'},
+  {id:'1365', ver:'v0.13.6',  w:'环境音（风 / 鸟叫）默认关，F2 设置里单独开', a:'F2 打开设置看「环境音」是不是没勾'},
   {id:'t1',   ver:'待办', d0:'todo', w:'8 方向步态：Walk / Run 的 B、LB、RB、LF、RF 还没导出来', a:'素材在 ALS 工程里没导；现在靠转身 + 步态混合顶着'},
   {id:'t2',   ver:'待办', d0:'todo', w:'180° 转身、落地翻滚（LandRoll）同样缺素材', a:'UE 5.9 引擎目录是空的，暂时导不出来'}
 ];
@@ -2123,7 +2182,10 @@ var sideEl = document.getElementById('side');
 var sideTabEl = document.getElementById('sideTab');
 var testStore = {};
 try { testStore = JSON.parse(localStorage.getItem(TEST_KEY) || '{}') || {}; } catch (_) { testStore = {}; }
-function panelOpen() { return settingsOpen || sideOpen; }
+/* 设置面板是"模态"的（弹出就去碰画面）；测试侧栏是**并行**的——
+   打开时照样能转视角、走路、开火，不用先收起来（用户 v0.13.5 反馈）。
+   所以输入门控只看 settingsOpen，不看 sideOpen。 */
+function panelOpen() { return settingsOpen; }
 function testSave() {
   try { localStorage.setItem(TEST_KEY, JSON.stringify(testStore)); } catch (_) {}
 }
@@ -2268,15 +2330,8 @@ function showSide(on) {
     document.getElementById('testVer').textContent = window.__worldVersion || '';
     syncSoundBtn();
   }
-  mouse.down = false;
-  if (sideOpen) {
-    touch.active = look.active = false;
-    touch.id = look.id = -1;
-    look.dragging = false;
-    ptrs = {};
-    pinch.on = false;
-    if (document.exitPointerLock) document.exitPointerLock();
-  }
+  /* 这里刻意**不**动输入状态、也不退鼠标锁定：
+     侧栏是并行的，打开它不该打断你正在转的视角，也不该逼你先收起来才能操作画面。 */
 }
 sideEl.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
 sideEl.addEventListener('wheel', function (e) { e.stopPropagation(); });
@@ -2295,6 +2350,7 @@ document.getElementById('slowWalk').oninput = function () { settings.slowWalk = 
 document.getElementById('followView').onchange = function () { settings.followView = !!this.checked; syncSettings(); saveSettings(); };
 document.getElementById('settingsTheme').onchange = function () { applyTheme(this.value); };
 document.getElementById('settingsCollision').onchange = function () { setColViz(this.checked); };
+document.getElementById('settingsAmb').onchange = function () { setAmb(this.checked); };
 document.getElementById('settingsReset').onclick = function () {
   settings.mouse = 0.5; settings.touch = 1; settings.timeScale = 1; settings.walkSpeed = 1.7; settings.runSpeed = 4.5; settings.sprintSpeed = 6.5; settings.walkAccel = 20; settings.sprintAccel = 24; settings.slowWalk = 0.5; settings.followView = false; applyTheme('dark'); syncSettings();
 };
@@ -2513,7 +2569,7 @@ function zoomFree(k) {
   else if (freeDist > FREE_DIST_MAX) freeDist = FREE_DIST_MAX;
 }
 window.addEventListener('wheel', function (e) {
-  if (panelOpen() || !freeMode) return;
+  if (settingsOpen || !freeMode) return;
   e.preventDefault();
   zoomFree(Math.exp(e.deltaY * 0.0011));
   hideTip();
@@ -2556,7 +2612,7 @@ function turnBy(dx, dy, sensitivity) {
 }
 
 canvas.addEventListener('pointerdown', function (e) {
-  if (panelOpen()) return;
+  if (settingsOpen) return;
   if (e.pointerType === 'mouse') {
     if (e.button !== 0) return;
     fireWeapon();
@@ -2611,7 +2667,7 @@ canvas.addEventListener('pointerdown', function (e) {
 }, { passive: false });
 
 window.addEventListener('pointermove', function (e) {
-  if (panelOpen()) return;
+  if (settingsOpen) return;
   if (e.pointerType === 'mouse') {
     if (plLocked) {
       /* 锁定态：直接用 movement 差值，不需要按住任何键 */
@@ -2672,7 +2728,7 @@ function releasePointer(e) {
     touch.active = false; touch.id = -1;
   }
   if (look.active && e.pointerId === look.id) {
-    if (!panelOpen() && e.type !== 'pointercancel' && !look.dragging && performance.now() - look.t0 < 280) {
+    if (!settingsOpen && e.type !== 'pointercancel' && !look.dragging && performance.now() - look.t0 < 280) {
       doJump();
       if (navigator.vibrate) { try { navigator.vibrate(9); } catch (_) {} }
     }
@@ -2998,6 +3054,36 @@ function collideXZ(dt, tx, tz) {
     var dx = P.pos.x - col.x, dz = P.pos.z - col.z;
     if (dx > col.reach || dx < -col.reach || dz > col.reach || dz < -col.reach) continue;
 
+    if (col.round) {
+      /* 圆 vs 圆：法线就是圆心连线，没有"角"这回事。
+         c=1 / s=0 建出来的圆，局部坐标等于世界坐标，所以算完直接接到下面共用的推出逻辑。 */
+      var dr = Math.sqrt(dx * dx + dz * dz);
+      var need = col.hw + rBody;
+      if (dr >= need) continue;
+      var rnx, rnz, rlx, rlz;
+      if (dr < 1e-5) { rnx = 1; rnz = 0; rlx = need; rlz = 0; }
+      else { rnx = dx / dr; rnz = dz / dr; rlx = rnx * need; rlz = rnz * need; }
+      var vnR = vel.x * rnx + vel.z * rnz;
+      P.pos.x = col.x + rlx; P.pos.z = col.z + rlz;
+      motionDebug.wall = col.kind;
+      if (vnR < -0.7 && P.onGround && motionDebug.cooldown <= 0) {
+        motionDebug.impact = -vnR;
+        motionDebug.stumble = 0.22 + Math.min(0.18, -vnR * 0.025); motionDebug.cooldown = 0.95;
+        var recoilR = Math.min(2.5, 0.35 - vnR * 0.30);
+        motionDebug.recoilX = rnx * recoilR; motionDebug.recoilZ = rnz * recoilR;
+        P.landLock = 0.20; setAnim('landLight', 1.8, true);
+      }
+      if (vnR < 0) { vel.x -= vnR * rnx; vel.z -= vnR * rnz; }
+      if (P.onGround) {
+        var pressR = -(tx * rnx + tz * rnz);
+        if (pressR > 0) {
+          var vtR = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+          if (vtR > 1e-4) { var dropR = WALL_FRIC * pressR * dt, kR = vtR > dropR ? (vtR - dropR) / vtR : 0; vel.x *= kR; vel.z *= kR; }
+        }
+      }
+      continue;
+    }
+
     var lx = dx * col.c - dz * col.s;
     var lz = dx * col.s + dz * col.c;
     var bx = lx < -col.hw ? -col.hw : (lx > col.hw ? col.hw : lx);
@@ -3296,7 +3382,7 @@ function update(dt) {
          0.12s 的冷却不够，会出现"触发→被 sp>0.5 取消→立刻再触发"的抖动。 */
       TURN.on = false; TURN.cool = 0.3;
     }
-  } else if (!climb && P.onGround && !panelOpen() && sp < 0.45 && TURN.cool <= 0 && TURN.settle > 0.12) {
+  } else if (!climb && P.onGround && !settingsOpen && sp < 0.45 && TURN.cool <= 0 && TURN.settle > 0.12) {
     if (Math.abs(diff) > 1.05) {                /* 60° 以上才值得演一段转身 */
       TURN.on = true;
       TURN.dir = diff > 0 ? 1 : -1;
@@ -4065,7 +4151,7 @@ function decalNormal(c, p, out) {
 }
 
 function reloadWeapon() {
-  if (panelOpen() || climb || weapon.reload > 0) return false;
+  if (settingsOpen || climb || weapon.reload > 0) return false;
   if (weapon.ammo === weapon.capacity || weapon.reserve <= 0) return false;
   weapon.reload = weapon.reloadDur;
   weapon.dry = 0;
@@ -4080,7 +4166,7 @@ function gunMuzzleWorld(out) {
   return out.set(0, 0.021, -0.186).applyMatrix4(heldPistol.matrixWorld);
 }
 function fireWeapon() {
-  if (panelOpen() || climb) return false;
+  if (settingsOpen || climb) return false;
   if (weapon.reload > 0 || weapon.cooldown > 0) return false;
   /* 空仓：不是静默失败，给一次干击顿挫 —— 玩家要立刻知道"不是没点中，是没子弹了" */
   if (weapon.ammo <= 0) {
@@ -4285,7 +4371,7 @@ function updateWeapon(dt) {
   aimPoint.copy(shotDir).multiplyScalar(12).add(shotOrigin).project(camera);
   aimEl.style.left = ((aimPoint.x + 1) * innerWidth / 2) + 'px';
   aimEl.style.top = ((1 - aimPoint.y) * innerHeight / 2) + 'px';
-  aimEl.style.display = panelOpen() || climb || aimPoint.z > 1 ? 'none' : 'block';
+  aimEl.style.display = settingsOpen || climb || aimPoint.z > 1 ? 'none' : 'block';
   aimEl.classList.toggle('hit', weapon.hitTime > 0);
   aimEl.classList.toggle('empty', weapon.ammo === 0);
 
@@ -4413,7 +4499,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.13.5';
+window.__worldVersion = 'v0.13.6';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   weapon: weapon, targets: targets, fire: fireWeapon, reload: reloadWeapon,
   fx: FX,
@@ -4441,6 +4527,7 @@ window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
   /* 诊断：静音开关与音频上下文状态 */
   get sound() { return SOUND; },
   setMuted: function (v) { setMuted(v); return SOUND.muted; },
+  setAmb: function (v) { setAmb(v); return SOUND.amb; },
   get acState() { return AC ? AC.state : 'none'; },
   supportAt: supportAt, bodyClear: bodyClear,
   get boneBoxes() { return boneViz.length; },
