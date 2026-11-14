@@ -334,6 +334,12 @@ var FOG = new THREE.Fog(0xf1f5f8, 20, 145);
 scene.fog = FOG;
 
 var camera = new THREE.PerspectiveCamera(48, 1, 0.1, 400);
+/* 等距视角（v0.15.0）要的是正交投影，透视相机给不了——所以另开一台，
+   每帧跟着透视相机走同一套机位（位置 + 朝向完全复制），只把投影换掉。
+   送进 renderer 的那台由 activeCam 决定；第一/第三/自由永远是透视这台，
+   等距是正交那台，两台的视锥在枢轴平面上等大，所以切换那一刻不跳。 */
+var orthoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
+var activeCam = camera;
 
 /* ---------------- 光 ---------------- */
 var hemi = new THREE.HemisphereLight(0xffffff, 0xe8edf2, 1.45);
@@ -1854,9 +1860,9 @@ var FRICT = 22;
 var camYaw   = 0;          /* 水平角，0 = 在角色正后方 */
 var camPitch = 0.30;       /* 俯角 */
 var camDist  = 8.6;
-/* 视角模式：0=第一人称 1=第三人称 2=自由（默认——进来先给俯视全景，再自己转/缩） */
+/* 视角模式：0=第一人称 1=第三人称 2=自由（默认——进来先给俯视全景，再自己转/缩） 3=等距 */
 var viewMode = 2;
-var firstMode = false, freeMode = true;
+var firstMode = false, freeMode = true, isoMode = false;
 var fpBlend = 0;                 /* 第一/第三之间的平滑量，切换永远是连续曲线 */
 var fpPitch = -0.02;
 /* 轨道枢轴高度：肩点 1.42m。比胸口高、比眼低——挂胸口会让近景镜头卡在肚子上，
@@ -1879,6 +1885,30 @@ var FREE_PITCH = 1.45, FREE_DIST_MIN = 1.5, FREE_DIST_MAX = 60;
 var freeLock = false;
 var LOCK_PITCH = Math.PI / 4;
 var lockYaw = 0;
+
+/* ---- 等距视角（v0.15.0）----
+   真等距 = 正交投影 + 仰角 atan(1/√2)=35.264° + 45° 方位。
+   不是"把 FOV 调窄假装远摄"：透视再窄，平行线仍会收敛，屋顶的边和院子的地砖永远对不齐。
+   正交是画法几何意义上的等距——远处的门和近处的门一样大，三条棱两两夹 120°。
+   水平角按 90° 一档吸附（45/135/225/315），四个机位，这才是等距该有的"转世界"手感。 */
+var ISO_PITCH = Math.atan(1 / Math.SQRT2);      /* 35.264°：真等距仰角 */
+var ISO_YAW_BASE = Math.PI / 4;                 /* 45°：等距的经典方位 */
+var ISO_YAW_STEP = Math.PI / 2;                 /* 一档 90°，四个机位 */
+var isoYawIdx = 0;                              /* 0..3 → 45/135/225/315 */
+var isoDragX = 0;                               /* 拖动累计量：够 ISO_DRAG_STEP 走一档 */
+var ISO_DRAG_STEP = 80;                         /* 80px 一档，和自由视角的转速手感接近 */
+var isoDistCur = 0;                             /* 等距的当前机距（每帧缓动到目标） */
+/* 取景用"画面纵向覆盖多少米世界"来定（isoViewH），不用"窄边"那套：
+   竖屏窄边是宽，一旦按窄边算，纵向会撑到 34m，人为一个小点、上下全是空地。
+   28m 是量出来的：v0.11.39 删正交的理由之一是"出生点的房子跑出画面上边"，
+   24m 时房子顶部仍被顶出去（等距把前方的东西推到画面上方），30m 完整、28m 刚好压住边。
+   横屏竖屏都用 28 —— 角色在两种握法下都是屏幕高度的 6% 上下，看着一样大。 */
+var ISO_VIEW_H_L = 28, ISO_VIEW_H_P = 28;
+var ISO_VIEW_H_MIN = 6, ISO_VIEW_H_MAX = 90;
+var isoViewH = ISO_VIEW_H_L;                    /* 画面纵向覆盖的世界高度：滚轮/捏合改它 */
+var isoUserZoom = false;                        /* 用户自己缩过没有：没缩过就让默认高度跟着横竖屏走 */
+var ASPECT = 1;
+var effDistNow = 0;                             /* 本帧实际机距（诊断用：验投影与机位是否对齐） */
 var EYE_H = 1.62;              /* 第一人称眼睛高度 */
 var PORTRAIT = false;
 var camRay = new THREE.Raycaster();
@@ -1894,6 +1924,22 @@ function clampPitch() {
   else if (camPitch > PITCH_MAX) camPitch = PITCH_MAX;
 }
 
+/* 等距机距：把"纵向覆盖 isoViewH 米"换算成透视相机该站多远。
+   这样正交视锥半高（机距 × tan(FOV/2)）正好等于 isoViewH/2，
+   两台相机在枢轴平面上等大——切投影不跳、进退场也是连续缩放。 */
+function isoDistTarget() {
+  var halfH = isoViewH / 2;
+  var t = Math.tan(FOV_BASE * Math.PI / 360);
+  return t > 0.0001 ? halfH / t : halfH / 0.445;
+}
+/* 等距缩放：改的是画面覆盖多少米世界（正交下这是唯一的缩放手段） */
+function isoZoom(k) {
+  isoUserZoom = true;
+  isoViewH *= k;
+  if (isoViewH < ISO_VIEW_H_MIN) isoViewH = ISO_VIEW_H_MIN;
+  else if (isoViewH > ISO_VIEW_H_MAX) isoViewH = ISO_VIEW_H_MAX;
+}
+
 /* ---------------- 输入 ---------------- */
 var keys = Object.create(null);
 
@@ -1903,7 +1949,7 @@ var lockBtn  = document.getElementById('lockBtn');
 var themeBtn = document.getElementById('themeBtn');
 var colBtn   = document.getElementById('colBtn');
 var runBtn   = document.getElementById('runBtn');
-var VIEW_NAME = ['第一', '第三', '自由'];
+var VIEW_NAME = ['第一', '第三', '自由', '等距'];
 var LOCK_NAME = ['俯仰', '45°'];   /* 显示当前状态：自由俯仰 / 锁在 45° */
 
 /* ---------------- 主题：深色（默认）/ 白色 ----------------
@@ -2042,6 +2088,9 @@ var TEST_ITEMS = [
   /* v0.14.0：武器整块拆掉了。下面这条专门让人确认"真的没了"，而不是某处还在偷偷开枪。 */
   {id:'1401', ver:'v0.14.0',  w:'武器系统整个删掉：没有枪、没有准星、没有射击 / 换弹键、没有枪声、没有弹壳弹孔', a:'看右下角还有没有「射击 / 换弹」；点左键拖一下；按 R；按空格跳'},
   {id:'1402', ver:'v0.14.0',  w:'拆枪之后右臂回到自然摆臂，不再悬在胸前"端着一把看不见的枪"', a:'第三 / 第一人称站着不动，看右手'},
+  /* v0.15.0：第 4 档视角。两条分别验"投影真的换了"和"方位是按档吸附的"。 */
+  {id:'1501', ver:'v0.15.0',  w:'第 4 档视角「等距」：正交投影 + 35.26° 仰角，远处的门和近处的门一样大', a:'按 V 切到「等距」，对比同尺寸的两块积木一近一远'},
+  {id:'1502', ver:'v0.15.0',  w:'等距里左右拖动 / Q E 是 90° 一档转世界，滚轮和双指改的是画面覆盖多少米', a:'等距下右拖一下看是不是整 90°；滚轮来回滚'},
   {id:'t1', ver:'待办', d0:'todo', w:'8 方向步态：Walk / Run 的 B、LB、RB、LF、RF 还没导出来', a:'素材在 ALS 工程里没导；现在靠转身 + 步态混合顶着'},
   {id:'t2', ver:'待办', d0:'todo', w:'180° 转身、落地翻滚（LandRoll）同样缺素材', a:'本机 UE 5.8 已装完整，待跑导出脚本'}
 ];
@@ -2290,9 +2339,10 @@ function toggleMousePointer() {
 mouseBtn.addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); toggleMousePointer(); }, { passive: false });
 
 function toggleView() {
-  viewMode = (viewMode + 1) % 3;
+  viewMode = (viewMode + 1) % 4;
   firstMode = (viewMode === 0);
   freeMode = (viewMode === 2);
+  isoMode = (viewMode === 3);
   /* 进自由视角：从当前第三人称取景出发，再短缓动到"俯视全景"默认落点。
      直接硬切会闪一下，所以给 0.55s 的接近；用户一动（转俯仰/缩放）立刻取消，不抢操作。 */
   if (freeMode) {
@@ -2303,6 +2353,17 @@ function toggleView() {
     freeUserZoom = false;
   } else {
     freeIntro = 0;
+  }
+  /* 进等距：从**当前画面**出发，不硬切。
+     水平角吸附到最近的 90° 档（最近 = 最多转 45°，不会为了对齐绕大半圈）；
+     俯角/机距由 updateCamera 里每帧小步逼近（同 45° 锁定的做法），所以怎么打断都能回位。 */
+  if (isoMode) {
+    isoYawIdx = Math.round((camYaw - ISO_YAW_BASE) / ISO_YAW_STEP);
+    isoDragX = 0;
+    /* 机距从**画面现在真实的那个距离**起步，不是从 camDist。
+       自由视角的默认机距是 23、camDist 只有 8.6：照 camDist 起步，镜头会先一头钻进去
+       再退出来（0.5 秒的"抽一下"）。effDistNow 是上一帧算完的实机距，正好用得上。 */
+    isoDistCur = effDistNow > 0.01 ? effDistNow : (camDist + distKick);
   }
   syncBtns();
   hideTip();
@@ -2373,11 +2434,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由 · 右侧拖动 转视角 · 轻点 跳/攀 · 右缘竖标签拉开测试清单 · 自由视角里双指缩放、45°键锁死视角　·　v0.14.0';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 右缘竖标签拉开测试清单 · 自由与等距里双指缩放、45°键锁死视角　·　v0.15.0';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角 · F2 设置 · F3 测试清单 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.14.0';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · F2 设置 · F3 测试清单 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.15.0';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -2399,6 +2460,10 @@ window.addEventListener('keydown', function (e) {
   if (k === ' ' || k === 'spacebar') doJump();
   if (k === 'v') toggleView();
   if (k === 'l' && freeMode) toggleLock();           /* 同上：45° 俯角锁定 */
+  /* 等距里 Q/E 不能连续转（会转出 45° 以外的方位，就不是等距了），按一下走一档 90° */
+  if (isoMode && (k === 'q' || k === 'e')) {
+    isoYawIdx = (((isoYawIdx + (k === 'q' ? 1 : -1)) % 4) + 4) % 4;
+  }
   if (k === 't') toggleTheme();                      /* 桌面没有按钮，给个键 */
   if (k === 'c') setColViz(!colVizOn);               /* 碰撞体积可视化（调试） */
   keys[k] = true;
@@ -2419,9 +2484,10 @@ runBtn.addEventListener('pointerdown', function (e) {
   hideTip();
 }, { passive: false });
 
-/* ---- 自由视角缩放：滚轮 / 双指捏合 ----
-   只在自由视角里生效——第一/第三的距离是视角身份的一部分，不该被随手改。 */
+/* ---- 自由 / 等距视角缩放：滚轮 / 双指捏合 ----
+   只在自由视角和等距视角里生效——第一/第三的距离是视角身份的一部分，不该被随手改。 */
 function zoomFree(k) {
+  if (isoMode) { isoZoom(k); return; }   /* 等距缩的是"画面覆盖多少米世界"，正交下没有 FOV 可调 */
   freeIntro = 0;                 /* 用户开始自己缩放了，默认落点的过渡立刻让位 */
   freeUserZoom = true;           /* 之后转屏不再改机距，尊重用户调的那个值 */
   freeDist *= k;
@@ -2429,7 +2495,7 @@ function zoomFree(k) {
   else if (freeDist > FREE_DIST_MAX) freeDist = FREE_DIST_MAX;
 }
 window.addEventListener('wheel', function (e) {
-  if (settingsOpen || !freeMode) return;
+  if (settingsOpen || !(freeMode || isoMode)) return;
   e.preventDefault();
   zoomFree(Math.exp(e.deltaY * 0.0011));
   hideTip();
@@ -2438,7 +2504,7 @@ window.addEventListener('wheel', function (e) {
 /* 双指捏合缩放：只在**右半屏**（看的方向）成立，用两根手指的距离控制机距。
    左半屏永远归摇杆，所以"推着摇杆走 + 右手两指缩放"可以同时进行；
    而"左手摇杆 + 右手单指拖动"是走 + 转视角，也不会被误判成缩放。 */
-var ptrs = {}, pinch = { on: false, d0: 1, dist0: 1, a: -1, b: -1 };
+var ptrs = {}, pinch = { on: false, d0: 1, dist0: 1, span0: 1, a: -1, b: -1 };
 function isRightHalf(p) { return !!p && p.x >= window.innerWidth * 0.5; }
 function pd(a, b) {
   var p = ptrs[a], q = ptrs[b];
@@ -2455,6 +2521,16 @@ function rightIds() {
 function turnBy(dx, dy, sensitivity) {
   dx *= sensitivity; dy *= sensitivity;
   var locked = (freeMode && freeLock);
+  /* 等距：俯角焊死（上下拖不动），水平拖动按 90° 一档吸附。
+     累计够 ISO_DRAG_STEP 才走一档——这样一档就是"世界转 90°"，不会拖出 37° 这种非等距的方位。
+     方向跟自由视角一致（右拖 = 视角顺时针转），不让同一块画布出现两种手感。 */
+  if (isoMode) {
+    isoDragX += dx;
+    while (isoDragX >= ISO_DRAG_STEP) { isoDragX -= ISO_DRAG_STEP; isoYawIdx -= 1; }
+    while (isoDragX <= -ISO_DRAG_STEP) { isoDragX += ISO_DRAG_STEP; isoYawIdx += 1; }
+    isoYawIdx = ((isoYawIdx % 4) + 4) % 4;
+    return;
+  }
   if (!locked) camYaw -= dx * 0.0062;          /* 锁定 45° 视角时水平也不动 */
   if (firstMode) fpPitch -= dy * 0.0035;       /* 第一人称：上下拖动抬头/低头 */
   else if (freeMode) {                         /* 自由：俯仰不设限，能翻到头顶和脚下 */
@@ -2492,13 +2568,14 @@ canvas.addEventListener('pointerdown', function (e) {
   ptrs[e.pointerId] = { x: e.clientX, y: e.clientY };
   /* 右半屏凑够两根手指 = 捏合。摇杆在左半屏，不参与这个判定，
      所以"推着摇杆走 + 右手两指缩放"和"左手摇杆 + 右手单指转视角"都不冲突。 */
-  if (freeMode && !pinch.on) {
+  if ((freeMode || isoMode) && !pinch.on) {
     var rid = rightIds();
     if (rid.length >= 2) {
       pinch.on = true;
       pinch.a = rid[0]; pinch.b = rid[1];
       pinch.d0 = pd(pinch.a, pinch.b);
       pinch.dist0 = freeDist;
+      pinch.span0 = isoViewH;
       /* 只掐掉落在这两根手指上的"转视角"，摇杆继续走 */
       if (look.active && (look.id === pinch.a || look.id === pinch.b)) {
         look.active = false; look.id = -1; look.dragging = false;
@@ -2543,9 +2620,17 @@ window.addEventListener('pointermove', function (e) {
   if (ptrs[e.pointerId]) { ptrs[e.pointerId].x = e.clientX; ptrs[e.pointerId].y = e.clientY; }
   if (pinch.on && (e.pointerId === pinch.a || e.pointerId === pinch.b)) {
     /* 按"起始距离 × 起始指距/当前指距"直接设值，不要反复累乘 */
+    var nd = pinch.dist0 * (pinch.d0 / pd(pinch.a, pinch.b));
+    if (isoMode) {
+      /* 捏合放大 = 指距变大 = 覆盖的米数变小 */
+      isoUserZoom = true;
+      isoViewH = pinch.span0 * (pinch.d0 / pd(pinch.a, pinch.b));
+      if (isoViewH < ISO_VIEW_H_MIN) isoViewH = ISO_VIEW_H_MIN;
+      else if (isoViewH > ISO_VIEW_H_MAX) isoViewH = ISO_VIEW_H_MAX;
+      return;
+    }
     freeIntro = 0;                /* 捏合 = 用户自己在调距离 */
     freeUserZoom = true;
-    var nd = pinch.dist0 * (pinch.d0 / pd(pinch.a, pinch.b));
     freeDist = nd < FREE_DIST_MIN ? FREE_DIST_MIN : (nd > FREE_DIST_MAX ? FREE_DIST_MAX : nd);
     return;                       /* 注意只拦截这两根手指，摇杆手指的移动照常往下走 */
   }
@@ -3350,8 +3435,9 @@ function update(dt) {
   sun.target.position.set(P.pos.x, 0, P.pos.z);
   sun.target.updateMatrixWorld();
 
-  /* 键盘转视角（锁定的自由视角里连 Q/E 也不动，否则"固定"名不副实） */
-  if (!(freeMode && freeLock)) {
+  /* 键盘转视角（锁定的自由视角里连 Q/E 也不动，否则"固定"名不副实；
+     等距里 Q/E 走的是"按一下一档"，所以这里也不做连续旋转） */
+  if (!(freeMode && freeLock) && !isoMode) {
     if (keys['q']) camYaw += dt * 1.9;
     if (keys['e']) camYaw -= dt * 1.9;
   }
@@ -3407,10 +3493,25 @@ function update(dt) {
     camYaw += dyaw * lk;
   }
 
+  /* ---- 等距视角：仰角焊死 35.264°、方位吸附 90° 档、机距由取景跨度反算 ----
+     每帧小步逼近（和上面 45° 锁定同一套做法）：切进来是缓动、拖一档是转过去、
+     滚轮改跨度也是缩过去，中途被打断也总能回到位，不会卡在半路。 */
+  if (isoMode && wF < 0.5) {
+    var kiso = Math.min(1, dt * 6.5);
+    camPitch += (ISO_PITCH - camPitch) * kiso;
+    var tyaw = ISO_YAW_BASE + isoYawIdx * ISO_YAW_STEP;
+    var diy = tyaw - camYaw;
+    while (diy > Math.PI) diy -= Math.PI * 2;
+    while (diy < -Math.PI) diy += Math.PI * 2;
+    camYaw += diy * kiso;
+    isoDistCur += (isoDistTarget() - isoDistCur) * kiso;
+  }
+
   /* 自由视角：直接复用第三人称那套球面轨道，只是俯仰/距离换成自由值，
      所以"缩放 + 任意角度"不用另写一套相机，也不会和第三人称打架。 */
   var orbitPitch = freeMode ? freePitch : camPitch;
   if (freeMode) effDist = freeDist;
+  else if (isoMode) effDist = isoDistCur;   /* 等距的机距由取景跨度定，不归 resize 管 */
   var cP = Math.cos(orbitPitch), sP = Math.sin(orbitPitch);
 
   /* ---- 相机防穿模：从角色肩点向相机方向打射线。
@@ -3429,8 +3530,9 @@ function update(dt) {
     camRay.far = effDist + 0.2;
     var hits = camRay.intersectObjects(blockers, false);
 
-    if (freeMode && wF < 0.05) {
-      /* 自由视角：不拉近，把挡在中间的东西变半透明 */
+    if ((freeMode || isoMode) && wF < 0.05) {
+      /* 自由 / 等距：不拉近，把挡在中间的东西变半透明。
+         等距尤其不能拉近——正交下"机距"只决定缩放，被屋顶一拽画面就整块缩水。 */
       camBlockGoal = effDist;
     } else if (wF < 0.05) {
       /* 第三人称：极限拉近 0.9m，被墙逼的，宁可贴脸也不能穿墙 */
@@ -3440,9 +3542,9 @@ function update(dt) {
       camBlockGoal = effDist;          /* 第一人称不用管 */
     }
 
-    /* 遮罩只在自由视角里挂；换回来的时候把材质还回去 */
+    /* 遮罩只在自由 / 等距里挂；换回来的时候把材质还回去 */
     var keep = [];
-    if (freeMode && wF < 0.05) {
+    if ((freeMode || isoMode) && wF < 0.05) {
       for (var hi = 0; hi < hits.length; hi++) {
         if (keep.indexOf(hits[hi].object) < 0) keep.push(hits[hi].object);
       }
@@ -3509,8 +3611,27 @@ function update(dt) {
     camera.updateProjectionMatrix();
   }
 
+  /* ---- 等距：正交相机复制透视相机的机位，只换投影 ----
+     半高 = 机距 × tan(FOV/2)，保证在枢轴平面上与透视画面等大。
+     同位置、同朝向、枢轴处等大 —— 所以任何时刻切投影都不跳；
+     而"远处的门和近处的门一样大"这件事从第一帧起就成立。 */
+  orthoCam.position.copy(camera.position);
+  orthoCam.quaternion.copy(camera.quaternion);
+  if (isoMode) {
+    var oh = effDist * Math.tan(FOV_BASE * Math.PI / 360);
+    var ow = oh * ASPECT;
+    if (Math.abs(orthoCam.top - oh) > 0.0004 || Math.abs(orthoCam.right - ow) > 0.0004) {
+      orthoCam.left = -ow; orthoCam.right = ow;
+      orthoCam.top = oh; orthoCam.bottom = -oh;
+      orthoCam.updateProjectionMatrix();
+    }
+  }
+  activeCam = isoMode ? orthoCam : camera;
+  effDistNow = effDist;
+
   window.__camYaw = camYaw;
   window.__camPitch = camPitch;
+  window.__isoOn = isoMode ? 1 : 0;
 }
 
 /* ---------------- 摇杆绘制（DOM 层，避免与 WebGL 混排） ---------------- */
@@ -3546,6 +3667,7 @@ function resize() {
   var w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
+  ASPECT = w / h;                       /* 正交视锥要按它算左右半宽 */
 
   var portrait = h > w;
   PORTRAIT = portrait;
@@ -3557,6 +3679,8 @@ function resize() {
   if (!freeUserZoom) freeDist = portrait ? FREE_DIST_DEF_P : FREE_DIST_DEF_L;
   if (!camReady) { camPitch = portrait ? 0.34 : 0.30; camReady = true; }
   camera.updateProjectionMatrix();
+  /* 等距：默认覆盖高度也跟横竖屏走（28m）；用户缩过就锁住不动。 */
+  if (!isoUserZoom) isoViewH = portrait ? ISO_VIEW_H_P : ISO_VIEW_H_L;
 
 
   UD = Math.min(window.devicePixelRatio || 1, 2);
@@ -3853,7 +3977,7 @@ function loop(t) {
   drawStick();
   if (colVizOn && playerViz) playerViz.position.set(P.pos.x, P.pos.y + 0.93, P.pos.z);
 
-  renderer.render(scene, camera);
+  renderer.render(scene, activeCam);
   adaptResolution(dt);
   /* 音效在渲染之后播：手机上 <audio> / WebAudio 的调度是同步开销，
      放在起跳那一帧的渲染前会抢主线程（用户感觉「起跳时掉帧」）。 */
@@ -3868,7 +3992,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.14.0';
+window.__worldVersion = 'v0.15.0';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
@@ -3907,6 +4031,26 @@ targets: targets,
   get axis() { return getAxis(); },
   get camBlockCur() { return camBlockCur; },
   get viewMode() { return viewMode; },
+  /* 诊断（v0.15.0）：等距视角。renderer 到底在用哪台相机、投影是不是正交、
+     视锥半高是否等于机距×tan(FOV/2)（这条不等就说明投影和机位脱节了）。 */
+  get activeCamObj() { return activeCam; },
+  get iso() {
+    return {
+      on: isoMode, yawIdx: isoYawIdx,
+      viewH: +isoViewH.toFixed(3), distCur: +isoDistCur.toFixed(3),
+      distTarget: +isoDistTarget().toFixed(3),
+      pitchTarget: ISO_PITCH, pitchNow: camPitch,
+      active: activeCam === orthoCam ? 'ortho' : 'persp',
+      isOrtho: !!activeCam.isOrthographicCamera,
+      halfH: orthoCam.top, halfW: orthoCam.right,
+      expectHalfH: effDistNow * Math.tan(FOV_BASE * Math.PI / 360)
+    };
+  },
+  setIso: function (idx, viewH) {
+    if (idx !== undefined) isoYawIdx = ((idx % 4) + 4) % 4;
+    if (viewH !== undefined) { isoViewH = viewH; isoUserZoom = true; }
+    return 1;
+  },
   /* 诊断：转身状态与当前动画（量"90° 有没有结算到 P.face 上"） */
   get turn() { return TURN; },
   get animName() { return ANIM.cur; },
