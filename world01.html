@@ -205,7 +205,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.20.0</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.21.0</div>
 <script>
 /**
  * @license
@@ -1878,7 +1878,7 @@ var lockYaw = 0;
    真等距 = 正交投影 + 仰角 atan(1/√2)=35.264° + 45° 方位。
    不是"把 FOV 调窄假装远摄"：透视再窄，平行线仍会收敛，屋顶的边和院子的地砖永远对不齐。
    正交是画法几何意义上的等距——远处的门和近处的门一样大，三条棱两两夹 120°。
-      水平角有两级档（v0.20.0）：Q/E 轻按走 15° 细档，Shift+Q/E 与拖动走 90° 粗档。
+      水平角两级档（v0.18.0 引入，v0.21.0 起只在自由模式生效）：Q/E 轻按走 15° 细档，Shift+Q/E 走 90° 粗档；固定模式下 Q/E 与拖动都不旋转。
     45°+k·90° 那四个方位是**唯一**三条轴等长的角度，其余细档是正交斜视（方块会拉长），
     这是用户明确要的取舍：微调优先于几何纯度。 */
 var ISO_PITCH = Math.atan(1 / Math.SQRT2);      /* 35.264°：真等距仰角 */
@@ -1887,11 +1887,10 @@ var ISO_YAW_FINE = Math.PI / 12;                /* 细档 15°：Q/E 轻按走�
 var ISO_YAW_TICKS = 24;                         /* 一圈 24 格 */
 var ISO_YAW_COARSE = 6;                         /* 粗档 = 6 细格 = 90°（Shift+Q/E、拖动） */
 var isoYawIdx = 0;                              /* 细档序号 0..23 → 方位 = 45° + n×15° */
-var isoDragX = 0;                               /* 拖动累计量：吸附模式下够 ISO_DRAG_STEP 走一格粗档 */
-var ISO_DRAG_STEP = 80;                         /* 80px 一格粗档（90°），和自由视角的转速手感接近 */
-/* 拖动手感开关：默认「固定」（v0.20.0 改的，用户要求"默认固定"）——拖动按粗档跳格，
-   80px 一格 90°，松手落在 15° 格上；按 G / 点按钮可切「自由」，跟手连续转、松手停在哪是哪。
-   档位本身（Q/E 15°、Shift 90°）不受这个开关影响，随时可用。 */
+/* 等距旋转模式开关：默认「固定」。
+   固定 = **完全不能旋转**（v0.21.0 用户拍板）：拖动不转、Q/E 也不转，机位焊在真等距方位上；
+   自由 = 拖动跟手连续转（松手停在哪是哪），Q/E 仍可 15° / 90° 档位微调。
+   两档用 G 键 / 右上角「固定/自由」按钮切换；切到固定的那一刻吸附到最近的真等距方位。 */
 var isoFreeDrag = false;
 var isoDistCur = 0;                             /* 等距的当前机距（每帧缓动到目标） */
 /* 取景用"画面纵向覆盖多少米世界"来定（isoViewH），不用"窄边"那套：
@@ -1941,7 +1940,7 @@ function isoZoom(k) {
    必须放在第一次 resize() 之后——机距要从 isoViewH 和 FOV_BASE 反算，
    这两个值都由 resize 按横竖屏定。 */
 function isoSnap() {
-  camYaw = ISO_YAW_BASE + isoYawIdx * ISO_YAW_FINE;
+  camYaw = ISO_YAW_BASE + isoYawIdx * ISO_YAW_FINE;   /* idx=0 → 45°：开局直接落在真等距方位 */
   camPitch = ISO_PITCH;
   isoDistCur = isoDistTarget();
 }
@@ -2168,10 +2167,13 @@ function toggleView() {
      水平角吸附到最近的 90° 档（最近 = 最多转 45°，不会为了对齐绕大半圈）；
      俯角/机距由 updateCamera 里每帧小步逼近（同 45° 锁定的做法），所以怎么打断都能回位。 */
   if (isoMode) {
-    isoYawIdx = Math.round((camYaw - ISO_YAW_BASE) / ISO_YAW_FINE);
+    if (isoFreeDrag) {
+      isoYawIdx = Math.round((camYaw - ISO_YAW_BASE) / ISO_YAW_FINE);
+    } else {
+      isoYawIdx = Math.round((camYaw - ISO_YAW_BASE) / ISO_YAW_COARSE) * ISO_YAW_COARSE;   /* 固定：落真等距方位 */
+    }
     isoYawIdx = ((isoYawIdx % ISO_YAW_TICKS) + ISO_YAW_TICKS) % ISO_YAW_TICKS;
-    camYaw = ISO_YAW_BASE + isoYawIdx * ISO_YAW_FINE;   /* 自由模式下这也是起点：先把当前机位记到格上 */
-    isoDragX = 0;
+    camYaw = ISO_YAW_BASE + isoYawIdx * ISO_YAW_FINE;
     /* 机距从**画面现在真实的那个距离**起步，不是从 camDist。
        自由视角的默认机距是 23、camDist 只有 8.6：照 camDist 起步，镜头会先一头钻进去
        再退出来（0.5 秒的"抽一下"）。effDistNow 是上一帧算完的实机距，正好用得上。 */
@@ -2187,14 +2189,15 @@ function toggleLock() {
   syncBtns();
   hideTip();
 }
-/* 等距拖动手感开关（v0.20.0）：自由 ↔ 吸附。
-   开吸附那一刻把当前机位落回最近的 15° 格——从"停在哪是哪"平滑过渡到"停在格上"。 */
+/* 等距旋转模式开关：自由 ↔ 固定。
+   固定 = 机位焊死在真等距方位上：切过去那一刻吸附到最近的 45°+k·90°（最多转 45°，
+   不会为了对齐绕大半圈）——固定档的"固定"指的就是这个正统等距机位。 */
 function toggleIsoSnap() {
   isoFreeDrag = !isoFreeDrag;
   if (!isoFreeDrag) {
-    isoYawIdx = Math.round((camYaw - ISO_YAW_BASE) / ISO_YAW_FINE);
+    isoYawIdx = Math.round((camYaw - ISO_YAW_BASE) / ISO_YAW_COARSE) * ISO_YAW_COARSE;
     isoYawIdx = ((isoYawIdx % ISO_YAW_TICKS) + ISO_YAW_TICKS) % ISO_YAW_TICKS;
-    isoDragX = 0;
+    camYaw = ISO_YAW_BASE + isoYawIdx * ISO_YAW_FINE;
   }
   syncBtns();
   hideTip();
@@ -2264,11 +2267,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定/自由拖动　·　v0.20.0';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.21.0';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · Q/E 等距微调 15°（Shift 90°） · G 等距拖动 固定/自由 · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.20.0';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.21.0';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -2288,14 +2291,15 @@ window.addEventListener('keydown', function (e) {
   if (k === ' ' || k === 'spacebar') doJump();
   if (k === 'v') toggleView();
   if (k === 'l' && freeMode) toggleLock();           /* 同上：45° 俯角锁定 */
-  /* 等距的方位键：Q/E 轻按微调 15°，按住 Shift 走 90° 粗档。
+  /* 等距的方位键（只在高由模式生效——固定就是不能旋转）：
+     Q/E 轻按微调 15°，按住 Shift 走 90° 粗档。
      细档会离开「三条轴等长」的四个方位（方块略微拉长），但能停在中间角度看构图。 */
-  if (isoMode && (k === 'q' || k === 'e')) {
+  if (isoMode && isoFreeDrag && (k === 'q' || k === 'e')) {
     var istep = e.shiftKey ? ISO_YAW_COARSE : 1;
     isoYawIdx = (((isoYawIdx + (k === 'q' ? istep : -istep)) % ISO_YAW_TICKS) + ISO_YAW_TICKS) % ISO_YAW_TICKS;
-    if (isoFreeDrag) camYaw = ISO_YAW_BASE + isoYawIdx * ISO_YAW_FINE;   /* 自由模式下按键直接落位 */
+    camYaw = ISO_YAW_BASE + isoYawIdx * ISO_YAW_FINE;   /* 自由模式下按键直接落位 */
   }
-  if (k === 'g' && isoMode) toggleIsoSnap();         /* 等距拖动手感：自由 / 吸附 */
+  if (k === 'g' && isoMode) toggleIsoSnap();         /* 等距旋转模式：固定 / 自由 */
   if (k === 't') toggleTheme();                      /* 桌面没有按钮，给个键 */
   if (k === 'c') setColViz(!colVizOn);               /* 碰撞体积可视化（调试） */
   keys[k] = true;
@@ -2351,26 +2355,17 @@ function rightIds() {
 }
 
 function turnBy(dx, dy, sensitivity) {
-  var rawDx = dx;                 /* 未乘灵敏度的物理位移：等距档位阈值按它算 */
   dx *= sensitivity; dy *= sensitivity;
   var locked = (freeMode && freeLock);
-  /* 等距：俯角焊死（上下拖不动）。水平拖动有两档手感（v0.20.0）：
-     · 自由（默认）——跟手连续转，camYaw 是主，isoYawIdx 每帧反着同步；
-     · 吸附——累计 80px 跳一格粗档（90°），永远落在档位上。
+  /* 等距：俯角焊死（上下拖不动）。水平拖动看模式（v0.21.0）：
+     · 固定——**完全不能旋转**，拖动只算"有人在碰"（喂待机计时器），机位不动；
+     · 自由——跟手连续转，camYaw 是主，isoYawIdx 每帧反着同步。
      方向跟自由视角一致（右拖 = 视角顺时针转），不让同一块画布出现两种手感。 */
   if (isoMode) {
-    if (isoFreeDrag) {
-      camYaw -= dx * 0.0062;
-      isoYawIdx = Math.round((camYaw - ISO_YAW_BASE) / ISO_YAW_FINE);
-      isoYawIdx = ((isoYawIdx % ISO_YAW_TICKS) + ISO_YAW_TICKS) % ISO_YAW_TICKS;
-    } else {
-      /* 用物理位移累计：灵敏度是"连续转动快慢"的偏好，不该改变"拖几像素走一格"的定义。
-         乘过灵敏度的 dx 在默认 0.5 下会让阈值翻倍（要拖 160px 才走一格），那是 bug。 */
-      isoDragX += rawDx;
-      while (isoDragX >= ISO_DRAG_STEP) { isoDragX -= ISO_DRAG_STEP; isoYawIdx -= ISO_YAW_COARSE; }
-      while (isoDragX <= -ISO_DRAG_STEP) { isoDragX += ISO_DRAG_STEP; isoYawIdx += ISO_YAW_COARSE; }
-      isoYawIdx = ((isoYawIdx % ISO_YAW_TICKS) + ISO_YAW_TICKS) % ISO_YAW_TICKS;
-    }
+    if (!isoFreeDrag) return;   /* 固定：不能旋转 */
+    camYaw -= dx * 0.0062;
+    isoYawIdx = Math.round((camYaw - ISO_YAW_BASE) / ISO_YAW_FINE);
+    isoYawIdx = ((isoYawIdx % ISO_YAW_TICKS) + ISO_YAW_TICKS) % ISO_YAW_TICKS;
     return;
   }
   if (!locked) camYaw -= dx * 0.0062;          /* 锁定 45° 视角时水平也不动 */
@@ -3876,7 +3871,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.20.0';
+window.__worldVersion = 'v0.21.0';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
