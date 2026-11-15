@@ -1,9 +1,12 @@
 # AGENTS.md · 协作契约
 
-**进这个项目先读这一页，再动手。**
+**进这个项目先读 `HANDOFF.md`（5 分钟交接总纲），再读这一页，然后动手。**
 
+- **交接总纲：`HANDOFF.md` ← 第一个读**（你是谁、读什么、底线、第一小时）
+- **当前状态与任务看板：`docs/STATE.md` ← 第二个读**（现在到哪了、该干什么、不许干什么）
+- 操作手册（跑测试 / 发版 / 常见错误）：`docs/RUNBOOK.md`
 - 完整规则：`docs/RULES.md`
-- **项目记忆（背景、决策、踩过的坑、参数速查）：`docs/MEMORY.md` ← 接手必读**
+- **项目记忆（背景、决策、踩过的坑、参数速查）：`docs/MEMORY.md` ← 写代码前必读**
 
 ---
 
@@ -24,7 +27,7 @@
 2. **不用图片素材** —— 一切视觉由几何体与光照生成。
 3. **改完必须验证**，方式见下。没验证不许说"做好了"。
 4. **每次改动都要留痕** —— 备份 + git 提交 + CHANGELOG 条目，三样缺一不可。
-5. **测试清单只在文档里维护一份**（`docs/TESTLIST-*.md`），游戏里不再有清单侧栏。用户 2026-11-15 拍板：
+5. **测试清单只在文档里维护一份**（`docs/TESTLIST-20261114.md`，滚动一份、不按日期新建），游戏里不再有清单侧栏。用户 2026-11-15 拍板：
    > "把 world01 的清单删了，在文档维护一份就行，你每次改东西，我每次反馈你都更新一下。"
 
    - 每次**改功能** → 追加一条（版本 / 做了什么 / 怎么测 / 应该看到什么）
@@ -35,18 +38,11 @@
 
 ## 改完之后必须跑的验证
 
-```bash
-# 1) 每个 script 块单独语法检查（历史上坏的是库那一块，不是游戏那一块）
-node -e 'const fs=require("fs");const s=fs.readFileSync("world01.html","utf8");
-const m=[...s.matchAll(/<script>([\s\S]*?)<\/script>/g)];
-m.forEach((x,i)=>fs.writeFileSync(".chk_"+i+".js",x[1]));console.log(m.length+" blocks");'
-for f in .chk_*.js; do node --check "$f"; done && rm -f .chk_*.js
+**完整命令、统一做法、常见错误只在 `docs/RUNBOOK.md`（第 1~3 节），这里不重复。** 三件事：
 
-# 2) 孤立目录测试（最重要，能暴露一切依赖缺失）
-rm -rf _solo && mkdir _solo && cp world01.html _solo/
-# 然后用无头浏览器打开 _solo/world01.html 并截图，画面必须正常
-rm -rf _solo
-```
+1. **逐块语法检查**（5 个 `<script>` 块，历史上坏的是库那一块，不是游戏那一块）
+2. **回归测试**：`(python -m http.server 8779 &) ; sleep 1.5 ; bash tests/run_with_edge.sh tests/w01_xxx.mjs` —— 服务与测试必须同一条命令
+3. **孤立目录 `file://` 验证**（最重要，能暴露一切依赖缺失）：空目录只放 `world01.html`，打开截图，画面正常、控制台零异常、零外部请求
 
 双端都要看：横屏 1280×720、竖屏 390×844。
 
@@ -55,12 +51,14 @@ rm -rf _solo
 ## 收尾清单
 
 - [ ] `docs/CHANGELOG.md` 新增一条（版本号 + 日期 + 新增/修正/未做）
-- [ ] **`docs/TESTLIST-*.md` 追加这次改动的条目**（这是唯一的测试清单，见下条）
+- [ ] **`docs/STATE.md` 更新**（一句话状态 / 最近版本 / 任务看板 —— 这是交接的活文档）
+- [ ] `docs/HISTORY.md` 顶部加一行（一版一行）
+- [ ] **`docs/TESTLIST-20261114.md` 追加这次改动的条目**（这是唯一的测试清单，见下条）
 - [ ] 触及相关文档的，同步更新 `docs/DESIGN.md` 或 `docs/GAME.md`
 - [ ] 决策或踩坑有变化的，更新 `docs/MEMORY.md`
 - [ ] `bash tools/snapshot.sh <版本号> "<说明>"`（会自动备份 + 刷新 `backups/versions.html`）
   - 用户要看旧版本时：打开 `backups/versions.html`，点一行就是那一版，不需要懂 git
-- [ ] 清理临时文件（`_*.png`、`_*.mjs`、`_solo/`、`.chk_*.js`）
+- [ ] 清理临时文件（临时截图、`.chk_*.js`、`/d/temp/_isolated`）
 
 ---
 
