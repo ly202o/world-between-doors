@@ -228,7 +228,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.23.0</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.23.1</div>
 <script>
 /**
  * @license
@@ -2312,11 +2312,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.23.0';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.23.1';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.23.0';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.23.1';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -2336,6 +2336,11 @@ window.addEventListener('keydown', function (e) {
   if (k === ' ' || k === 'spacebar') doJump();
   if (k === 'v') toggleView();
   if (k === 'l' && freeMode) toggleLock();           /* 同上：45° 俯角锁定 */
+  /* 便利店门（v0.23.1）：站在门前时 E 开关门，不占用等距自由模式的 E 转角 */
+  if (k === 'e' && storeDoor && storeDoor.focus) {
+    toggleStoreDoor();
+    return;
+  }
   /* 等距的方位键（只在高由模式生效——固定就是不能旋转）：
      Q/E 轻按微调 15°，按住 Shift 走 90° 粗档。
      细档会离开「三条轴等长」的四个方位（方块略微拉长），但能停在中间角度看构图。 */
@@ -3798,7 +3803,8 @@ function buildDuskLevel(worldScene) {
     var root = new THREE.Group();
     root.name = 'duskStreet';
     var scene = root; /* 原文件里所有 scene.add 都收进这一组 */
-    var doorLeaves = []; /* 预留：以后要做自动门时用 */
+    var doorLeaves = []; /* v0.23.1：两扇玻璃门扇（包成 group，好绕外侧门柱转） */
+    var ceilLamps = [];  /* v0.23.1：顶棚灯，进店后要跟着顶棚一起收起来 */
     /* ---------------------------------------------------------------- palette -- */
     var PAL = {
         cream: 0xe7d7b8,
@@ -4834,14 +4840,22 @@ function buildDuskLevel(worldScene) {
         boxAt(p_2, 0.1, S.glassTop - 0.38, 0.16, frameMat_1, 0.3, 0.38, fz_1);
         boxAt(p_2, 1.9, 0.09, 0.18, frameMat_1, dx, S.glassTop - 0.09, fz_1);
         boxAt(p_2, 1.9, 0.05, 0.2, toon(0xb8bcc0), dx, 0.355, fz_1);
-        [-1.06, -0.24].forEach(function (px, i) {
+        [0, 1].forEach(function (i) {
+            var px = i ? -0.24 : -1.06;
             var pz = S.z1 - 0.03 + (i ? 0.07 : 0);
-            panelAt(p_2, 0.86, S.glassTop - 0.48, MAT.glass, px, 0.4, pz);
-            boxAt(p_2, 0.86, 0.06, 0.09, frameMat_1, px, 0.4, pz);
-            boxAt(p_2, 0.86, 0.05, 0.09, frameMat_1, px, S.glassTop - 0.5, pz);
-            boxAt(p_2, 0.05, S.glassTop - 0.48, 0.09, frameMat_1, px - 0.41, 0.4, pz);
-            boxAt(p_2, 0.05, S.glassTop - 0.48, 0.09, frameMat_1, px + 0.41, 0.4, pz);
-            boxAt(p_2, 0.72, 0.05, 0.03, new THREE.MeshBasicMaterial({ color: 0xffffff }), px, 1.44, pz + 0.05);
+            var hingeX = i ? 0.19 : -1.49;   /* 右扇铰右柱、左扇铰左柱，向内开 */
+            var leaf = new THREE.Group();
+            leaf.name = i ? 'storeDoorR' : 'storeDoorL';
+            leaf.position.set(hingeX, 0, pz);
+            p_2.add(leaf);
+            var lx = px - hingeX;
+            panelAt(leaf, 0.86, S.glassTop - 0.48, MAT.glass, lx, 0.4, 0);
+            boxAt(leaf, 0.86, 0.06, 0.09, frameMat_1, lx, 0.4, 0);
+            boxAt(leaf, 0.86, 0.05, 0.09, frameMat_1, lx, S.glassTop - 0.5, 0);
+            boxAt(leaf, 0.05, S.glassTop - 0.48, 0.09, frameMat_1, lx - 0.41, 0.4, 0);
+            boxAt(leaf, 0.05, S.glassTop - 0.48, 0.09, frameMat_1, lx + 0.41, 0.4, 0);
+            boxAt(leaf, 0.72, 0.05, 0.03, new THREE.MeshBasicMaterial({ color: 0xffffff }), lx, 1.44, 0.05);
+            doorLeaves.push(leaf);
         });
         // door sensor + floor track: reads as an automatic door
         boxAt(p_2, 0.46, 0.13, 0.15, toon(0x2f3437), dx, S.glassTop + 0.02, fz_1 + 0.14);
@@ -5124,14 +5138,15 @@ function buildDuskLevel(worldScene) {
         // ceiling + light troughs
         var ceilMat = new THREE.MeshBasicMaterial({ color: 0xfff0d6 });
         var ceil = new THREE.Mesh(new THREE.PlaneGeometry(IX1 - IX0, IZ1 - IZ0), ceilMat);
+        ceil.name = 'storeCeil';
         ceil.rotation.x = Math.PI / 2;
         ceil.position.set(SCX, S.ceil, (IZ0 + IZ1) / 2);
         p_5.add(ceil);
         var lampMat_1 = new THREE.MeshBasicMaterial({ color: 0xfffaf0 });
         [-1.15, 1.3, 3.75].forEach(function (lx) {
             [-1.6, -3.4, -5.2].forEach(function (lz) {
-                boxAt(p_5, 1.35, 0.06, 0.42, lampMat_1, lx, S.ceil - 0.07, lz);
-                boxAt(p_5, 1.5, 0.05, 0.56, toon(0xe4dfd4), lx, S.ceil - 0.03, lz);
+                ceilLamps.push(boxAt(p_5, 1.35, 0.06, 0.42, lampMat_1, lx, S.ceil - 0.07, lz));
+                ceilLamps.push(boxAt(p_5, 1.5, 0.05, 0.56, toon(0xe4dfd4), lx, S.ceil - 0.03, lz));
             });
         });
         /* hanging sale banners */
@@ -5867,7 +5882,10 @@ function buildDuskLevel(worldScene) {
         host: root,
         sky: sky,
         lights: { hemi: hemi, sun: sun, fill: fill, bounce: bounce },
-        store: { x0: S.x0, x1: S.x1, z0: S.z0, z1: S.z1 }
+        store: { x0: S.x0, x1: S.x1, z0: S.z0, z1: S.z1 },
+        doors: doorLeaves,
+        ceiling: ceil,
+        ceilLamps: ceilLamps
     };
 }
 
@@ -6101,6 +6119,124 @@ buildPlaza();
 
 fillCollisionGaps();
 
+/* ---------------- 便利店门：开门进去（v0.23.1） ----------------
+   两扇玻璃门绕外侧门柱向内开；开门期间把门扇碰撞体挪开，关门再还原。
+   站在门前 2.6m 内出现弱提示；PC 按 E，触屏点右下角按钮。
+   进店后把屋顶和顶棚收起来，否则等距俯角只能看到屋顶。 */
+var storeDoor = null;
+function initStoreDoor() {
+  var host = duskLevel.host;
+  host.updateMatrixWorld(true);
+  var st = duskLevel.store;
+
+  /* 门口的杂志架横在门洞上：整块搬走（碰撞体挪到 -9999，数量不变），否则人进不去 */
+  var rb = new THREE.Box3(), rk = [];
+  host.traverse(function (o) {
+    if (!o.isMesh || !o.geometry) return;
+    rb.setFromObject(o);
+    if (rb.min.x > -24.3 && rb.max.x < -23.8 && rb.min.z > 21.4 && rb.max.z < 24.1 &&
+        rb.min.y > 0.3 && rb.max.y < 1.45 &&
+        (rb.max.x - rb.min.x) < 0.6 && (rb.max.z - rb.min.z) > 1.5) rk.push(o);
+  });
+  for (var ri = 0; ri < rk.length; ri++) if (rk[ri].parent) rk[ri].parent.remove(rk[ri]);
+  var rackGone = rk.length;
+  for (var ci = 0; ci < colliders.length; ci++) {
+    var cc = colliders[ci];
+    if (Math.abs(cc.x + 24.06) < 0.25 && Math.abs(cc.z - 22.75) < 1.45 && cc.top < 1.5) {
+      cc.x = -9999; cc.z = -9999;
+    }
+  }
+
+  /* 门中心：两扇门铰链的中点（本地 -0.65 / z1-0.03） */
+  var c = new THREE.Vector3((duskLevel.doors[0].position.x + duskLevel.doors[1].position.x) / 2, 0,
+                            duskLevel.doors[0].position.z);
+  host.localToWorld(c);
+  /* 门洞足迹内的碰撞体：门扇玻璃、上下横档、白横杆都归门，开门时整体让开。
+     审计给 auto 碰撞体只留位置、不指向 mesh，所以按世界坐标的矩形足迹反查。 */
+  var cols = [];
+  var oz0 = c.z - 0.92, oz1 = c.z + 0.92;
+  for (var i = 0; i < colliders.length; i++) {
+    var col = colliders[i];
+    if (col.kind === 'fence' || col.kind === 'flat' || col.kind === 'pebble' || col.kind === 'leaf') continue;
+    if (Math.abs(col.x - c.x) > 0.45) continue;
+    if (col.z < oz0 || col.z > oz1) continue;
+    if (col.bottom > 2.45 || col.top < 0.3) continue;
+    cols.push({ col: col, x0: col.x, z0: col.z });
+  }
+  var tip = document.createElement('div');
+  tip.id = 'doorTip';
+  tip.textContent = '按 E 开门';
+  tip.style.cssText = 'position:fixed;left:50%;bottom:86px;transform:translateX(-50%) translateY(8px);' +
+    'padding:8px 16px;border-radius:999px;background:rgba(12,14,20,.66);color:#f2f5fa;' +
+    'font:500 13px/1.25 "PingFang SC","Microsoft YaHei",system-ui,sans-serif;letter-spacing:.04em;' +
+    'border:1px solid rgba(255,255,255,.16);pointer-events:none;opacity:0;' +
+    'transition:opacity .16s ease,transform .16s ease;z-index:34;' +
+    'backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);';
+  document.body.appendChild(tip);
+  var btn = document.createElement('button');
+  btn.id = 'doorBtn';
+  btn.type = 'button';
+  btn.textContent = '开门';
+  btn.style.cssText = 'position:fixed;right:22px;bottom:130px;width:76px;height:76px;border-radius:50%;' +
+    'border:1px solid rgba(255,255,255,.24);background:rgba(18,20,28,.74);color:#f6f8fc;' +
+    'font:600 15px/1 "PingFang SC","Microsoft YaHei",system-ui,sans-serif;letter-spacing:.08em;' +
+    'display:none;z-index:35;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);' +
+    'touch-action:manipulation;-webkit-user-select:none;user-select:none;';
+  btn.addEventListener('pointerdown', function (ev) {
+    ev.preventDefault(); ev.stopPropagation();
+    toggleStoreDoor(); markInput();
+  });
+  document.body.appendChild(btn);
+  storeDoor = {
+    center: new THREE.Vector3(c.x, 0, c.z),
+    left: duskLevel.doors[0], right: duskLevel.doors[1],
+    roof: host.getObjectByName('storeRoof'),
+    cols: cols, tip: tip, btn: btn,
+    open: false, angle: 0, target: 0, focus: false, inside: false
+  };
+  updateStoreDoor(0);
+}
+function toggleStoreDoor() {
+  if (!storeDoor) return;
+  storeDoor.open = !storeDoor.open;
+  storeDoor.target = storeDoor.open ? 1.62 : 0;
+  for (var i = 0; i < storeDoor.cols.length; i++) {
+    var e = storeDoor.cols[i];
+    if (storeDoor.open) { e.col.x = -9999; e.col.z = -9999; }
+    else { e.col.x = e.x0; e.col.z = e.z0; }
+  }
+  storeDoor.tip.textContent = storeDoor.open ? '按 E 关门' : '按 E 开门';
+  storeDoor.btn.textContent = storeDoor.open ? '关门' : '开门';
+}
+function updateStoreDoor(dt) {
+  if (!storeDoor) return;
+  var k = Math.min(1, dt * 12);
+  storeDoor.angle += (storeDoor.target - storeDoor.angle) * k;
+  if (Math.abs(storeDoor.target - storeDoor.angle) < 0.001) storeDoor.angle = storeDoor.target;
+  storeDoor.left.rotation.y = storeDoor.angle;
+  storeDoor.right.rotation.y = -storeDoor.angle;
+  var p = P.pos;
+  var ddx = p.x - storeDoor.center.x, ddz = p.z - storeDoor.center.z;
+  var focus = (ddx * ddx + ddz * ddz < 6.76) && p.y < 1.2;
+  if (focus !== storeDoor.focus) {
+    storeDoor.focus = focus;
+    storeDoor.tip.style.opacity = focus ? '1' : '0';
+    storeDoor.tip.style.transform = 'translateX(-50%) translateY(' + (focus ? '0' : '8px') + ')';
+    storeDoor.btn.style.display = (focus && TOUCH_UI) ? 'block' : 'none';
+  }
+  var st = duskLevel.store;
+  var wx0 = DUSK_SPOT.x + st.z0 + 0.25, wx1 = DUSK_SPOT.x + st.z1 - 0.25;
+  var wz0 = DUSK_SPOT.z - st.x1 + 0.25, wz1 = DUSK_SPOT.z - st.x0 - 0.25;
+  var inside = p.x > wx0 && p.x < wx1 && p.z > wz0 && p.z < wz1 && p.y < 2.0;
+  if (inside !== storeDoor.inside) {
+    storeDoor.inside = inside;
+    if (storeDoor.roof) storeDoor.roof.visible = !inside;
+    duskLevel.ceiling.visible = !inside;
+    for (var j = 0; j < duskLevel.ceilLamps.length; j++) duskLevel.ceilLamps[j].visible = !inside;
+  }
+}
+initStoreDoor();
+
 /* ---------------- 主循环 ---------------- */
 var last = performance.now();
 var acc = 0;
@@ -6221,6 +6357,7 @@ function loop(t) {
   if (colVizOn && playerViz) playerViz.position.set(P.pos.x, P.pos.y + 0.93, P.pos.z);
 
   updateDuskWeather(dt);
+  updateStoreDoor(dt);
   renderer.render(scene, activeCam);
   adaptResolution(dt);
   /* 音效在渲染之后播：手机上 <audio> / WebAudio 的调度是同步开销，
@@ -6236,7 +6373,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.23.0';
+window.__worldVersion = 'v0.23.1';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
@@ -6276,6 +6413,18 @@ targets: targets,
   },
   setIdleMs: function (ms) { IDLE_MS = Math.max(200, +ms || 30000); markInput(); return IDLE_MS; },
   get frameCount() { return renderer.info.render.frame; },
+  /* 诊断（v0.23.1）：便利店门状态（开合/提示/是否在店内） */
+  get storeDoor() {
+    return storeDoor ? { open: storeDoor.open, focus: storeDoor.focus,
+      center: [+storeDoor.center.x.toFixed(2), +storeDoor.center.z.toFixed(2)],
+      cols: storeDoor.cols.length,
+      inside: storeDoor.inside, angle: +storeDoor.angle.toFixed(3),
+      leaves: duskLevel.doors.length,
+      pos: [+P.pos.x.toFixed(2), +P.pos.y.toFixed(2), +P.pos.z.toFixed(2)],
+      roof: storeDoor.roof ? storeDoor.roof.visible : null,
+      ceil: duskLevel.ceiling.visible,
+      lamps: duskLevel.ceilLamps.length } : null;
+  },
   /* 诊断（v0.15.0）：等距视角。renderer 到底在用哪台相机、投影是不是正交、
      视锥半高是否等于机距×tan(FOV/2)（这条不等就说明投影和机位脱节了）。 */
   get activeCamObj() { return activeCam; },

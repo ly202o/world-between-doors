@@ -2,6 +2,9 @@
 # backups/ 只是给"不熟悉 git、想直接双击某个旧版本"的场景准备的物理副本。
 backups/
 
+# 发布副本（给外面用的物理文件）：版本历史仍以 git / backups/ 为准。
+release/
+
 # 调试产物
 _solo/
 _*.png
