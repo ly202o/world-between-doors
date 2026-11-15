@@ -155,9 +155,32 @@
   #settingsFoot { position: sticky; bottom: -14px; margin: 0 -14px -14px; padding: 8px 14px 14px;
     background: var(--bg);   /* 用不透明的页面底色：半透明面板色会把身后的滑条透出来 */
     box-shadow: 0 -6px 10px -8px var(--shadow); }
-  /* 矮屏（横屏手机）：改成贴底的面板，否则顶边 268px 会把可用高度吃光 */
-  @media (max-height: 560px) {
+  /* 矮且窄（竖屏手机横过来拿但不够宽 / 小窗口）：改成贴底的面板，
+     否则顶边 268px 会把可用高度吃光。宽 ≥700 走下面的侧栏，不归这条管。 */
+  @media (max-height: 560px) and (max-width: 699px) {
     #settingsPanel { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); max-height: 74vh; }
+  }
+  /* ---- 侧边栏模式（v0.22.0）----
+     **宽 ≥700 就并行，不看高度**：侧栏占的是宽度，矮视口（横屏手机 844×390）
+     扣掉 300px 也还有 544px 画布，而且全高侧栏不额外占高度——比贴底卡片更合算。
+     窄屏（竖屏手机 <700）没有并行的空间，走上面的覆盖式面板。 */
+  @media (min-width: 700px) {
+    #settingsPanel {
+      top: 0; right: 0; bottom: 0; left: auto;
+      width: 300px; max-width: none;
+      height: 100%; max-height: none;
+      border-radius: 0; border-left: 1px solid var(--shadow);
+      box-shadow: -10px 0 26px -14px var(--shadow);
+      padding: 16px 18px 18px;
+    }
+    /* 页脚的负边距跟着侧栏的内边距走，否则吸底会漏一条 */
+    #settingsPanel #settingsFoot { bottom: -18px; margin: 0 -18px -18px; padding: 10px 18px 18px; }
+    /* 画面让出 300px；canvas 的渲染尺寸在 resize() 里按它自己的 clientWidth 算 */
+    body.sideOpen #c { width: calc(100% - 300px); }
+    body.sideOpen #runBtn, body.sideOpen #viewBtn, body.sideOpen #lockBtn,
+    body.sideOpen #snapBtn, body.sideOpen #themeBtn, body.sideOpen #colBtn,
+    body.sideOpen #settingsBtn, body.sideOpen #mouseBtn { right: 314px; }
+    body.sideOpen #tip { right: 300px; }
   }
   #fps {
     position: fixed; left: 10px; top: 8px;
@@ -205,7 +228,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.21.0</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.22.0</div>
 <script>
 /**
  * @license
@@ -1933,6 +1956,9 @@ function isoZoom(k) {
   isoViewH *= k;
   if (isoViewH < ISO_VIEW_H_MIN) isoViewH = ISO_VIEW_H_MIN;
   else if (isoViewH > ISO_VIEW_H_MAX) isoViewH = ISO_VIEW_H_MAX;
+  /* v0.22.0：用户输入直接落到位。以前这里只改目标、靠每帧 ~100ms 的缓动去追，
+     滚轮/捏合的手指停了画面还在后面"补"，双重平滑 = 黏顿感。 */
+  isoDistCur = isoDistTarget();
 }
 /* 一次性把等距的三个状态对齐（仰角/方位/机距），不做缓动。
    只在开局用：默认档是等距，如果还走"每帧小步逼近"，加载后第一秒镜头会
@@ -2042,6 +2068,9 @@ function resetInput() {
 function showSettings(on) {
   settingsOpen = !!on;
   settingsPanel.hidden = !settingsOpen;
+  /* v0.22.0：桌面上是**并行侧边栏**——body.sideOpen 让画布缩窄、右缘按钮左移，
+     面板与画面各占一块，不互相遮挡。窄屏 CSS 不认这个类，仍是覆盖式。 */
+  document.body.classList.toggle('sideOpen', settingsOpen);
   document.getElementById('settingsBtn').classList.toggle('on', settingsOpen);
   /* 面板不吞键盘移动，但打开时必须切断残留的画面指针/触摸手势。 */
   mouse.down = false;
@@ -2053,6 +2082,8 @@ function showSettings(on) {
     pinch.on = false;
   }
   if (settingsOpen && document.exitPointerLock) document.exitPointerLock();
+  /* 画布宽度变了：同一帧内重算渲染尺寸，避免开面板时闪一下全宽画面 */
+  resize();
   syncSettings();
 }
 settingsPanel.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
@@ -2464,6 +2495,7 @@ window.addEventListener('pointermove', function (e) {
       isoViewH = pinch.span0 * (pinch.d0 / pd(pinch.a, pinch.b));
       if (isoViewH < ISO_VIEW_H_MIN) isoViewH = ISO_VIEW_H_MIN;
       else if (isoViewH > ISO_VIEW_H_MAX) isoViewH = ISO_VIEW_H_MAX;
+      isoDistCur = isoDistTarget();   /* 跟手：手指在哪画面就在哪，不叠缓动 */
       return;
     }
     freeIntro = 0;                /* 捏合 = 用户自己在调距离 */
@@ -3507,12 +3539,17 @@ function drawStick() {
 
 /* ---------------- 尺寸 ---------------- */
 function resize() {
-  var w = window.innerWidth, h = window.innerHeight;
+  /* v0.22.0：按 canvas 自己的 CSS 尺寸算，不再读 window。
+     侧栏打开时画布只占左侧 700-300，读 window 会按全宽渲染、画面被横向压扁。 */
+  var w = canvas.clientWidth || window.innerWidth;
+  var h = canvas.clientHeight || window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   ASPECT = w / h;                       /* 正交视锥要按它算左右半宽 */
 
-  var portrait = h > w;
+  /* 横竖屏按**窗口**判，不按画布——侧栏把画布缩窄了（900×700 的窗口会变成
+     600×700 的"竖屏"），按画布判会让 FOV 从 48 跳到 60、人突然变小。 */
+  var portrait = window.innerHeight > window.innerWidth;
   PORTRAIT = portrait;
   FOV_BASE = portrait ? 60 : 48;
   camera.fov = FOV_BASE;
@@ -3871,7 +3908,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.21.0';
+window.__worldVersion = 'v0.22.0';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
@@ -3936,7 +3973,7 @@ targets: targets,
          所以这里必须直接摆机位。吸附模式下序号驱动镜头，不用动 camYaw。 */
       if (isoFreeDrag) camYaw = ISO_YAW_BASE + isoYawIdx * ISO_YAW_FINE;
     }
-    if (viewH !== undefined) { isoViewH = viewH; isoUserZoom = true; }
+    if (viewH !== undefined) { isoViewH = viewH; isoUserZoom = true; isoDistCur = isoDistTarget(); }
     return 1;
   },
   /* 诊断：转身状态与当前动画（量"90° 有没有结算到 P.face 上"） */
