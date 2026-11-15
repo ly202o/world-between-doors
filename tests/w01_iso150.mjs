@@ -119,7 +119,7 @@ const p0 = JSON.parse(await ev('JSON.stringify({x:window.__world.P.pos.x,z:windo
 await ev('window.dispatchEvent(new KeyboardEvent("keydown",{key:"w"}))');
 await sleep(1300);
 await ev('window.dispatchEvent(new KeyboardEvent("keyup",{key:"w"}))');
-await sleep(300);
+await sleep(1800);   /* v0.23.0：两关 + 软件渲染下相机跟随要更多帧才落定 */
 const p1 = JSON.parse(await ev('JSON.stringify({x:window.__world.P.pos.x,z:window.__world.P.pos.z})'));
 const moved = Math.hypot(p1.x - p0.x, p1.z - p0.z);
 ok('等距里按 W 能走', moved > 1.0, moved.toFixed(2) + 'm');
@@ -130,7 +130,7 @@ const expectOff = (await iso()).distCur * Math.cos((await iso()).pitchNow);
 ok('相机在水平面上的偏移 = 机距×cos(俯角)', near(off, expectOff, 0.5), off.toFixed(2) + ' vs ' + expectOff.toFixed(2));
 
 console.log('\n【6】四档闭环 + 投影还回去');
-await V('v'); await sleep(1200);
+await V('v'); await sleep(2600);   /* 两关 + 软件渲染下第一人称混合要更多帧才落定 */
 s = await iso();
 ok('等距 → 第一人称', (await num('window.__world.viewMode')) === 0);
 ok('投影换回透视', s.active === 'persp' && s.isOrtho === false, s.active);

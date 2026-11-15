@@ -51,7 +51,8 @@ for (let i = 0; i < 200; i++) {
   if ((await ev('typeof window.__world === "object"')) === true) { booted = true; break; }
   await sleep(50);
 }
-await sleep(1800);   /* 让采样器收满两秒的帧 */
+/* v0.23.0：两关场景 + 软件渲染，首帧着色器编译更久，采样窗口从 1.8s 放宽到 4s（轨迹判定不变） */
+await sleep(4000);
 
 console.log('\n【1】进场那一刻就在等距上（不是缓动过去的）');
 ok('世界已启动', booted === true);

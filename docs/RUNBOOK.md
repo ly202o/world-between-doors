@@ -9,7 +9,7 @@
 
 ```
 world01/
-├── world01.html          ← 全部游戏代码，单文件自包含（302 万字节 / 5 个 script 块）
+├── world01.html          ← 全部游戏代码，单文件自包含（313 万字节 / 5 个 script 块）
 ├── HANDOFF.md            ← 交接入口（先读）
 ├── AGENTS.md             ← 协作契约
 ├── README.md             ← 给玩家看的简介
@@ -64,6 +64,24 @@ world01/
 | 主循环 | ~3847 | `loop(t)`：物理固定步进 → 相机 → 动画 → 渲染 |
 | 诊断口 | ~3940 | `window.__world = {...}`（`iso` / `power` / `setIso` / `setYaw` / `frameCount`） |
 | 版本号（两处） | `#tip` 文案 + `window.__worldVersion` | 历史注释里的旧版本号**不要**改 |
+
+### 0.2 两关 / 门 / 出生点（v0.23.0）
+
+便利店那关是把 `D:/VibeCoding/dsh/dusk-konbini-corner.html` 的建模段（43~2166 行）ES5 化后搬进来的，不要再去改源文件来同步。
+
+| 要改什么 | 位置 | 关键符号 |
+|---|---|---|
+| 出生点 | ~604 | `P` 初始化里的 `Vector3(0, 0, 26.5)` |
+| 两关区域 | ~626 | `DUSK_YAW`(π/2)、`DUSK_SPOT`(-23,22)、`DUSK_GATE`(-13.5,22)、`FIELD_GATE`(-3,16)、`DUSK_ZONE`(街道矩形)、`PLAZA`、`inPlaza()`、`inDuskZone()` |
+| 石板路 / 立石 / 石灯笼 / 枯树 | 常量之后 | `buildPlaza()`、`paving()`、`stoneLantern()`、`bareTree()` |
+| 两扇真门 | 同段 | `makeGate(opts)`：门槛、门柱、门楣、坡屋顶、敞开门扇；门扇进 `EXEMPT` |
+| 便利店建模 | ~3797~5878 | `makeDuskLevel()` 内部的 `piece()` / `boxAt()` / `cylAt()` / `TEX.*` / `S`（店面尺寸）/ `SCX,SCZ`（店面中心）；整块是 ES5 化的原建模代码 |
+| 关卡放置 / 灯 / 天空 | ~5880~6000 | `buildDuskLevel(scene)`：host 放 `DUSK_SPOT`、`rotation.y=DUSK_YAW`、四盏灯挂 host、`duskSun.target` 在关卡中心、`duskSky` 半径 280 BackSide 跟随相机 |
+| 天光混合 | ~6000~6120 | `updateDuskWeather(dt)`：`duskBlend`、`duskTarget`、世界 hemi/sun 压 0.06/0.01、关卡 hemi/sun/fill/bounce、雾色、阴影在 blend>0.55 换手 |
+| 主循环 | loop 内 | `updateDuskWeather(dt)` 在渲染前调用 |
+| 碰撞 | ~6124 | `fillCollisionGaps()` 仍在所有场景建好之后；门扇/地面/骨骼/天穹进 `EXEMPT` |
+
+> 测试里写死的数字：`w01_v160.mjs` 碰撞体 670；`w01_v140.mjs` 豁免 11、碰撞体 670；`w01_iso170.mjs` 采样窗口 4s。动关卡几何/门/碰撞时这些断言要同步改。
 
 ---
 

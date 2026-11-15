@@ -228,7 +228,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.22.0</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.23.0</div>
 <script>
 /**
  * @license
@@ -623,6 +623,20 @@ function inYard(x, z, m) {
 function inDrive(x, z, m) {           /* 车道在院墙外还延伸一截 */
   return x > 1.6 - m && x < 4.1 + m && z > -16.5 - m && z < -6 + m;
 }
+/* ---------------- v0.23.0 两关的落点：出生点 / 两扇门 / 黄昏那一关 ----------------
+   先在这里定义，散石和碎石撒点时要避开。 */
+var DUSK_YAW = Math.PI / 2;            /* 黄昏那一关整体转 90°，街角正对出生点 */
+var DUSK_SPOT = { x: -23, z: 22 };     /* 那一关落在地图上的中心 */
+var DUSK_GATE = { x: -13.5, z: 22 };   /* 通往黄昏街角的门：朝东 */
+var FIELD_GATE = { x: -3, z: 16 };     /* 通往原测试场地的门：朝南 */
+var PLAZA = { x0: -42, x1: 14, z0: 6, z1: 40 };
+var DUSK_ZONE = { x0: -46, x1: -13, z0: 2, z1: 42 };
+function inPlaza(x, z, m) {
+  return x > PLAZA.x0 - m && x < PLAZA.x1 + m && z > PLAZA.z0 - m && z < PLAZA.z1 + m;
+}
+function inDuskZone(x, z) {
+  return x > DUSK_ZONE.x0 && x < DUSK_ZONE.x1 && z > DUSK_ZONE.z0 && z < DUSK_ZONE.z1;
+}
 
 (function scatter() {
   var i, n = 72;
@@ -632,7 +646,7 @@ function inDrive(x, z, m) {           /* 车道在院墙外还延伸一截 */
     var rad = 11 + Math.pow(hash(i, 2), 0.8) * 76;
     var px = Math.cos(ang) * rad;
     var pz = Math.sin(ang) * rad;
-    if (inYard(px, pz, 2) || inDrive(px, pz, 2)) continue;   /* 别把积木撒进新房子里 */
+    if (inYard(px, pz, 2) || inDrive(px, pz, 2) || inPlaza(px, pz, 1.5)) continue;   /* 别把积木撒进新房子里 */
 
     var tall = hash(i, 3);
     var w = 0.7 + hash(i, 4) * 1.9;
@@ -656,7 +670,7 @@ function inDrive(x, z, m) {           /* 车道在院墙外还延伸一截 */
   for (i = 0; i < n; i++) {
     var a = hash(i, 31) * Math.PI * 2, r = 4 + hash(i, 32) * 28;
     var x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (inYard(x, z, 1) || inDrive(x, z, 1)) continue;
+    if (inYard(x, z, 1) || inDrive(x, z, 1) || inPlaza(x, z, 1)) continue;
     var rw = 0.16 + hash(i, 33) * 0.22, rh = 0.12 + hash(i, 34) * 0.16, rd = 0.16 + hash(i, 35) * 0.22;
     var rock = new THREE.Mesh(new THREE.BoxGeometry(rw, rh, rd), propMat);
     rock.position.set(x, rh / 2, z); rock.rotation.y = hash(i, 36) * Math.PI;
@@ -1836,7 +1850,7 @@ function fireSteps(d, t0, t1) {
 
 /* ---------------- 角色状态 ---------------- */
 var P = {
-  pos: new THREE.Vector3(0, 0, 0),
+  pos: new THREE.Vector3(0, 0, 26.5),   /* v0.23.0 出生点：两扇门之间的空地 */
   vy: 0,
   onGround: true,
   face: Math.PI,    /* 当前朝向角（弧度）。π = 背对相机，camYaw 0 时相机在角色正后方 */
@@ -2298,11 +2312,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.21.0';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.23.0';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.21.0';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.23.0';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -3772,6 +3786,2319 @@ for (var targetIndex = 0; targetIndex < 3; targetIndex++) {
   addCollider(stand, 0.10, 0.12, 0.78); colliders[colliders.length - 1].kind = 'stand';
 }
 /* 场景全部建好后一次性补齐碰撞并复核（遗漏必须为 0），结果进 F2 面板 */
+/* ================= v0.23.0：黄昏街角便利店 + 出生点 + 两扇门 ================= */
+/* ============================================================================
+   黄昏 · 街角便利店（v0.23.0 关卡）
+   源文件：D:\VibeCoding\dsh\dusk-konbini-corner.html（独立 diorama）
+   只搬"建模型"这一段（原文件 43~2166 行）：渲染器 / 相机 / OrbitControls /
+   装配动画 / 主循环都没有搬；天空球改成跟着相机走的背景，不参与碰撞。
+   语法按项目约定（AGENTS.md：纯 ES5）由 tsc 降级成 var/function。
+   ========================================================================== */
+function buildDuskLevel(worldScene) {
+    var root = new THREE.Group();
+    root.name = 'duskStreet';
+    var scene = root; /* 原文件里所有 scene.add 都收进这一组 */
+    var doorLeaves = []; /* 预留：以后要做自动门时用 */
+    /* ---------------------------------------------------------------- palette -- */
+    var PAL = {
+        cream: 0xe7d7b8,
+        creamLight: 0xf5ead6,
+        creamDark: 0xc6ae8c,
+        asphalt: 0x4f4c60,
+        lineWhite: 0xf3eee2,
+        pave: 0xc3b9ac,
+        paveDark: 0xb3a99c,
+        curb: 0xc4bab0,
+        wall: 0xf4efe6,
+        wallShade: 0xdcd4c6,
+        teal: 0x1c9b95,
+        tealDeep: 0x11706d,
+        orange: 0xef7a2b,
+        navy: 0x2a3a53,
+        glass: 0xbfe4ef,
+        metal: 0xa7b0ba,
+        metalDark: 0x6e7784,
+        dark: 0x3a3b49,
+        concrete: 0xc0b9b0,
+        concreteDk: 0x9d968e,
+        wood: 0x8b6a49,
+        leaf: 0x51814f,
+        leafDark: 0x3a6046,
+        trunk: 0x5c4633,
+        red: 0xd3504a,
+        warmLight: 0xffe9c2,
+        ink: 0x33283f,
+    };
+    /* ------------------------------------------------------- toon shading core -- */
+    var GMTX = new THREE.DataTexture(new Uint8Array([66, 124, 184, 255]), 4, 1, THREE.RedFormat);
+    GMTX.minFilter = THREE.NearestFilter;
+    GMTX.magFilter = THREE.NearestFilter;
+    GMTX.generateMipmaps = false;
+    GMTX.needsUpdate = true;
+    var _matCache = new Map();
+    function toon(color, key, extra) {
+        var k = color + '|' + (key || '');
+        if (!extra) {
+            var m = _matCache.get(k);
+            if (m)
+                return m;
+            m = new THREE.MeshToonMaterial({ color: color, gradientMap: GMTX });
+            _matCache.set(k, m);
+            return m;
+        }
+        return new THREE.MeshToonMaterial(Object.assign({ color: color, gradientMap: GMTX }, extra));
+    }
+    var MAT = {
+        glowWhite: new THREE.MeshBasicMaterial({ color: 0xfff6e2 }),
+        glowWarm: new THREE.MeshBasicMaterial({ color: 0xffd79a }),
+        glowCool: new THREE.MeshBasicMaterial({ color: 0xd8f2ff }),
+        glass: new THREE.MeshBasicMaterial({ color: 0xd8f4ff, transparent: true, opacity: 0.10, depthWrite: false, side: THREE.DoubleSide }),
+        glassDeep: new THREE.MeshBasicMaterial({ color: 0x9fd6e8, transparent: true, opacity: 0.24, depthWrite: false, side: THREE.DoubleSide }),
+        shadowBlob: new THREE.MeshBasicMaterial({ color: 0x241c2e, transparent: true, opacity: 0.22, depthWrite: false }),
+    };
+    /* --------------------------------------------------------- outline shells -- */
+    var OUTLINE_VS = "\n  uniform float uT;\n  void main(){\n    vec4 mv = modelViewMatrix * vec4( position, 1.0 );\n    vec3 n = normalize( normalMatrix * normal );\n    mv.xyz += n * ( -mv.z ) * uT;        // constant screen-space ink width\n    gl_Position = projectionMatrix * mv;\n  }";
+    var OUTLINE_FS = "\n  uniform vec3 uC;\n  void main(){ gl_FragColor = vec4(uC, 1.0); }";
+    var _omCache = new Map();
+    function outlineMat(t, color) {
+        var k = t.toFixed(3) + '|' + color;
+        var m = _omCache.get(k);
+        if (m)
+            return m;
+        m = new THREE.ShaderMaterial({
+            uniforms: { uT: { value: t * 0.125 }, uC: { value: new THREE.Color(color) } },
+            vertexShader: OUTLINE_VS,
+            fragmentShader: OUTLINE_FS,
+            side: THREE.BackSide,
+        });
+        _omCache.set(k, m);
+        return m;
+    }
+    function outline(mesh, t, color) {
+        var shell = new THREE.Mesh(mesh.geometry, outlineMat(t === undefined ? 0.022 : t, color === undefined ? PAL.ink : color));
+        shell.castShadow = false;
+        shell.receiveShadow = false;
+        mesh.add(shell);
+        return shell;
+    }
+    /* ------------------------------------------------------- geometry helpers -- */
+    /** box whose `yb` is the BOTTOM face (real geometry so outline shells stay exact) */
+    function boxAt(parent, w, h, d, mat, x, yb, z, ry) {
+        var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+        m.position.set(x, yb + h / 2, z);
+        if (ry)
+            m.rotation.y = ry;
+        m.castShadow = true;
+        m.receiveShadow = true;
+        parent.add(m);
+        return m;
+    }
+    function cylAt(parent, rt, rb, h, mat, x, yb, z, seg) {
+        var m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg || 14), mat);
+        m.position.set(x, yb + h / 2, z);
+        m.castShadow = true;
+        m.receiveShadow = true;
+        parent.add(m);
+        return m;
+    }
+    /** flat plate lying on XZ plane */
+    function plateAt(parent, w, d, mat, x, y, z, rz) {
+        var m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat);
+        m.rotation.set(-Math.PI / 2, 0, rz || 0);
+        m.position.set(x, y, z);
+        m.receiveShadow = true;
+        parent.add(m);
+        return m;
+    }
+    /** vertical panel facing +Z, rotated by ry */
+    function panelAt(parent, w, h, mat, x, yb, z, ry) {
+        var m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+        m.position.set(x, yb + h / 2, z);
+        if (ry)
+            m.rotation.y = ry;
+        m.receiveShadow = true;
+        parent.add(m);
+        return m;
+    }
+    function basicMat(tex, extra) {
+        return new THREE.MeshBasicMaterial(Object.assign({ map: tex }, extra || {}));
+    }
+    function tube(parent, a, b, r, mat, sag) {
+        var mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+        mid.y -= sag === undefined ? 0.35 : sag;
+        var curve = new THREE.CatmullRomCurve3([a.clone(), mid, b.clone()]);
+        var g = new THREE.TubeGeometry(curve, 14, r === undefined ? 0.015 : r, 4, false);
+        var m = new THREE.Mesh(g, mat);
+        parent.add(m);
+        return m;
+    }
+    function lineBetween(parent, a, b, r, mat) {
+        var dir = new THREE.Vector3().subVectors(b, a);
+        var len = dir.length();
+        var m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 6), mat);
+        m.position.copy(a).add(b).multiplyScalar(0.5);
+        m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+        m.castShadow = true;
+        parent.add(m);
+        return m;
+    }
+    /* --------------------------------------------------------- piece / timing -- */
+    var PIECES = [];
+    /**
+     * Every visual group registers here. Assembly animation lifts each piece from
+     * below the base into place, in sequence.
+     */
+    function piece(name) {
+        /* v0.23.0：搬进 world01 后不做"从地基下升起"的装配动画，关卡一开始就在那儿。 */
+        var g = new THREE.Group();
+        g.name = name;
+        root.add(g);
+        return g;
+    }
+    /* ------------------------------------------------------------------ lights -- */
+    var hemi = new THREE.HemisphereLight(0x99aef8, 0x3f2d56, 0.58);
+    scene.add(hemi);
+    var sun = new THREE.DirectionalLight(0xffb173, 1.78);
+    sun.position.set(-24, 8.6, 16);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = -17;
+    sun.shadow.camera.right = 17;
+    sun.shadow.camera.top = 17;
+    sun.shadow.camera.bottom = -17;
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 80;
+    sun.shadow.bias = -0.0012;
+    sun.shadow.normalBias = 0.055;
+    scene.add(sun);
+    scene.add(sun.target);
+    var fill = new THREE.DirectionalLight(0x7f90e6, 0.55);
+    fill.position.set(16, 10, -14);
+    scene.add(fill);
+    var bounce = new THREE.DirectionalLight(0xffc79a, 0.18);
+    bounce.position.set(-6, 1.5, -20);
+    scene.add(bounce);
+    /* --------------------------------------------------------------------- sky -- */
+    var skyMat = new THREE.ShaderMaterial({
+        side: THREE.BackSide,
+        depthWrite: false,
+        fog: false,
+        uniforms: {
+            cTop: { value: new THREE.Color(0x54509c) },
+            cMid: { value: new THREE.Color(0x5e3a70) },
+            cHor: { value: new THREE.Color(0xffab5e) },
+            cBot: { value: new THREE.Color(0x1e152e) },
+            cGlow: { value: new THREE.Color(0xffe0ac) },
+            sunDir: { value: new THREE.Vector3(-0.79, 0.28, 0.53).normalize() },
+        },
+        vertexShader: "\n    varying vec3 vPos;\n    void main(){\n      vPos = position;\n      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n    }",
+        fragmentShader: "\n    uniform vec3 cTop, cMid, cHor, cBot, cGlow;\n    uniform vec3 sunDir;\n    varying vec3 vPos;\n    void main(){\n      vec3 d = normalize(vPos);\n      float h = d.y;\n      vec3 col = mix(cBot, cMid, smoothstep(-0.90, -0.48, h));\n      col = mix(col, cHor, smoothstep(-0.30, -0.02, h));\n      col = mix(col, cTop, smoothstep(0.0, 0.34, h));\n      vec3 flat_ = normalize(vec3(d.x, 0.0, d.z));\n      vec3 sunFlat = normalize(vec3(sunDir.x, 0.0, sunDir.z));\n      float az = pow(max(dot(flat_, sunFlat), 0.0), 2.2);\n      float band = 1.0 - smoothstep(0.0, 0.40, abs(h + 0.05));\n      col += cGlow * az * band * 0.48;\n      // soft dusk cloud banding for depth\n      float band1 = exp(-pow((h + 0.30) * 8.0, 2.0));\n      float band2 = exp(-pow((h + 0.62) * 5.0, 2.0));\n      float swirl = 0.5 + 0.5 * sin(flat_.x * 3.1 + flat_.z * 2.3);\n      col += cGlow * band1 * 0.10 * (0.4 + 0.6 * swirl);\n      col -= vec3(0.045, 0.030, 0.045) * band2 * (1.0 - 0.5 * swirl);\n      float sd = max(dot(d, sunDir), 0.0);\n      col += cGlow * pow(sd, 10.0) * 0.22;\n      col += cGlow * pow(sd, 120.0) * 1.4;\n      gl_FragColor = vec4(pow(col, vec3(1.0 / 2.2)), 1.0);\n    }",
+    });
+    var sky = new THREE.Mesh(new THREE.SphereGeometry(280, 40, 24), skyMat);
+    sky.frustumCulled = false;
+    scene.add(sky);
+    /* ============================================================================
+       01 · TEXTURES — every graphic is painted procedurally on a canvas
+       ========================================================================== */
+    var TEX = {};
+    var _seed = 20240917;
+    function rnd() { _seed = (_seed * 16807) % 2147483647; return _seed / 2147483647; }
+    function rng(a, b) { return a + (b - a) * rnd(); }
+    function pick(arr) { return arr[(rnd() * arr.length) | 0]; }
+    function mkTex(w, h, draw, repeat) {
+        var c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        var g = c.getContext('2d');
+        draw(g, w, h);
+        var t = new THREE.CanvasTexture(c);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = 8;
+        if (repeat) {
+            t.wrapS = t.wrapT = THREE.RepeatWrapping;
+            t.repeat.set(repeat[0], repeat[1]);
+        }
+        return t;
+    }
+    function starPath(g, cx, cy, ro, ri, n) {
+        g.beginPath();
+        for (var i = 0; i < n * 2; i++) {
+            var r = i % 2 ? ri : ro;
+            var a = -Math.PI / 2 + (i * Math.PI) / n;
+            var x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
+            i ? g.lineTo(x, y) : g.moveTo(x, y);
+        }
+        g.closePath();
+    }
+    /* ------------------------------------------------------------- paving ----- */
+    TEX.pave = mkTex(128, 128, function (g, w, h) {
+        g.fillStyle = '#c3b9ac';
+        g.fillRect(0, 0, w, h);
+        for (var i = 0; i < 900; i++) {
+            g.fillStyle = rnd() > 0.5 ? 'rgba(255,255,255,0.30)' : 'rgba(120,110,100,0.18)';
+            g.fillRect(rnd() * w, rnd() * h, 2, 2);
+        }
+        g.strokeStyle = 'rgba(140,130,120,0.55)';
+        g.lineWidth = 3;
+        g.strokeRect(-2, -2, w + 4, h + 4);
+        g.beginPath();
+        g.moveTo(w / 2, 0);
+        g.lineTo(w / 2, h);
+        g.moveTo(0, h / 2);
+        g.lineTo(w, h / 2);
+        g.lineWidth = 2;
+        g.strokeStyle = 'rgba(150,140,128,0.40)';
+        g.stroke();
+    }, [1, 1]);
+    TEX.asphalt = mkTex(256, 256, function (g, w, h) {
+        g.fillStyle = '#4f4c60';
+        g.fillRect(0, 0, w, h);
+        for (var i = 0; i < 5200; i++) {
+            var v = rnd();
+            g.fillStyle = v > 0.55 ? 'rgba(140,136,158,0.30)' : 'rgba(40,38,52,0.35)';
+            g.fillRect(rnd() * w, rnd() * h, rng(1, 2.4), rng(1, 2.4));
+        }
+        for (var i = 0; i < 22; i++) {
+            g.strokeStyle = 'rgba(35,33,45,0.28)';
+            g.lineWidth = rng(1, 2.2);
+            g.beginPath();
+            var x = rnd() * w, y = rnd() * h;
+            g.moveTo(x, y);
+            for (var s = 0; s < 4; s++) {
+                x += rng(-26, 26);
+                y += rng(-26, 26);
+                g.lineTo(x, y);
+            }
+            g.stroke();
+        }
+    }, [14, 14]);
+    TEX.floor = mkTex(256, 256, function (g, w, h) {
+        g.fillStyle = '#ece7dd';
+        g.fillRect(0, 0, w, h);
+        var n = 4, s = w / n;
+        for (var y = 0; y < n; y++)
+            for (var x = 0; x < n; x++) {
+                g.fillStyle = ((x + y) % 2) ? '#e7e1d5' : '#eeeadf';
+                g.fillRect(x * s, y * s, s, s);
+            }
+        g.strokeStyle = 'rgba(160,152,138,0.55)';
+        g.lineWidth = 3;
+        for (var i = 0; i <= n; i++) {
+            g.beginPath();
+            g.moveTo(i * s, 0);
+            g.lineTo(i * s, h);
+            g.stroke();
+            g.beginPath();
+            g.moveTo(0, i * s);
+            g.lineTo(w, i * s);
+            g.stroke();
+        }
+    }, [3, 3]);
+    /* --------------------------------------------------------------- signs ---- */
+    function drawLogo(g, x, y, s, ink, accent) {
+        g.fillStyle = accent;
+        starPath(g, x, y, s, s * 0.44, 5);
+        g.fill();
+        g.fillStyle = ink;
+        starPath(g, x, y, s * 0.42, s * 0.19, 5);
+        g.fill();
+    }
+    TEX.sign = mkTex(1200, 116, function (g, w, h) {
+        var grd = g.createLinearGradient(0, 0, 0, h);
+        grd.addColorStop(0, '#ffffff');
+        grd.addColorStop(1, '#eef6f4');
+        g.fillStyle = grd;
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#1c9b95';
+        g.fillRect(0, h - 13, w, 13);
+        g.fillStyle = '#ef7a2b';
+        g.fillRect(0, 0, 10, h);
+        drawLogo(g, 96, h / 2 - 6, 40, '#ffffff', '#ef7a2b');
+        g.textBaseline = 'middle';
+        g.font = 'bold 62px "Segoe UI", "Arial Black", sans-serif';
+        g.fillStyle = '#26405c';
+        g.fillText('HOSHI MART', 158, h / 2 - 8);
+        g.font = 'bold 30px "Yu Gothic", "Hiragino Sans", "MS Gothic", sans-serif';
+        g.fillStyle = '#1c9b95';
+        g.fillText('ほしマート', 162, h / 2 + 28);
+        g.font = 'bold 26px "Segoe UI", sans-serif';
+        g.fillStyle = '#ef7a2b';
+        g.textAlign = 'right';
+        g.fillText('24 HOURS', w - 34, h / 2 - 10);
+        g.fillStyle = '#7a8b96';
+        g.font = 'bold 19px "Segoe UI", sans-serif';
+        g.fillText('OPEN 24 / 7  ·  PARKING', w - 34, h / 2 + 24);
+        g.textAlign = 'left';
+    });
+    TEX.signSide = mkTex(760, 116, function (g, w, h) {
+        g.fillStyle = '#f7fbfa';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#1c9b95';
+        g.fillRect(0, h - 13, w, 13);
+        drawLogo(g, 80, h / 2 - 6, 34, '#ffffff', '#ef7a2b');
+        g.textBaseline = 'middle';
+        g.font = 'bold 50px "Segoe UI", "Arial Black", sans-serif';
+        g.fillStyle = '#26405c';
+        g.fillText('HOSHI MART', 132, h / 2 - 6);
+    });
+    TEX.pylon = mkTex(300, 480, function (g, w, h) {
+        g.fillStyle = '#ffffff';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#1c9b95';
+        g.fillRect(0, 0, w, 96);
+        g.fillStyle = '#ef7a2b';
+        g.fillRect(0, 96, w, 12);
+        drawLogo(g, w / 2, 48, 38, '#ffffff', '#ffffff');
+        g.fillStyle = '#ef7a2b';
+        starPath(g, w / 2, 44, 34, 15, 5);
+        g.fill();
+        g.fillStyle = '#ffffff';
+        starPath(g, w / 2, 44, 15, 7, 5);
+        g.fill();
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillStyle = '#26405c';
+        g.font = 'bold 62px "Segoe UI", "Arial Black", sans-serif';
+        g.fillText('HOSHI', w / 2, 176);
+        g.fillText('MART', w / 2, 244);
+        g.fillStyle = '#1c9b95';
+        g.font = 'bold 32px "Yu Gothic", "MS Gothic", sans-serif';
+        g.fillText('ほしマート', w / 2, 300);
+        g.fillStyle = '#e8efe9';
+        g.fillRect(24, 336, w - 48, 3);
+        g.fillStyle = '#3b4d63';
+        g.font = 'bold 34px "Segoe UI", sans-serif';
+        g.fillText('24', w / 2 - 44, 372);
+        g.fillStyle = '#ef7a2b';
+        g.fillText('H', w / 2 + 44, 372);
+        g.fillStyle = '#ffffff';
+        g.fillRect(w / 2 - 12, 330, 24, 84);
+        g.fillStyle = '#1c9b95';
+        g.fillRect(0, 414, w, 66);
+        g.fillStyle = '#ffffff';
+        g.font = 'bold 30px "Segoe UI", sans-serif';
+        g.fillText('PARKING', w / 2, 448);
+    });
+    /* ---------------------------------------------------------- vending ------- */
+    TEX.vending = mkTex(260, 500, function (g, w, h) {
+        g.fillStyle = '#e9edf0';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#c8262f';
+        g.fillRect(0, 0, w, 96);
+        g.fillStyle = '#f4f7f9';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.font = 'bold 40px "Segoe UI", sans-serif';
+        g.fillText('DRINK', w / 2, 40);
+        g.font = 'bold 22px "Yu Gothic", sans-serif';
+        g.fillText('つめたい のみもの', w / 2, 74);
+        var cols = 4, rows = 3, cw = (w - 36) / cols;
+        var pal = ['#e0553f', '#2f6fb5', '#e8a92b', '#3f9d68', '#8b5cb0', '#d8dde2', '#c0392b', '#1f8a86', '#f0c419', '#4b7bec', '#e07a2b', '#5aa9e6'];
+        for (var r = 0; r < rows; r++) {
+            for (var c = 0; c < cols; c++) {
+                var x = 18 + c * cw, y = 118 + r * 118;
+                g.fillStyle = '#ffffff';
+                g.fillRect(x + 4, y + 4, cw - 8, 104);
+                g.fillStyle = 'rgba(200,214,224,0.55)';
+                g.fillRect(x + 4, y + 78, cw - 8, 26);
+                var col = pal[(r * cols + c) % pal.length];
+                g.fillStyle = col;
+                var bx = x + cw * 0.3, by = y + 16, bw = cw * 0.4, bh = 62;
+                g.fillRect(bx, by, bw, bh);
+                g.fillStyle = 'rgba(255,255,255,0.55)';
+                g.fillRect(bx + 3, by + 4, bw * 0.22, bh - 10);
+                g.fillStyle = col;
+                g.fillRect(bx + bw * 0.25, by - 7, bw * 0.5, 8);
+                g.fillStyle = '#c8262f';
+                g.font = 'bold 16px "Segoe UI", sans-serif';
+                g.fillText('¥' + (120 + ((r * 4 + c) % 5) * 10), x + cw / 2, y + 92);
+            }
+        }
+        g.fillStyle = '#2b3440';
+        g.fillRect(0, 478, w, 22);
+        g.fillStyle = '#97a4b0';
+        g.fillRect(w - 44, 128, 26, 60);
+        g.fillStyle = '#1b222b';
+        g.fillRect(18, 440, w - 36, 30);
+    });
+    /* ------------------------------------------------------------- fridge ----- */
+    function drawBottles(g, x0, x1, y, hgt, n) {
+        var pal = ['#e5543f', '#3a7ec4', '#f0b429', '#4aa96c', '#9b59b6', '#e8e3d8', '#2e9e93', '#d9603b', '#6d7fbf'];
+        for (var i = 0; i < n; i++) {
+            var w = (x1 - x0) / n;
+            var x = x0 + i * w + w * 0.18;
+            var bw = w * 0.62;
+            g.fillStyle = pick(pal);
+            g.fillRect(x, y - hgt, bw, hgt);
+            g.fillStyle = 'rgba(255,255,255,0.45)';
+            g.fillRect(x + 2, y - hgt + 4, bw * 0.22, hgt - 8);
+            g.fillStyle = 'rgba(0,0,0,0.18)';
+            g.fillRect(x, y - hgt * 0.42, bw, hgt * 0.12);
+        }
+    }
+    TEX.fridge = mkTex(384, 560, function (g, w, h) {
+        g.fillStyle = '#eef7fb';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#1c9b95';
+        g.fillRect(0, 0, w, 44);
+        g.fillStyle = '#ffffff';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.font = 'bold 24px "Segoe UI", sans-serif';
+        g.fillText('COLD DRINK', w / 2, 23);
+        var shelves = 6;
+        for (var i = 0; i < shelves; i++) {
+            var y = 44 + (h - 44) / shelves * (i + 1);
+            drawBottles(g, 5, w - 5, y - 6, (h - 44) / shelves * 0.74, 4);
+            g.fillStyle = '#ffffff';
+            g.fillRect(0, y - 6, w, 8);
+            g.fillStyle = 'rgba(110,130,140,0.4)';
+            g.fillRect(0, y + 2, w, 4);
+            g.fillStyle = '#f0b429';
+            for (var k = 0; k < 4; k++)
+                g.fillRect(10 + k * 92, y - 16, 34, 7);
+        }
+        g.strokeStyle = 'rgba(255,255,255,0.92)';
+        g.lineWidth = 10;
+        g.strokeRect(5, 5, w - 10, h - 10);
+        var grd = g.createLinearGradient(0, 0, w, h);
+        grd.addColorStop(0, 'rgba(255,255,255,0.32)');
+        grd.addColorStop(0.45, 'rgba(255,255,255,0)');
+        grd.addColorStop(1, 'rgba(180,220,235,0.2)');
+        g.fillStyle = grd;
+        g.fillRect(0, 0, w, h);
+    });
+    /* ------------------------------------------------------------- shelves ---- */
+    function drawGoodsRow(g, x0, x1, yBase, hgt, nMin, nMax) {
+        var x = x0;
+        var pal = ['#e0553f', '#2f6fb5', '#e8a92b', '#3f9d68', '#8b5cb0', '#e4e0d6', '#c0392b', '#1f8a86', '#f0c419', '#4b7bec', '#e07a2b', '#dd6fa2'];
+        while (x < x1 - 8) {
+            var w = Math.min(x1 - x, rng(18, 46) * (0.8 + (nMax - nMin) * 0.12));
+            var bh = hgt * rng(0.5, 0.94);
+            var col = pick(pal);
+            // body
+            g.fillStyle = col;
+            g.fillRect(x + 1, yBase - bh, w - 3, bh);
+            // top highlight + side shade
+            g.fillStyle = 'rgba(255,255,255,0.34)';
+            g.fillRect(x + 2, yBase - bh + 2, Math.max(3, w * 0.26), bh - 4);
+            g.fillStyle = 'rgba(0,0,0,0.13)';
+            g.fillRect(x + w - 6, yBase - bh, 3, bh);
+            // label band
+            g.fillStyle = 'rgba(255,255,255,0.86)';
+            g.fillRect(x + 4, yBase - bh * 0.62, w - 10, Math.max(4, bh * 0.16));
+            g.fillStyle = 'rgba(0,0,0,0.18)';
+            g.fillRect(x + 4, yBase - bh * 0.3, w - 10, 2);
+            // price tag on the shelf lip
+            if (rnd() > 0.45) {
+                g.fillStyle = '#ffffff';
+                g.fillRect(x + 2, yBase + 3, Math.min(22, w - 4), 9);
+                g.fillStyle = '#d33';
+                g.fillRect(x + 4, yBase + 6, Math.min(14, w - 8), 4);
+            }
+            x += w;
+        }
+    }
+    TEX.goods = mkTex(1024, 512, function (g, w, h) {
+        g.fillStyle = '#f4f1e8';
+        g.fillRect(0, 0, w, h);
+        var rows = 5, rh = (h - 12) / rows;
+        for (var i = 0; i < rows; i++) {
+            var y = 6 + rh * (i + 1) - 4;
+            g.fillStyle = 'rgba(120,115,105,0.45)';
+            g.fillRect(0, y, w, 6);
+            g.fillStyle = 'rgba(255,255,255,0.7)';
+            g.fillRect(0, y + 6, w, 3);
+            drawGoodsRow(g, 3, w - 3, y - 4, rh * 0.80, 3, 6);
+        }
+    });
+    TEX.goods2 = mkTex(1024, 512, function (g, w, h) {
+        g.fillStyle = '#f7f2e6';
+        g.fillRect(0, 0, w, h);
+        var rows = 5, rh = (h - 12) / rows;
+        for (var i = 0; i < rows; i++) {
+            var y = 6 + rh * (i + 1) - 4;
+            g.fillStyle = 'rgba(120,115,105,0.45)';
+            g.fillRect(0, y, w, 6);
+            g.fillStyle = 'rgba(255,255,255,0.7)';
+            g.fillRect(0, y + 6, w, 3);
+            drawGoodsRow(g, 3, w - 3, y - 4, rh * 0.78, 2, 4);
+        }
+    });
+    TEX.mag = mkTex(320, 260, function (g, w, h) {
+        g.fillStyle = '#e7e4da';
+        g.fillRect(0, 0, w, h);
+        var pal = ['#e0553f', '#2f6fb5', '#e8a92b', '#3f9d68', '#8b5cb0', '#c0392b', '#4b7bec', '#e07a2b'];
+        var x = 6;
+        while (x < w - 30) {
+            var mw = rng(28, 42), mh = h * rng(0.62, 0.86);
+            g.fillStyle = pick(pal);
+            g.fillRect(x, h - mh - 6, mw, mh);
+            g.fillStyle = 'rgba(255,255,255,0.85)';
+            g.fillRect(x + 3, h - mh + 4, mw - 6, 8);
+            g.fillStyle = 'rgba(255,255,255,0.5)';
+            g.fillRect(x + 3, h - mh + 20, mw - 6, 4);
+            x += mw + 4;
+        }
+        g.fillStyle = '#f0b429';
+        g.fillRect(0, 0, w, 10);
+    });
+    TEX.cig = mkTex(320, 260, function (g, w, h) {
+        g.fillStyle = '#f7f4ec';
+        g.fillRect(0, 0, w, h);
+        var pal = ['#e0553f', '#2f6fb5', '#e8a92b', '#3f9d68', '#8b5cb0', '#cfd6dc', '#c0392b', '#4b7bec'];
+        for (var r = 0; r < 5; r++) {
+            for (var c = 0; c < 6; c++) {
+                g.fillStyle = pick(pal);
+                g.fillRect(6 + c * 52, 8 + r * 50, 46, 32);
+                g.fillStyle = 'rgba(255,255,255,0.78)';
+                g.fillRect(10 + c * 52, 14 + r * 50, 38, 6);
+            }
+        }
+    });
+    /* -------------------------------------------------------------- posters --- */
+    TEX.poster = mkTex(300, 400, function (g, w, h) {
+        g.fillStyle = '#f5efdf';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#cfc3a9';
+        g.fillRect(6, 6, w - 12, h - 12);
+        g.fillStyle = '#faf6ea';
+        g.fillRect(12, 12, w - 24, h - 24);
+        var sheets = [
+            { x: 24, y: 24, w: 116, h: 150, c: '#e0553f', t: '#fff3e0' },
+            { x: 156, y: 24, w: 116, h: 118, c: '#2f6fb5', t: '#eaf3ff' },
+            { x: 24, y: 190, w: 116, h: 118, c: '#f0b429', t: '#fff8e2' },
+            { x: 156, y: 158, w: 116, h: 150, c: '#3f9d68', t: '#eefbf1' },
+            { x: 24, y: 324, w: 248, h: 50, c: '#1c9b95', t: '#f0fbfa' },
+        ];
+        sheets.forEach(function (s) {
+            g.fillStyle = 'rgba(0,0,0,0.16)';
+            g.fillRect(s.x + 3, s.y + 4, s.w, s.h);
+            g.fillStyle = s.c;
+            g.fillRect(s.x, s.y, s.w, s.h);
+            g.fillStyle = s.t;
+            g.fillRect(s.x + 8, s.y + 8, s.w - 16, 10);
+            for (var i = 0; i < 4; i++) {
+                g.globalAlpha = 0.55;
+                g.fillRect(s.x + 8, s.y + 26 + i * 12, (s.w - 16) * rng(0.5, 1), 5);
+            }
+            g.globalAlpha = 1;
+            g.fillStyle = 'rgba(255,255,255,0.85)';
+            starPath(g, s.x + s.w * 0.5, s.y + s.h * 0.62, 16, 7, 5);
+            g.fill();
+        });
+        g.fillStyle = 'rgba(60,70,80,0.75)';
+        for (var i = 0; i < 26; i++)
+            g.fillRect(20 + i * 10, 20, 3, 3);
+    });
+    TEX.pSign = mkTex(160, 160, function (g, w, h) {
+        g.fillStyle = '#1c6fb5';
+        g.fillRect(0, 0, w, h);
+        g.strokeStyle = '#ffffff';
+        g.lineWidth = 8;
+        g.strokeRect(6, 6, w - 12, h - 12);
+        g.fillStyle = '#ffffff';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.font = 'bold 86px "Segoe UI", sans-serif';
+        g.fillText('P', w / 2, h / 2 - 4);
+        g.font = 'bold 18px "Yu Gothic", sans-serif';
+        g.fillText('駐車場', w / 2, h - 26);
+    });
+    TEX.clock = mkTex(128, 128, function (g, w, h) {
+        g.fillStyle = '#ffffff';
+        g.beginPath();
+        g.arc(64, 64, 62, 0, 7);
+        g.fill();
+        g.strokeStyle = '#2a3a53';
+        g.lineWidth = 5;
+        g.beginPath();
+        g.arc(64, 64, 60, 0, 7);
+        g.stroke();
+        for (var i = 0; i < 12; i++) {
+            var a = (i / 12) * Math.PI * 2;
+            g.beginPath();
+            g.moveTo(64 + Math.cos(a) * 48, 64 + Math.sin(a) * 48);
+            g.lineTo(64 + Math.cos(a) * 54, 64 + Math.sin(a) * 54);
+            g.strokeStyle = '#41506b';
+            g.lineWidth = 3;
+            g.stroke();
+        }
+        g.strokeStyle = '#2a3a53';
+        g.lineWidth = 6;
+        g.lineCap = 'round';
+        g.beginPath();
+        g.moveTo(64, 64);
+        g.lineTo(64 + 26, 64 - 16);
+        g.stroke();
+        g.lineWidth = 4;
+        g.beginPath();
+        g.moveTo(64, 64);
+        g.lineTo(64 - 6, 64 - 34);
+        g.stroke();
+        g.fillStyle = '#ef7a2b';
+        g.beginPath();
+        g.arc(64, 64, 5, 0, 7);
+        g.fill();
+    });
+    TEX.banner = mkTex(220, 420, function (g, w, h) {
+        g.fillStyle = '#ffffff';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#ef7a2b';
+        g.fillRect(0, 0, w, 96);
+        g.fillStyle = '#ffffff';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.font = 'bold 54px "Segoe UI", sans-serif';
+        g.fillText('SALE', w / 2, 50);
+        g.fillStyle = '#1c9b95';
+        g.fillRect(0, 96, w, 10);
+        g.fillStyle = '#26405c';
+        g.font = 'bold 120px "Segoe UI", sans-serif';
+        g.fillText('20', w / 2, 190);
+        g.font = 'bold 54px "Segoe UI", sans-serif';
+        g.fillText('%OFF', w / 2, 268);
+        g.fillStyle = '#1c9b95';
+        g.fillRect(24, 314, w - 48, 4);
+        g.font = 'bold 30px "Yu Gothic", sans-serif';
+        g.fillText('本日限り', w / 2, 352);
+    });
+    TEX.manhole = mkTex(128, 128, function (g, w, h) {
+        g.fillStyle = '#3f3d4c';
+        g.beginPath();
+        g.arc(64, 64, 63, 0, 7);
+        g.fill();
+        g.strokeStyle = '#6a6779';
+        g.lineWidth = 4;
+        for (var r = 14; r < 62; r += 12) {
+            g.beginPath();
+            g.arc(64, 64, r, 0, 7);
+            g.stroke();
+        }
+        g.strokeStyle = '#8b8798';
+        g.lineWidth = 3;
+        for (var i = 0; i < 8; i++) {
+            var a = (i / 8) * Math.PI * 2;
+            g.beginPath();
+            g.moveTo(64, 64);
+            g.lineTo(64 + Math.cos(a) * 60, 64 + Math.sin(a) * 60);
+            g.stroke();
+        }
+        g.fillStyle = '#55525f';
+        g.beginPath();
+        g.arc(64, 64, 12, 0, 7);
+        g.fill();
+    });
+    TEX.boardSign = mkTex(420, 140, function (g, w, h) {
+        g.fillStyle = '#20456b';
+        g.fillRect(0, 0, w, h);
+        g.strokeStyle = '#ffffff';
+        g.lineWidth = 5;
+        g.strokeRect(8, 8, w - 16, h - 16);
+        g.fillStyle = '#ffffff';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.font = 'bold 38px "Yu Gothic", "MS Gothic", sans-serif';
+        g.fillText('ほし町 2 丁目', w / 2, 48);
+        g.font = 'bold 22px "Segoe UI", sans-serif';
+        g.fillText('HOSHICHO 2-CHOME', w / 2, 92);
+        g.fillStyle = '#ef7a2b';
+        g.fillRect(60, 116, w - 120, 6);
+    });
+    /* soft radial blob used for fake light spills */
+    TEX.spill = mkTex(128, 128, function (g, w, h) {
+        var grd = g.createRadialGradient(64, 64, 2, 64, 64, 62);
+        grd.addColorStop(0, 'rgba(255,255,255,1)');
+        grd.addColorStop(0.45, 'rgba(255,255,255,0.45)');
+        grd.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = grd;
+        g.fillRect(0, 0, w, h);
+    });
+    /* warm lit window of the neighbouring house */
+    TEX.warmWindow = mkTex(256, 224, function (g, w, h) {
+        var grd = g.createLinearGradient(0, 0, 0, h);
+        grd.addColorStop(0, '#ffe1a6');
+        grd.addColorStop(0.55, '#ffd08a');
+        grd.addColorStop(1, '#f2b46f');
+        g.fillStyle = grd;
+        g.fillRect(0, 0, w, h);
+        // curtain
+        g.fillStyle = 'rgba(255,247,226,0.92)';
+        g.fillRect(0, 0, 46, h);
+        g.fillStyle = 'rgba(233,196,150,0.55)';
+        for (var i = 0; i < 5; i++)
+            g.fillRect(6 + i * 9, 0, 4, h);
+        // lamp inside
+        g.fillStyle = 'rgba(255,255,235,0.9)';
+        g.beginPath();
+        g.arc(w * 0.72, h * 0.38, 26, 0, 7);
+        g.fill();
+        g.fillStyle = 'rgba(255,236,190,0.5)';
+        g.beginPath();
+        g.arc(w * 0.72, h * 0.38, 54, 0, 7);
+        g.fill();
+        // silhouettes
+        g.fillStyle = 'rgba(150,110,80,0.55)';
+        g.fillRect(w * 0.5, h * 0.62, 40, 90);
+        g.fillRect(w * 0.2, h * 0.5, 26, 110);
+        // frame
+        g.strokeStyle = '#8c7358';
+        g.lineWidth = 12;
+        g.strokeRect(6, 6, w - 12, h - 12);
+        g.lineWidth = 7;
+        g.beginPath();
+        g.moveTo(w / 2, 0);
+        g.lineTo(w / 2, h);
+        g.stroke();
+    });
+    /* vertical alley sign of the little snack bar */
+    TEX.alleySign = mkTex(180, 620, function (g, w, h) {
+        g.fillStyle = '#fdf6e6';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#c0392b';
+        g.fillRect(0, 0, w, 14);
+        g.fillStyle = '#c0392b';
+        g.fillRect(0, h - 14, w, 14);
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillStyle = '#2a3a53';
+        g.font = 'bold 74px "Yu Gothic", "MS Gothic", sans-serif';
+        g.fillText('ス', w / 2, 120);
+        g.fillText('ナ', w / 2, 210);
+        g.fillText('ッ', w / 2, 300);
+        g.fillText('ク', w / 2, 390);
+        g.fillStyle = '#1c9b95';
+        g.font = 'bold 34px "Yu Gothic", sans-serif';
+        g.fillText('ほし', w / 2, 470);
+        g.fillStyle = '#ef7a2b';
+        g.font = 'bold 26px "Segoe UI", sans-serif';
+        g.fillText('OPEN', w / 2, 530);
+    });
+    /* noren curtain over the back-street door */
+    TEX.noren = mkTex(320, 200, function (g, w, h) {
+        g.fillStyle = '#2f4a63';
+        g.fillRect(0, 0, w, h);
+        g.strokeStyle = 'rgba(255,255,255,0.35)';
+        g.lineWidth = 3;
+        g.beginPath();
+        g.moveTo(0, 26);
+        g.lineTo(w, 26);
+        g.stroke();
+        g.fillStyle = '#f4ecd9';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.font = 'bold 92px "Yu Gothic", "MS Gothic", sans-serif';
+        g.fillText('ほし', w / 2, h * 0.55);
+        for (var i = 1; i < 3; i++) {
+            g.fillStyle = 'rgba(0,0,0,0.35)';
+            g.fillRect((w / 3) * i - 2, 26, 4, h - 26);
+        }
+    });
+    /* small plate at the alley mouth */
+    TEX.alleyPlate = mkTex(320, 120, function (g, w, h) {
+        g.fillStyle = '#efe6d2';
+        g.fillRect(0, 0, w, h);
+        g.strokeStyle = '#8a7a5e';
+        g.lineWidth = 6;
+        g.strokeRect(4, 4, w - 8, h - 8);
+        g.fillStyle = '#3a3226';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.font = 'bold 52px "Yu Gothic", "MS Gothic", sans-serif';
+        g.fillText('ほし小路', w / 2, 46);
+        g.font = 'bold 22px "Segoe UI", sans-serif';
+        g.fillStyle = '#8a7a5e';
+        g.fillText('HOSHI KOJI', w / 2, 92);
+    });
+    /* promo sticker on the shop window */
+    TEX.promo = mkTex(240, 340, function (g, w, h) {
+        g.fillStyle = '#ffffff';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#ef7a2b';
+        g.fillRect(0, 0, w, 92);
+        g.fillStyle = '#ffffff';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.font = 'bold 44px "Segoe UI", sans-serif';
+        g.fillText('NEW', w / 2, 32);
+        g.font = 'bold 30px "Segoe UI", sans-serif';
+        g.fillText('ARRIVAL', w / 2, 68);
+        g.fillStyle = '#1c9b95';
+        g.font = 'bold 34px "Yu Gothic", sans-serif';
+        g.fillText('新発売', w / 2, 140);
+        g.fillStyle = '#26405c';
+        g.font = 'bold 76px "Segoe UI", sans-serif';
+        g.fillText('¥99', w / 2, 220);
+        g.fillStyle = '#ef7a2b';
+        g.fillRect(28, 268, w - 56, 10);
+        g.fillStyle = '#7a8b96';
+        g.font = 'bold 22px "Segoe UI", sans-serif';
+        g.fillText('COLD DRINK', w / 2, 300);
+    });
+    /* camera facing glow blob (fake bloom) */
+    function glowSprite(parent, x, y, z, size, color, opacity) {
+        var m = new THREE.SpriteMaterial({
+            map: TEX.spill,
+            color: color === undefined ? 0xffcf94 : color,
+            transparent: true,
+            opacity: opacity === undefined ? 0.5 : opacity,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+        var s = new THREE.Sprite(m);
+        s.position.set(x, y, z);
+        s.scale.set(size, size, 1);
+        parent.add(s);
+        return s;
+    }
+    /* painted straight-ahead arrow */
+    TEX.arrow = mkTex(200, 420, function (g, w, h) {
+        g.clearRect(0, 0, w, h);
+        g.fillStyle = '#f2ecdd';
+        g.beginPath();
+        g.moveTo(w / 2, 8);
+        g.lineTo(w - 10, h * 0.33);
+        g.lineTo(w * 0.67, h * 0.33);
+        g.lineTo(w * 0.67, h - 10);
+        g.lineTo(w * 0.33, h - 10);
+        g.lineTo(w * 0.33, h * 0.33);
+        g.lineTo(10, h * 0.33);
+        g.closePath();
+        g.fill();
+    });
+    /* ============================================================================
+       02 · BASE — the collectible plinth, the asphalt, the raised street block
+       ========================================================================== */
+    var BX0 = -4.6, BX1 = 10.0, BZ0 = -10.0, BZ1 = 5.2; // raised block bounds
+    var BLOCK_Y = 0.22;
+    var W = 20;
+    /* 台座已去掉：模型原本坐在一块 20.5m 的收藏品底座上，
+       搬进世界后底座会压进地面并在边缘 z-fighting 出一圈亮边（像浮岛）。
+       路面 y=0.005、人行道 y=0.22 本身贴地，去掉底座后街角直接长在地上。 */
+    /* --------------------------------------------------------------- asphalt -- */
+    {
+        var p = piece('asphalt', 0.42, 8);
+        var roadMat = new THREE.MeshToonMaterial({ color: 0xffffff, map: TEX.asphalt, gradientMap: GMTX });
+        plateAt(p, W, W, roadMat, 0, 0.005, 0);
+        var gutterMat = toon(0x46444f);
+        plateAt(p, BX1 - BX0 + 0.1, 0.44, gutterMat, (BX0 + BX1) / 2, 0.012, BZ1 + 0.22);
+        plateAt(p, 0.44, BZ1 - BZ0 + 0.1, gutterMat, BX0 - 0.22, 0.012, (BZ0 + BZ1) / 2);
+    }
+    /* ------------------------------------------------------- road markings ----- */
+    {
+        var p = piece('roadmark', 0.62, 8);
+        var wm = new THREE.MeshToonMaterial({
+            color: 0xf6f1e4, gradientMap: GMTX, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
+        });
+        var y = 0.014;
+        for (var i = 0; i < 5; i++)
+            plateAt(p, 0.46, 4.6, wm, -1.8 + i * 0.9, y, 7.6);
+        for (var i = 0; i < 3; i++)
+            plateAt(p, 5.2, 0.46, wm, -7.3, y, 2.7 + i * 0.9);
+        for (var x = 2.6; x < 9.7; x += 3.0)
+            plateAt(p, 1.7, 0.13, wm, x, y, 7.6);
+        for (var z = 1.5; z > -9.7; z -= 3.0)
+            plateAt(p, 0.13, 1.7, wm, -7.3, y, z);
+        plateAt(p, 2.4, 0.34, wm, -8.7, y, 1.15);
+        var mh = new THREE.MeshBasicMaterial({ map: TEX.manhole });
+        plateAt(p, 0.76, 0.76, mh, 2.6, 0.017, 6.6);
+        plateAt(p, 0.76, 0.76, mh, -7.9, 0.017, -2.4);
+        plateAt(p, 0.62, 0.62, mh, -3.2, 0.017, 8.4);
+    }
+    /* --------------------------------------------------------- kerb + block --- */
+    {
+        var p_1 = piece('block', 0.80, 7);
+        var shape = new THREE.Shape();
+        shape.moveTo(BX0, -BZ0);
+        shape.lineTo(BX1, -BZ0);
+        shape.lineTo(BX1, -BZ1);
+        shape.lineTo(BX0 + 1.5, -BZ1);
+        shape.absarc(BX0 + 1.5, -BZ1 + 1.5, 1.5, -Math.PI / 2, Math.PI, true);
+        shape.lineTo(BX0, -BZ0);
+        var geo = new THREE.ExtrudeGeometry(shape, { depth: BLOCK_Y, bevelEnabled: false, curveSegments: 18 });
+        geo.rotateX(-Math.PI / 2);
+        var topMat = new THREE.MeshToonMaterial({ color: 0xffffff, map: TEX.pave, gradientMap: GMTX });
+        var slab = new THREE.Mesh(geo, [topMat, toon(PAL.curb)]);
+        slab.receiveShadow = true;
+        slab.castShadow = true;
+        p_1.add(slab);
+        var edgeMat = toon(0xe8ded0);
+        plateAt(p_1, BX1 - BX0, 0.12, edgeMat, (BX0 + BX1) / 2, BLOCK_Y + 0.003, BZ1 - 0.06);
+        plateAt(p_1, 0.12, BZ1 - BZ0, edgeMat, BX1 - 0.06, BLOCK_Y + 0.003, (BZ0 + BZ1) / 2);
+        /* parking markings */
+        var pm_1 = new THREE.MeshToonMaterial({
+            color: 0xf6f1e4, gradientMap: GMTX, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
+        });
+        var py_1 = BLOCK_Y + 0.007;
+        var bays = [1.5, 3.95, 6.4];
+        bays.forEach(function (bx) { return plateAt(p_1, 0.11, 4.5, pm_1, bx, py_1, 2.85); });
+        plateAt(p_1, 5.01, 0.11, pm_1, 3.95, py_1, 0.55);
+        var stopMat_1 = toon(0xded7c8);
+        bays.forEach(function (bx) { return boxAt(p_1, 1.4, 0.13, 0.2, stopMat_1, bx + 1.22, BLOCK_Y, 0.78); });
+        /* drain grates */
+        var grateMat_1 = toon(0x4a4756);
+        var slatMat_1 = toon(0x6d6a7c);
+        [
+            { a: -1.2, ax: 'z' }, { a: 3.4, ax: 'z' }, { a: 8.4, ax: 'z' },
+            { a: -0.6, ax: 'x' }, { a: -4.6, ax: 'x' },
+        ].forEach(function (d) {
+            if (d.ax === 'z') {
+                boxAt(p_1, 0.9, 0.05, 0.44, grateMat_1, d.a, 0.004, BZ1 + 0.22);
+                for (var i = 0; i < 4; i++)
+                    boxAt(p_1, 0.11, 0.062, 0.4, slatMat_1, d.a - 0.32 + i * 0.21, 0.005, BZ1 + 0.22);
+            }
+            else {
+                boxAt(p_1, 0.44, 0.05, 0.9, grateMat_1, BX0 - 0.22, 0.004, d.a);
+                for (var i = 0; i < 4; i++)
+                    boxAt(p_1, 0.4, 0.062, 0.11, slatMat_1, BX0 - 0.22, 0.005, d.a - 0.32 + i * 0.21);
+            }
+        });
+    }
+    /* ============================================================================
+       03 · STORE SHELL — walls, glass corner, awning, roof, signage
+       ========================================================================== */
+    var S = {
+        x0: -2.2, x1: 4.8, z0: -6.6, z1: -0.6,
+        floor: 0.38, glassTop: 2.60, headTop: 2.92, fasciaTop: 3.52,
+        roofTop: 3.66, parTop: 3.96, ceil: 2.86, wall: 0.16,
+    };
+    var SCX = (S.x0 + S.x1) / 2;
+    var SCZ = (S.z0 + S.z1) / 2;
+    function makeACUnit(parent, x, yb, z, ry, s) {
+        var g = new THREE.Group();
+        g.position.set(x, yb, z);
+        g.rotation.y = ry || 0;
+        s = s || 1;
+        var bodyMat = toon(0xdfe1e0);
+        var dark = toon(0x8e9498);
+        var b = boxAt(g, 0.92 * s, 0.62 * s, 0.44 * s, bodyMat, 0, 0, 0);
+        outline(b, 0.012);
+        // fan cowl
+        var fan = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * s, 0.2 * s, 0.04, 16), dark);
+        fan.rotation.x = Math.PI / 2;
+        fan.position.set(0.06 * s, 0.31 * s, 0.23 * s);
+        g.add(fan);
+        for (var i = 0; i < 3; i++) {
+            var bl = boxAt(g, 0.3 * s, 0.02, 0.03 * s, toon(0x6f757a), 0.06 * s, 0.28 * s, 0.24 * s);
+            bl.rotation.z = i * 1.05;
+        }
+        for (var i = 0; i < 4; i++)
+            boxAt(g, 0.8 * s, 0.02, 0.02, dark, 0, 0.06 * s + i * 0.1 * s, 0.21 * s);
+        boxAt(g, 0.08 * s, 0.06 * s, 0.06, toon(0x9aa0a4), -0.42 * s, 0.02 * s, 0);
+        parent.add(g);
+        return g;
+    }
+    /* ------------------------------------------------------------- the shell -- */
+    {
+        var p_2 = piece('storeShell', 1.15, 9);
+        var wallMat = toon(PAL.wall);
+        var frameMat_1 = toon(0xcdd3d8);
+        var kickMat = toon(0xe9e5da);
+        // floor plinth
+        var plinth = boxAt(p_2, 7.34, 0.16, 6.34, toon(0xbdb6ab), SCX, 0.22, SCZ);
+        plinth.receiveShadow = true;
+        // corner + end posts
+        boxAt(p_2, 0.26, S.fasciaTop - 0.22, 0.26, wallMat, S.x0 + 0.13, 0.22, S.z1 - 0.13);
+        boxAt(p_2, 0.26, S.fasciaTop - 0.22, 0.26, wallMat, S.x1 - 0.13, 0.22, S.z1 - 0.13);
+        /* ---------------- front wall (south, +Z) ---------------- */
+        var fz_1 = S.z1 + S.wall / 2; // wall centre plane z = -0.52
+        var backZ = S.z1 - S.wall;
+        // left narrow glass strip  x[-2.2 .. -1.55]
+        // door  x[-1.55 .. 0.25] ; glass block x[0.25 .. 4.8]
+        boxAt(p_2, 0.4, 0.46, S.wall, kickMat, -1.75, 0.38, fz_1);
+        boxAt(p_2, 4.5, 0.46, S.wall, kickMat, 2.52, 0.38, fz_1);
+        boxAt(p_2, 7.0, 0.32, S.wall, wallMat, SCX, S.glassTop, fz_1); // header 2.60→2.92
+        // glass panes
+        panelAt(p_2, 0.4, S.glassTop - 0.38, MAT.glass, -1.75, 0.38, S.z1 - 0.05);
+        panelAt(p_2, 4.5, S.glassTop - 0.38, MAT.glass, 2.52, 0.38, S.z1 - 0.05);
+        // soft sky reflection streaks on the glass
+        var streakMat_1 = new THREE.MeshBasicMaterial({
+            color: 0xffe6c8, transparent: true, opacity: 0.20, depthWrite: false,
+            blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+        });
+        [[-0.55, 0.5, 0.30, 3.1], [1.7, 0.42, -0.22, 2.4], [3.5, 0.55, 0.26, 2.8]].forEach(function (_a) {
+            var sx = _a[0], sw = _a[1], tilt = _a[2], sh = _a[3];
+            var st = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), streakMat_1);
+            st.position.set(sx, 1.6, S.z1 - 0.06);
+            st.rotation.z = tilt;
+            p_2.add(st);
+        });
+        // mullions
+        [0.25, 1.35, 2.45, 3.6, 4.68].forEach(function (mx) {
+            boxAt(p_2, 0.07, S.glassTop - 0.38, 0.14, frameMat_1, mx, 0.38, fz_1);
+        });
+        boxAt(p_2, 4.5, 0.07, 0.14, frameMat_1, 2.52, S.glassTop - 0.09, fz_1);
+        /* ---------------- sliding entrance door ---------------- */
+        var dx = -0.65;
+        boxAt(p_2, 0.1, S.glassTop - 0.38, 0.16, frameMat_1, -1.6, 0.38, fz_1);
+        boxAt(p_2, 0.1, S.glassTop - 0.38, 0.16, frameMat_1, 0.3, 0.38, fz_1);
+        boxAt(p_2, 1.9, 0.09, 0.18, frameMat_1, dx, S.glassTop - 0.09, fz_1);
+        boxAt(p_2, 1.9, 0.05, 0.2, toon(0xb8bcc0), dx, 0.355, fz_1);
+        [-1.06, -0.24].forEach(function (px, i) {
+            var pz = S.z1 - 0.03 + (i ? 0.07 : 0);
+            panelAt(p_2, 0.86, S.glassTop - 0.48, MAT.glass, px, 0.4, pz);
+            boxAt(p_2, 0.86, 0.06, 0.09, frameMat_1, px, 0.4, pz);
+            boxAt(p_2, 0.86, 0.05, 0.09, frameMat_1, px, S.glassTop - 0.5, pz);
+            boxAt(p_2, 0.05, S.glassTop - 0.48, 0.09, frameMat_1, px - 0.41, 0.4, pz);
+            boxAt(p_2, 0.05, S.glassTop - 0.48, 0.09, frameMat_1, px + 0.41, 0.4, pz);
+            boxAt(p_2, 0.72, 0.05, 0.03, new THREE.MeshBasicMaterial({ color: 0xffffff }), px, 1.44, pz + 0.05);
+        });
+        // door sensor + floor track: reads as an automatic door
+        boxAt(p_2, 0.46, 0.13, 0.15, toon(0x2f3437), dx, S.glassTop + 0.02, fz_1 + 0.14);
+        boxAt(p_2, 0.07, 0.035, 0.02, new THREE.MeshBasicMaterial({ color: 0x8fe8b0 }), dx - 0.14, S.glassTop + 0.09, fz_1 + 0.22);
+        boxAt(p_2, 0.07, 0.035, 0.02, new THREE.MeshBasicMaterial({ color: 0x8fe8b0 }), dx + 0.14, S.glassTop + 0.09, fz_1 + 0.22);
+        boxAt(p_2, 1.9, 0.02, 0.12, toon(0x585f63), dx, 0.385, S.z1 - 0.02);
+        boxAt(p_2, 1.86, 0.05, 0.05, toon(0xc3c8cb), dx, S.glassTop - 0.02, fz_1 + 0.02);
+        /* ---------------- west wall ( -X ) ---------------- */
+        var wx = S.x0 - S.wall / 2 + 0.08; // wall centre plane x = -2.28
+        var wxC_1 = -2.28;
+        // glass zone z[-4.95 .. -0.86]
+        boxAt(p_2, S.wall, 0.46, 4.1, kickMat, wxC_1, 0.38, -2.9);
+        panelAt(p_2, 4.1, S.glassTop - 0.38, MAT.glass, S.x0 - 0.05, 0.38, -2.9, -Math.PI / 2);
+        [-1.9, -3.4].forEach(function (mzz) {
+            boxAt(p_2, 0.14, S.glassTop - 0.38, 0.07, frameMat_1, wxC_1, 0.38, mzz);
+        });
+        // solid rear part of the west wall
+        var wsolid = boxAt(p_2, S.wall, S.fasciaTop - 0.22, 1.66, wallMat, wxC_1, 0.22, -5.86);
+        outline(wsolid, 0.018);
+        // header along the west face
+        boxAt(p_2, S.wall, 0.32, 6.0, wallMat, wxC_1, S.glassTop, SCZ);
+        /* ---------------- east wall ( +X ) ---------------- */
+        var ew = boxAt(p_2, S.wall, S.fasciaTop - 0.22, 6.0, wallMat, S.x1 + S.wall / 2, 0.22, SCZ);
+        outline(ew, 0.018);
+        // service door
+        boxAt(p_2, 0.05, 2.05, 0.86, toon(0x9aa3a8), S.x1 + S.wall - 0.02, 0.24, -5.7);
+        boxAt(p_2, 0.06, 2.15, 1.0, toon(0x7f878c), S.x1 + S.wall - 0.05, 0.22, -5.7);
+        boxAt(p_2, 0.07, 0.1, 0.1, toon(0xdfe2e4), S.x1 + S.wall + 0.01, 1.16, -5.35);
+        /* ---------------- back wall ( -Z ) ---------------- */
+        var bw = boxAt(p_2, 7.0, S.fasciaTop - 0.22, S.wall, wallMat, SCX, 0.22, S.z0 - S.wall / 2);
+        outline(bw, 0.018);
+        /* down pipes & small exterior boxes */
+        var pipeMat = toon(0xd8d5cd);
+        var p1 = cylAt(p_2, 0.06, 0.06, 3.7, pipeMat, S.x0 - 0.1, 0.22, S.z1 - 0.1, 8);
+        p1.castShadow = true;
+        var p2 = cylAt(p_2, 0.06, 0.06, 3.7, pipeMat, S.x1 + 0.12, 0.22, S.z0 + 0.2, 8);
+        cylAt(p_2, 0.06, 0.06, 0.3, pipeMat, S.x0 - 0.1, 0.24, S.z1 + 0.06, 8).rotation.x = Math.PI / 2;
+        boxAt(p_2, 0.12, 0.4, 0.55, toon(0xb8bcbf), S.x0 - 0.06, 1.3, -5.4);
+        boxAt(p_2, 0.1, 0.26, 0.34, toon(0x9aa1a6), S.x0 - 0.06, 2.1, -5.6);
+    }
+    /* ------------------------------------------------------- roof + fascia ---- */
+    {
+        var p = piece('storeRoof', 1.42, 10);
+        var fasciaMat = toon(0xf8f5ee);
+        var wallMat = toon(PAL.wall);
+        // fascia band all around
+        var fFront = boxAt(p, 7.2, S.fasciaTop - S.headTop, 0.2, fasciaMat, SCX, S.headTop, S.z1 + 0.02);
+        outline(fFront, 0.018);
+        var fWest = boxAt(p, 0.2, S.fasciaTop - S.headTop, 6.2, fasciaMat, S.x0 - 0.02, S.headTop, SCZ);
+        outline(fWest, 0.018);
+        boxAt(p, 0.2, S.fasciaTop - S.headTop, 6.2, fasciaMat, S.x1 + 0.02, S.headTop, SCZ);
+        boxAt(p, 7.2, S.fasciaTop - S.headTop, 0.2, fasciaMat, SCX, S.headTop, S.z0 - 0.02);
+        // brand colour stripe under the fascia
+        boxAt(p, 7.24, 0.07, 0.06, toon(PAL.teal), SCX, S.headTop + 0.02, S.z1 + 0.12);
+        boxAt(p, 0.06, 0.07, 6.24, toon(PAL.teal), S.x0 - 0.11, S.headTop + 0.02, SCZ);
+        // roof slab + parapet
+        var roof = boxAt(p, 7.18, S.roofTop - S.fasciaTop, 6.18, toon(0xc8c8c2), SCX, S.fasciaTop, SCZ);
+        roof.receiveShadow = true;
+        var par = toon(0xefece4);
+        boxAt(p, 7.18, S.parTop - S.roofTop, 0.1, par, SCX, S.roofTop, S.z1 - 0.15);
+        boxAt(p, 7.18, S.parTop - S.roofTop, 0.1, par, SCX, S.roofTop, S.z0 + 0.15);
+        boxAt(p, 0.1, S.parTop - S.roofTop, 6.18, par, S.x0 + 0.15, S.roofTop, SCZ);
+        boxAt(p, 0.1, S.parTop - S.roofTop, 6.18, par, S.x1 - 0.15, S.roofTop, SCZ);
+        // rooftop machinery
+        makeACUnit(p, -0.2, S.roofTop + 0.14, -4.7, 0);
+        makeACUnit(p, 2.2, S.roofTop + 0.14, -5.2, 0.12);
+        var vent = cylAt(p, 0.12, 0.12, 0.66, toon(0xbdc1c4), 4.0, S.roofTop + 0.14, -1.6, 10);
+        cylAt(p, 0.24, 0.18, 0.12, toon(0x9ba1a5), 4.0, S.roofTop + 0.78, -1.6, 10);
+        cylAt(p, 0.07, 0.09, 1.1, toon(0xa9aeb1), 0.8, S.roofTop + 0.14, -5.9, 8);
+        boxAt(p, 0.7, 0.05, 0.05, toon(0xa9aeb1), 0.8, S.roofTop + 1.05, -5.9);
+        // ladder to the roof at the back
+        for (var i = 0; i < 7; i++)
+            boxAt(p, 0.5, 0.03, 0.03, toon(0xa7a49c), 3.4, S.roofTop + 0.12 + i * 0.28, -6.66);
+        boxAt(p, 0.04, 2.1, 0.04, toon(0xa7a49c), 3.17, S.roofTop + 0.12, -6.66);
+        boxAt(p, 0.04, 2.1, 0.04, toon(0xa7a49c), 3.63, S.roofTop + 0.12, -6.66);
+    }
+    /* ------------------------------------------------------ signage + awning --- */
+    {
+        var p_3 = piece('storeSign', 1.68, 6);
+        var signMat = new THREE.MeshBasicMaterial({ map: TEX.sign });
+        panelAt(p_3, 6.4, 0.54, signMat, SCX, S.headTop + 0.04, S.z1 + 0.125);
+        var sideMat = new THREE.MeshBasicMaterial({ map: TEX.signSide });
+        panelAt(p_3, 4.6, 0.52, sideMat, S.x0 - 0.125, S.headTop + 0.05, SCZ, -Math.PI / 2);
+        // awning
+        var awnMat = toon(0xfaf6ee);
+        var awn = boxAt(p_3, 7.1, 0.13, 1.35, awnMat, SCX, S.glassTop + 0.02, S.z1 + 0.62);
+        outline(awn, 0.016);
+        boxAt(p_3, 7.1, 0.22, 0.1, toon(PAL.teal), SCX, S.glassTop - 0.13, S.z1 + 1.22);
+        boxAt(p_3, 7.14, 0.06, 1.36, toon(0xe6e2d8), SCX, S.glassTop - 0.04, S.z1 + 0.62);
+        // struts
+        lineBetween(p_3, new THREE.Vector3(-2.05, S.glassTop + 0.62, S.z1 + 1.24), new THREE.Vector3(-2.1, S.glassTop + 1.0, S.z1 + 0.1), 0.022, toon(0xb9bec2));
+        lineBetween(p_3, new THREE.Vector3(4.65, S.glassTop + 0.62, S.z1 + 1.24), new THREE.Vector3(4.7, S.glassTop + 1.0, S.z1 + 0.1), 0.022, toon(0xb9bec2));
+        // downlights under the awning
+        var dl_1 = new THREE.MeshBasicMaterial({ color: 0xfff4dc });
+        [-1.6, 0.1, 1.8, 3.5, 4.4].forEach(function (lx) {
+            cylAt(p_3, 0.1, 0.1, 0.04, dl_1, lx, S.glassTop - 0.05, S.z1 + 0.55, 12);
+        });
+        // wall lamp over the door
+        boxAt(p_3, 0.16, 0.09, 0.28, toon(0x8f9599), -1.4, S.glassTop + 0.2, S.z1 + 0.1);
+        boxAt(p_3, 0.12, 0.05, 0.22, new THREE.MeshBasicMaterial({ color: 0xffe6b8 }), -1.4, S.glassTop + 0.16, S.z1 + 0.1);
+        // entrance mat
+        boxAt(p_3, 1.72, 0.03, 0.95, toon(0x4e5566), -0.65, 0.222, -0.1);
+        boxAt(p_3, 1.66, 0.032, 0.1, toon(0x8e6a5a), -0.65, 0.223, -0.55);
+        boxAt(p_3, 1.66, 0.032, 0.1, toon(0x8e6a5a), -0.65, 0.223, 0.35);
+        // small security camera under the awning
+        boxAt(p_3, 0.14, 0.12, 0.12, toon(0xdcdcd4), S.x1 - 0.3, S.glassTop - 0.28, S.z1 + 0.3);
+    }
+    /* ============================================================================
+       03B · NEIGHBOUR HOUSE & THE ALLEY — closes the east edge, adds the back street
+       ========================================================================== */
+    var NB = { x0: 7.45, x1: 9.88, z0: -6.25, z1: -1.35, top: 5.25 };
+    var NBX = (NB.x0 + NB.x1) / 2, NBZ = (NB.z0 + NB.z1) / 2;
+    var NBY = BLOCK_Y + 0.18;
+    {
+        var p_4 = piece('neighbour', 1.60, 9);
+        var wallMat = toon(0xe7dac2);
+        var trim = toon(0xf6efdf);
+        var wood = toon(0x7d5b3f);
+        var roofMat = toon(0xc4c2ba);
+        boxAt(p_4, NB.x1 - NB.x0 + 0.14, 0.18, NB.z1 - NB.z0 + 0.14, toon(0xb7ad9e), NBX, BLOCK_Y, NBZ);
+        var mass = boxAt(p_4, NB.x1 - NB.x0, NB.top - NBY, NB.z1 - NB.z0, wallMat, NBX, NBY, NBZ);
+        outline(mass, 0.022);
+        // storey band
+        boxAt(p_4, NB.x1 - NB.x0 + 0.07, 0.1, NB.z1 - NB.z0 + 0.07, trim, NBX, 2.86, NBZ);
+        // roof slab + parapet
+        boxAt(p_4, NB.x1 - NB.x0 + 0.08, 0.12, NB.z1 - NB.z0 + 0.08, roofMat, NBX, NB.top, NBZ);
+        var par = toon(0xefe8da);
+        boxAt(p_4, NB.x1 - NB.x0 + 0.16, 0.24, 0.09, par, NBX, NB.top + 0.12, NB.z1 - 0.04);
+        boxAt(p_4, NB.x1 - NB.x0 + 0.16, 0.24, 0.09, par, NBX, NB.top + 0.12, NB.z0 + 0.04);
+        boxAt(p_4, 0.09, 0.24, NB.z1 - NB.z0, par, NB.x0 + 0.04, NB.top + 0.12, NBZ);
+        boxAt(p_4, 0.09, 0.24, NB.z1 - NB.z0, par, NB.x1 - 0.04, NB.top + 0.12, NBZ);
+        /* ---------------- alley side (west face, -X) ---------------- */
+        var wx = NB.x0 - 0.03;
+        // wooden shop front
+        boxAt(p_4, 0.07, 2.15, 1.55, wood, NB.x0 + 0.02, NBY, -2.35);
+        // door opening + warm light inside
+        boxAt(p_4, 0.1, 1.95, 1.05, toon(0x2f2721), NB.x0 + 0.01, NBY, -2.35);
+        panelAt(p_4, 0.95, 1.85, new THREE.MeshBasicMaterial({ color: 0xffc978 }), NB.x0 - 0.01, NBY + 0.06, -2.35, -Math.PI / 2);
+        // noren over the door
+        panelAt(p_4, 1.2, 0.5, new THREE.MeshBasicMaterial({ map: TEX.noren, side: THREE.DoubleSide }), NB.x0 - 0.06, 2.14, -2.35, -Math.PI / 2);
+        // small canopy
+        boxAt(p_4, 0.7, 0.08, 1.5, toon(0xd8cfbc), NB.x0 - 0.28, 2.72, -2.35);
+        // warm window further up the alley
+        panelAt(p_4, 1.15, 0.92, new THREE.MeshBasicMaterial({ map: TEX.warmWindow }), wx, 1.02, -4.35, -Math.PI / 2);
+        boxAt(p_4, 0.06, 0.08, 1.22, trim, NB.x0 - 0.02, 0.94, -4.35);
+        boxAt(p_4, 0.06, 0.08, 1.22, trim, NB.x0 - 0.02, 1.96, -4.35);
+        // upper window
+        panelAt(p_4, 1.2, 0.86, new THREE.MeshBasicMaterial({ map: TEX.warmWindow }), wx, 3.24, -3.4, -Math.PI / 2);
+        boxAt(p_4, 0.06, 0.07, 1.28, trim, NB.x0 - 0.02, 3.16, -3.4);
+        // wall lamp over the door
+        boxAt(p_4, 0.16, 0.1, 0.22, toon(0x9aa1a6), NB.x0 - 0.09, 2.74, -2.35);
+        boxAt(p_4, 0.1, 0.05, 0.16, new THREE.MeshBasicMaterial({ color: 0xffe2b0 }), NB.x0 - 0.13, 2.7, -2.35);
+        // air-con + meter on the alley wall
+        makeACUnit(p_4, NB.x0 - 0.22, NBY + 2.1, -5.5, Math.PI / 2, 0.8);
+        boxAt(p_4, 0.1, 0.34, 0.26, toon(0xc6cacd), NB.x0 - 0.03, 1.35, -5.6);
+        cylAt(p_4, 0.05, 0.05, 4.9, toon(0xd6d0c2), NB.x0 - 0.06, NBY, -6.05, 8);
+        /* ---------------- street side (south face, +Z) ---------------- */
+        var sz = NB.z1 + 0.03;
+        // roller shutter
+        boxAt(p_4, 1.7, 2.05, 0.08, toon(0xb3b9bf), NBX + 0.25, NBY, sz);
+        for (var i = 0; i < 9; i++)
+            boxAt(p_4, 1.7, 0.03, 0.1, toon(0x9aa1a8), NBX + 0.25, NBY + 0.16 + i * 0.21, sz + 0.02);
+        boxAt(p_4, 1.8, 0.16, 0.16, trim, NBX + 0.25, NBY + 2.05, sz);
+        // upstairs window + balcony
+        panelAt(p_4, 0.95, 0.8, new THREE.MeshBasicMaterial({ map: TEX.warmWindow }), NBX - 0.35, 3.32, sz + 0.01);
+        boxAt(p_4, 0.06, 0.07, 0.07, trim, NBX - 0.82, 3.24, sz + 0.04);
+        boxAt(p_4, 1.5, 0.08, 0.4, toon(0xd9d3c4), NBX - 0.2, 3.02, NB.z1 + 0.2);
+        boxAt(p_4, 1.5, 0.05, 0.05, toon(0xb9bec2), NBX - 0.2, 3.62, NB.z1 + 0.38);
+        for (var i = 0; i < 4; i++)
+            boxAt(p_4, 0.04, 0.58, 0.04, toon(0xb9bec2), NBX - 0.9 + i * 0.47, 3.06, NB.z1 + 0.38);
+        // laundry pole + washing
+        var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.3, 6), toon(0xa9aeb1));
+        pole.rotation.z = Math.PI / 2;
+        pole.position.set(NBX - 0.2, 3.72, NB.z1 + 0.3);
+        p_4.add(pole);
+        [[0xc8d8e8, -0.5], [0xe8c8c8, 0.15]].forEach(function (_a, i) {
+            var col = _a[0], ox = _a[1];
+            boxAt(p_4, 0.34, 0.42, 0.02, toon(col), NBX - 0.2 + ox, 3.26, NB.z1 + 0.31 + i * 0.02);
+        });
+        // downpipe at the street corner
+        cylAt(p_4, 0.055, 0.055, 4.6, toon(0xd6d0c2), NB.x1 - 0.12, NBY, NB.z1 + 0.06, 8);
+        /* ---------------- east party wall: pipe, frosted window, dish ------------- */
+        var ex = NB.x1 + 0.02;
+        cylAt(p_4, 0.06, 0.06, 4.42, toon(0xcfc8ba), ex + 0.02, NBY, NB.z0 + 0.34, 8);
+        for (var i = 0; i < 5; i++)
+            boxAt(p_4, 0.1, 0.05, 0.05, toon(0xa9a196), ex, NBY + 0.65 + i * 0.9, NB.z0 + 0.34);
+        boxAt(p_4, 0.07, 0.82, 0.92, toon(0xc9c1b2), NB.x1 - 0.02, 3.24, -4.45);
+        panelAt(p_4, 0.8, 0.7, new THREE.MeshBasicMaterial({ color: 0xa9d8cc }), ex + 0.03, 3.3, -4.45, Math.PI / 2);
+        for (var i = 0; i < 4; i++)
+            boxAt(p_4, 0.05, 0.7, 0.035, toon(0xe2dccd), ex + 0.05, 3.3, -4.81 + i * 0.24);
+        boxAt(p_4, 0.16, 0.34, 0.44, toon(0xb2ab9f), ex + 0.05, 2.3, -1.95);
+        boxAt(p_4, 0.1, 0.24, 0.3, toon(0x939c9f), ex + 0.06, 1.6, -5.6);
+        var dish = new THREE.Mesh(new THREE.SphereGeometry(0.32, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.42), toon(0xded8ca));
+        dish.rotation.z = -Math.PI / 2;
+        dish.position.set(ex + 0.3, 3.95, -2.55);
+        p_4.add(dish);
+        cylAt(p_4, 0.022, 0.022, 0.34, toon(0x9aa1a6), ex + 0.17, 3.8, -2.55, 6).rotation.z = Math.PI / 2;
+        boxAt(p_4, 0.44, 0.16, 0.16, toon(0x8f9599), ex + 0.1, 3.85, -2.55);
+        /* ---------------- projecting snack sign in the alley ------------- */
+        var signFace = new THREE.MeshBasicMaterial({ map: TEX.alleySign });
+        var sideT = toon(0xc0392b);
+        var sbox = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.5, 0.24), [sideT, sideT, toon(0xf6efdf), sideT, signFace, signFace]);
+        sbox.position.set(NB.x0 - 0.26, 3.6, -2.35);
+        sbox.castShadow = true;
+        p_4.add(sbox);
+        outline(sbox, 0.014);
+        boxAt(p_4, 0.3, 0.05, 0.05, toon(0x8f9599), NB.x0 - 0.12, 4.3, -2.35);
+        boxAt(p_4, 0.3, 0.05, 0.05, toon(0x8f9599), NB.x0 - 0.12, 2.9, -2.35);
+        /* ---------------- rooftop ---------------- */
+        var tank = cylAt(p_4, 0.42, 0.42, 1.0, toon(0xdfe3e4), NBX - 0.35, NB.top + 0.55, -5.15, 14);
+        outline(tank, 0.014);
+        cylAt(p_4, 0.44, 0.44, 0.08, toon(0xc6cbcd), NBX - 0.35, NB.top + 1.55, -5.15, 14);
+        for (var i = 0; i < 4; i++) {
+            var a = Math.PI / 4 + i * Math.PI / 2;
+            boxAt(p_4, 0.06, 0.55, 0.06, toon(0x9aa1a6), NBX - 0.35 + Math.cos(a) * 0.34, NB.top + 0.05, -5.15 + Math.sin(a) * 0.34);
+        }
+        cylAt(p_4, 0.03, 0.03, 1.5, toon(0x9aa1a6), NBX + 0.2, NB.top + 0.12, -2.0, 6);
+        boxAt(p_4, 0.7, 0.03, 0.03, toon(0x9aa1a6), NBX + 0.2, NB.top + 1.4, -2.0);
+        boxAt(p_4, 0.05, 0.05, 0.5, toon(0x9aa1a6), NBX + 0.2, NB.top + 1.28, -2.0);
+    }
+    /* ------------------------------------------------------- the alley itself -- */
+    {
+        var p = piece('alley', 2.95, 5);
+        // concrete strip + drainage channel
+        var conc = toon(0xb8b1a4);
+        var strip = boxAt(p, 2.45, 0.03, 4.9, conc, 6.2, BLOCK_Y, -3.8);
+        strip.receiveShadow = true;
+        boxAt(p, 0.16, 0.025, 4.9, toon(0x8d877c), 6.2, BLOCK_Y + 0.015, -3.8);
+        for (var i = 0; i < 5; i++)
+            boxAt(p, 0.2, 0.035, 0.1, toon(0x6f6a62), 6.2, BLOCK_Y + 0.016, -5.4 + i * 0.9);
+        // step at the far end
+        boxAt(p, 2.45, 0.14, 0.5, toon(0xc6beb1), 6.2, BLOCK_Y, -6.0);
+        // clutter
+        boxAt(p, 0.5, 0.42, 0.38, toon(0xcfae74), 6.95, BLOCK_Y, -4.2);
+        boxAt(p, 0.5, 0.42, 0.38, toon(0xc7a76f), 6.95, BLOCK_Y + 0.42, -4.2);
+        boxAt(p, 0.46, 0.05, 0.34, toon(0xb8954f), 6.95, BLOCK_Y + 0.2, -4.2);
+        cylAt(p, 0.16, 0.13, 0.3, toon(0x4f8fd0), 5.45, BLOCK_Y, -5.2, 10);
+        boxAt(p, 0.34, 0.5, 0.3, toon(0x4f6a58), 5.35, BLOCK_Y, -4.35);
+        boxAt(p, 0.36, 0.06, 0.32, toon(0x3d5546), 5.35, BLOCK_Y + 0.5, -4.35);
+        // bare bulb on a wire across the alley
+        var wireMat = toon(0x2f2c38);
+        tube(p, new THREE.Vector3(5.0, 3.55, -2.85), new THREE.Vector3(7.42, 3.45, -2.85), 0.012, wireMat, 0.16);
+        cylAt(p, 0.02, 0.02, 0.22, toon(0x33323d), 6.2, 3.2, -2.85, 6);
+        var shade = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.12, 12, 1, true), toon(0x5a6068));
+        shade.position.set(6.2, 3.34, -2.85);
+        p.add(shade);
+        var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), MAT.glowWarm);
+        bulb.position.set(6.2, 3.19, -2.85);
+        p.add(bulb);
+        glowSprite(p, 6.2, 3.19, -2.85, 1.5, 0xffca8a, 0.55);
+        glowSprite(p, 6.15, 1.5, -3.1, 2.7, 0xffb877, 0.20);
+        glowSprite(p, 5.6, 2.2, -4.4, 2.2, 0xff9d6a, 0.14);
+        // alley mouth plate
+        var post = cylAt(p, 0.045, 0.045, 2.2, toon(0xa9aeb1), 7.28, BLOCK_Y, -1.22, 8);
+        post.castShadow = true;
+        boxAt(p, 0.9, 0.34, 0.05, new THREE.MeshBasicMaterial({ map: TEX.alleyPlate }), 7.05, 1.72, -1.2);
+        boxAt(p, 0.96, 0.4, 0.04, toon(0x8a7a5e), 7.05, 1.69, -1.24);
+        spill(p, 6.2, BLOCK_Y + 0.014, -3.0, 5.0, 4.0, 0.16, 0xffc98a);
+    }
+    /* ------------------------------------------------------- extra night glows -- */
+    {
+        var p = piece('glows', 3.22, 0);
+        glowSprite(p, 8.6, BLOCK_Y + 4.9, 5.8, 3.4, 0xffc27a, 0.45); // street lamp
+        glowSprite(p, -3.95, 1.5, -3.6, 2.1, 0xffd0a0, 0.3); // vending, west
+        glowSprite(p, 3.6, 1.5, 1.0, 2.1, 0xffd0a0, 0.3); // vending, front
+        glowSprite(p, 6.1, 1.5, -1.1, 2.1, 0xffd0a0, 0.28); // vending, alley mouth
+        glowSprite(p, 1.2, 2.3, 0.5, 4.2, 0xffe3b4, 0.16); // shop entrance haze
+    }
+    /* ============================================================================
+       04 · INTERIOR — everything you can see through the glass
+       ========================================================================== */
+    var IX0 = S.x0 + 0.16, IX1 = S.x1 - 0.16;
+    var IZ0 = S.z0 + 0.16, IZ1 = S.z1 - 0.16;
+    var IFLOOR = S.floor;
+    /* ------------------------------------------------------- floor / ceiling -- */
+    {
+        var p_5 = piece('intRoom', 1.94, 7);
+        var floorMat = new THREE.MeshBasicMaterial({ color: 0xf7ebd2, map: TEX.floor });
+        boxAt(p_5, IX1 - IX0, 0.05, IZ1 - IZ0, floorMat, SCX, IFLOOR - 0.03, (IZ0 + IZ1) / 2);
+        // ceiling + light troughs
+        var ceilMat = new THREE.MeshBasicMaterial({ color: 0xfff0d6 });
+        var ceil = new THREE.Mesh(new THREE.PlaneGeometry(IX1 - IX0, IZ1 - IZ0), ceilMat);
+        ceil.rotation.x = Math.PI / 2;
+        ceil.position.set(SCX, S.ceil, (IZ0 + IZ1) / 2);
+        p_5.add(ceil);
+        var lampMat_1 = new THREE.MeshBasicMaterial({ color: 0xfffaf0 });
+        [-1.15, 1.3, 3.75].forEach(function (lx) {
+            [-1.6, -3.4, -5.2].forEach(function (lz) {
+                boxAt(p_5, 1.35, 0.06, 0.42, lampMat_1, lx, S.ceil - 0.07, lz);
+                boxAt(p_5, 1.5, 0.05, 0.56, toon(0xe4dfd4), lx, S.ceil - 0.03, lz);
+            });
+        });
+        /* hanging sale banners */
+        var banMat_1 = new THREE.MeshBasicMaterial({ map: TEX.banner, side: THREE.DoubleSide });
+        [[-0.6, -1.55], [2.2, -4.6]].forEach(function (_a) {
+            var bx = _a[0], bz = _a[1];
+            panelAt(p_5, 0.42, 0.82, banMat_1, bx, 1.95, bz);
+            boxAt(p_5, 0.03, 0.55, 0.03, toon(0xc9c4ba), bx - 0.2, 2.55, bz);
+            boxAt(p_5, 0.03, 0.55, 0.03, toon(0xc9c4ba), bx + 0.2, 2.55, bz);
+        });
+    }
+    /* ---------------------------------------------------------- drink wall ---- */
+    {
+        var p_6 = piece('intFridge', 2.06, 6);
+        var bodyMat = new THREE.MeshBasicMaterial({ color: 0xe9eef0 });
+        boxAt(p_6, 6.3, 2.34, 0.72, bodyMat, SCX - 0.1, IFLOOR, IZ0 + 0.36);
+        var front_1 = new THREE.MeshBasicMaterial({ map: TEX.fridge });
+        var xs = [-1.16, 0.39, 1.94, 3.49];
+        xs.forEach(function (fx) {
+            panelAt(p_6, 1.5, 2.2, front_1, fx, IFLOOR + 0.06, IZ0 + 0.73);
+            boxAt(p_6, 0.06, 2.26, 0.05, toon(0xaeb6b9), fx + 0.77, IFLOOR + 0.02, IZ0 + 0.72);
+        });
+        boxAt(p_6, 6.3, 0.16, 0.06, toon(0x9fa8ac), SCX - 0.1, IFLOOR + 2.26, IZ0 + 0.72);
+        // shelf unit standing against the left end of the back wall
+        boxAt(p_6, 0.9, 1.5, 0.6, toon(0xe8e2d4), -1.6, IFLOOR, IZ0 + 1.05);
+        boxAt(p_6, 0.92, 0.06, 0.62, toon(0xcfc7b6), -1.6, IFLOOR + 0.74, IZ0 + 1.05);
+    }
+    /* ------------------------------------------------------------- gondolas --- */
+    function gondola(parent, x0, x1, z, tex) {
+        var w = x1 - x0, cx = (x0 + x1) / 2;
+        var side = new THREE.MeshBasicMaterial({ color: 0xfbf3e0 });
+        var face = new THREE.MeshBasicMaterial({ map: tex });
+        var mats = [side, side, new THREE.MeshBasicMaterial({ color: 0xded7c7 }), side, face, face];
+        var body = new THREE.Mesh(new THREE.BoxGeometry(w, 1.28, 0.86), mats);
+        body.position.set(cx, IFLOOR + 0.64, z);
+        body.castShadow = true;
+        body.receiveShadow = true;
+        parent.add(body);
+        boxAt(parent, w + 0.06, 0.08, 0.94, new THREE.MeshBasicMaterial({ color: 0xfbf7ec }), cx, IFLOOR + 1.28, z);
+        boxAt(parent, w + 0.02, 0.06, 0.9, new THREE.MeshBasicMaterial({ color: 0xd6cfbf }), cx, IFLOOR + 0.02, z);
+        // little upright sign on top
+        boxAt(parent, 0.52, 0.22, 0.03, new THREE.MeshBasicMaterial({ map: TEX.goods2 }), cx - w * 0.28, IFLOOR + 1.36, z + 0.2);
+        return body;
+    }
+    {
+        var p = piece('intShelves', 2.22, 6);
+        gondola(p, -1.85, 1.15, -2.35, TEX.goods);
+        gondola(p, -1.85, 1.45, -4.45, TEX.goods2);
+        // magazine rack under the front window
+        var mgMat = new THREE.MeshBasicMaterial({ map: TEX.mag });
+        var rack = boxAt(p, 2.4, 0.95, 0.34, new THREE.MeshBasicMaterial({ color: 0xf4eee1 }), -0.75, IFLOOR, IZ1 - 0.3);
+        boxAt(p, 2.44, 0.06, 0.4, new THREE.MeshBasicMaterial({ color: 0xe2dac8 }), -0.75, IFLOOR + 0.95, IZ1 - 0.3);
+        panelAt(p, 2.3, 0.82, mgMat, -0.75, IFLOOR + 0.08, IZ1 - 0.12);
+        boxAt(p, 2.4, 0.05, 0.06, toon(0xc6bfae), -0.75, IFLOOR + 0.3, IZ1 - 0.14);
+        // ice-cream chest freezer by the west glass
+        var chest = boxAt(p, 0.84, 0.8, 1.3, new THREE.MeshBasicMaterial({ color: 0xfbf8f0 }), IX0 + 0.45, IFLOOR, -3.0);
+        boxAt(p, 0.9, 0.1, 1.36, new THREE.MeshBasicMaterial({ color: 0xeeeadd }), IX0 + 0.45, IFLOOR + 0.8, -3.0);
+        var lid = panelAt(p, 0.72, 1.2, MAT.glassDeep, IX0 + 0.45, IFLOOR + 0.9, -3.0);
+        lid.rotation.set(-Math.PI / 2, 0, 0);
+        boxAt(p, 0.86, 0.06, 0.08, toon(PAL.teal), IX0 + 0.45, IFLOOR + 0.66, -3.0);
+    }
+    /* --------------------------------------------------------------- counter -- */
+    {
+        var p = piece('intCounter', 2.38, 6);
+        var cMat = new THREE.MeshBasicMaterial({ color: 0xf9f0dc });
+        var topMat = new THREE.MeshBasicMaterial({ color: 0xfdfaf2 });
+        // main run along the east wall
+        boxAt(p, 1.0, 0.9, 2.8, cMat, IX1 - 0.5, IFLOOR, -2.3);
+        boxAt(p, 1.08, 0.07, 2.9, topMat, IX1 - 0.5, IFLOOR + 0.9, -2.3);
+        boxAt(p, 0.06, 0.24, 2.86, toon(PAL.teal), IX1 - 1.02, IFLOOR + 0.5, -2.3);
+        // return section near the door
+        boxAt(p, 1.5, 0.9, 0.9, cMat, IX1 - 1.3, IFLOOR, -0.95);
+        boxAt(p, 1.56, 0.07, 0.96, topMat, IX1 - 1.3, IFLOOR + 0.9, -0.95);
+        // cigarette / goods wall behind the counter
+        var cigMat = new THREE.MeshBasicMaterial({ map: TEX.cig });
+        panelAt(p, 2.7, 1.5, cigMat, IX1 - 0.02, IFLOOR + 0.95, -2.6, -Math.PI / 2);
+        boxAt(p, 0.1, 0.1, 2.8, toon(0xc7c0b0), IX1 - 0.06, IFLOOR + 0.86, -2.6);
+        // register
+        boxAt(p, 0.34, 0.16, 0.3, toon(0x4d5561), IX1 - 0.62, IFLOOR + 0.97, -1.35);
+        var screen_1 = panelAt(p, 0.3, 0.24, new THREE.MeshBasicMaterial({ color: 0x9fe4d8 }), IX1 - 0.62, IFLOOR + 1.12, -1.2);
+        screen_1.rotation.x = -0.22;
+        boxAt(p, 0.3, 0.3, 0.05, toon(0x3f4651), IX1 - 0.62, IFLOOR + 1.13, -1.4);
+        // hot snack warmer – glowing
+        var warm = new THREE.MeshBasicMaterial({ color: 0xffd18a });
+        boxAt(p, 0.86, 0.62, 0.62, toon(0xd9d3c4), IX1 - 0.55, IFLOOR + 0.97, -2.4);
+        boxAt(p, 0.78, 0.42, 0.54, warm, IX1 - 0.55, IFLOOR + 1.06, -2.4);
+        boxAt(p, 0.88, 0.05, 0.64, toon(0x50565f), IX1 - 0.55, IFLOOR + 1.59, -2.4);
+        // coffee machine
+        boxAt(p, 0.42, 0.62, 0.44, toon(0x3d4450), IX1 - 0.5, IFLOOR + 0.97, -3.15);
+        boxAt(p, 0.3, 0.2, 0.06, new THREE.MeshBasicMaterial({ color: 0x8fe0d0 }), IX1 - 0.5, IFLOOR + 1.32, -2.92);
+        // small basket stack
+        boxAt(p, 0.42, 0.16, 0.32, toon(PAL.teal), IX1 - 1.35, IFLOOR, -1.55);
+        boxAt(p, 0.42, 0.16, 0.32, toon(0x2bb3ac), IX1 - 1.35, IFLOOR + 0.16, -1.55);
+        boxAt(p, 0.42, 0.16, 0.32, toon(PAL.teal), IX1 - 1.35, IFLOOR + 0.32, -1.55);
+        // wall clock
+        var clk = panelAt(p, 0.42, 0.42, new THREE.MeshBasicMaterial({ map: TEX.clock }), IX1 - 0.03, 2.24, -1.6, -Math.PI / 2);
+    }
+    /* --------------------------------------------------------- interior lights */
+    var interiorLights = [];
+    {
+        var p_7 = piece('intLights', 2.5, 8);
+        [[0.0, 2.4, -2.0], [3.3, 2.4, -4.7]].forEach(function (_a) {
+            var x = _a[0], y = _a[1], z = _a[2];
+            var l = new THREE.PointLight(0xfff0d0, 14, 12, 2);
+            l.position.set(x, y, z);
+            p_7.add(l);
+            interiorLights.push(l);
+        });
+    }
+    /* ------------------------------------------------------ window display bits */
+    {
+        var p_8 = piece('windowBits', 2.62, 3);
+        // hot snack case just inside the front glass
+        var caseBody = toon(0xf8f0dc);
+        boxAt(p_8, 1.05, 0.82, 0.58, caseBody, 3.3, IFLOOR, -1.38);
+        boxAt(p_8, 1.09, 0.07, 0.62, toon(0xe4dac4), 3.3, IFLOOR + 0.82, -1.38);
+        boxAt(p_8, 0.96, 0.05, 0.5, new THREE.MeshBasicMaterial({ color: 0xffcf94 }), 3.3, IFLOOR + 0.88, -1.38);
+        var hood = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.44, 0.54), MAT.glass);
+        hood.position.set(3.3, IFLOOR + 1.12, -1.38);
+        p_8.add(hood);
+        [[-0.32, 0xd9a45e], [-0.02, 0xf0c98a], [0.3, 0xe8b877]].forEach(function (_a) {
+            var ox = _a[0], col = _a[1];
+            boxAt(p_8, 0.2, 0.15, 0.24, new THREE.MeshBasicMaterial({ color: col }), 3.3 + ox, IFLOOR + 0.93, -1.38);
+        });
+        boxAt(p_8, 0.98, 0.13, 0.06, new THREE.MeshBasicMaterial({ color: 0xef7a2b }), 3.3, IFLOOR + 1.58, -1.09);
+        boxAt(p_8, 0.6, 0.09, 0.04, new THREE.MeshBasicMaterial({ color: 0xfff0cf }), 3.3, IFLOOR + 1.44, -1.08);
+        // ATM / multi-copy machine by the window
+        var atm = boxAt(p_8, 0.72, 1.5, 0.46, toon(0xdfe4e6), IX1 - 0.5, IFLOOR, -1.9);
+        outline(atm, 0.012);
+        boxAt(p_8, 0.5, 0.34, 0.04, new THREE.MeshBasicMaterial({ color: 0x9fd8e8 }), IX1 - 0.5, IFLOOR + 0.95, -1.66);
+        boxAt(p_8, 0.44, 0.1, 0.05, new THREE.MeshBasicMaterial({ color: 0xf2f6f7 }), IX1 - 0.5, IFLOOR + 0.6, -1.66);
+        boxAt(p_8, 0.72, 0.08, 0.46, toon(0x1c9b95), IX1 - 0.5, IFLOOR + 1.5, -1.9);
+        // promo sticker on the front glass
+        panelAt(p_8, 0.62, 0.88, new THREE.MeshBasicMaterial({ map: TEX.promo }), 1.25, 1.02, S.z1 - 0.02);
+    }
+    /* ============================================================================
+       05 · STREET & PROPS — vending machines, bikes, poles, wires, signage
+       ========================================================================== */
+    function spill(parent, x, y, z, sx, sz, opacity, color) {
+        var m = new THREE.MeshBasicMaterial({
+            map: TEX.spill, color: color || 0xffd39a, transparent: true, opacity: opacity === undefined ? 0.28 : opacity,
+            blending: THREE.AdditiveBlending, depthWrite: false,
+        });
+        var q = plateAt(parent, sx, sz, m, x, y, z);
+        q.renderOrder = 2;
+        return q;
+    }
+    /* ------------------------------------------------------------- vending ---- */
+    function makeVending(parent, x, z, ry) {
+        var g = new THREE.Group();
+        g.position.set(x, BLOCK_Y, z);
+        g.rotation.y = ry || 0;
+        var sideMat = toon(0xd8dde2);
+        var face = new THREE.MeshBasicMaterial({ map: TEX.vending });
+        var body = new THREE.Mesh(new THREE.BoxGeometry(1.02, 1.92, 0.78), [sideMat, sideMat, sideMat, sideMat, face, sideMat]);
+        body.position.set(0, 0.96, 0);
+        body.castShadow = true;
+        body.receiveShadow = true;
+        g.add(body);
+        outline(body, 0.016);
+        boxAt(g, 1.06, 0.06, 0.82, toon(0x9aa1a8), 0, 1.92, 0);
+        boxAt(g, 1.06, 0.05, 0.82, toon(0x8d959c), 0, 0.0, 0);
+        // small recycling box beside it
+        boxAt(g, 0.3, 0.44, 0.32, toon(0x4f8fd0), 0.66, 0, 0.06);
+        boxAt(g, 0.24, 0.04, 0.26, toon(0x2d3a48), 0.66, 0.44, 0.06);
+        parent.add(g);
+        return g;
+    }
+    {
+        var p = piece('vending', 2.62, 5);
+        makeVending(p, -3.3, -3.6, -Math.PI / 2 - 0.06);
+        makeVending(p, 3.6, 0.22, 0.02);
+        makeVending(p, 5.5, -1.1, Math.PI / 2);
+        spill(p, -3.9, BLOCK_Y + 0.012, -3.6, 3.4, 5.0, 0.30, 0xffd0a0);
+        spill(p, 3.6, BLOCK_Y + 0.012, 1.35, 4.2, 3.4, 0.26, 0xffd0a0);
+    }
+    /* --------------------------------------------------------------- bicycles -- */
+    function makeBike(parent, x, z, ry, color, lean) {
+        var g = new THREE.Group();
+        g.position.set(x, BLOCK_Y, z);
+        g.rotation.y = ry || 0;
+        g.rotation.z = lean === undefined ? 0.06 : lean;
+        var frameMat = toon(color || 0x2f6fb5);
+        var tireMat = toon(0x2f2e38);
+        var rimMat = toon(0xc9ced6);
+        [-0.52, 0.52].forEach(function (wx) {
+            var t = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.036, 5, 18), tireMat);
+            t.position.set(wx, 0.35, 0);
+            t.castShadow = true;
+            g.add(t);
+            var rim = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.014, 4, 14), rimMat);
+            rim.position.set(wx, 0.35, 0);
+            g.add(rim);
+            var hub = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.08, 8), rimMat);
+            hub.rotation.x = Math.PI / 2;
+            hub.position.set(wx, 0.35, 0);
+            g.add(hub);
+        });
+        var V = function (a, b, c) { return new THREE.Vector3(a, b, c); };
+        var rearHub = V(-0.52, 0.35, 0), frontHub = V(0.52, 0.35, 0);
+        var crank = V(0.0, 0.3, 0), seatTop = V(-0.28, 0.82, 0), headTop = V(0.38, 0.86, 0);
+        [[seatTop, crank], [crank, headTop], [seatTop, headTop], [rearHub, seatTop], [crank, rearHub], [headTop, frontHub]]
+            .forEach(function (_a) {
+            var a = _a[0], b = _a[1];
+            return lineBetween(g, a, b, 0.028, frameMat);
+        });
+        lineBetween(g, headTop, V(0.4, 0.94, 0), 0.022, frameMat);
+        var bar = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.44, 8), rimMat);
+        bar.rotation.x = Math.PI / 2;
+        bar.position.set(0.4, 0.95, 0);
+        bar.castShadow = true;
+        g.add(bar);
+        boxAt(g, 0.24, 0.06, 0.11, toon(0x33323d), -0.3, 0.8, 0);
+        boxAt(g, 0.27, 0.2, 0.28, toon(0xdfe4e8), 0.6, 0.68, 0);
+        boxAt(g, 0.29, 0.03, 0.3, toon(0xb9c0c6), 0.6, 0.86, 0);
+        var crankArm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.05, 8), rimMat);
+        crankArm.rotation.x = Math.PI / 2;
+        crankArm.position.set(0, 0.3, 0);
+        g.add(crankArm);
+        parent.add(g);
+        return g;
+    }
+    {
+        var p = piece('bikes', 2.72, 4);
+        makeBike(p, -2.9, -1.35, -1.05, 0x2f6fb5, 0.1);
+        makeBike(p, -3.15, -5.4, -1.35, 0xd0553f, 0.1);
+        makeBike(p, 8.55, 3.05, 1.25, 0x3f9d68, 0.08);
+        makeBike(p, 6.2, -3.6, 0.35, 0xd8a02b, 0.1);
+    }
+    /* -------------------------------------------------------- bins & stands --- */
+    function makeBin(parent, x, z, color, ry) {
+        var g = new THREE.Group();
+        g.position.set(x, BLOCK_Y, z);
+        g.rotation.y = ry || 0;
+        cylAt(g, 0.23, 0.2, 0.72, toon(color), 0, 0, 0, 14);
+        cylAt(g, 0.25, 0.25, 0.07, toon(0xe6e2d6), 0, 0.72, 0, 14);
+        var hole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.02, 12), toon(0x2b2b33));
+        hole.position.set(0, 0.79, 0);
+        g.add(hole);
+        boxAt(g, 0.16, 0.1, 0.01, toon(0xf7f4ea), 0, 0.34, 0.23);
+        parent.add(g);
+        return g;
+    }
+    {
+        var p_9 = piece('streetFurniture', 2.78, 4);
+        makeBin(p_9, 1.15, -0.32, 0x4f8fd0, 0.12);
+        makeBin(p_9, 1.68, -0.32, 0x3f9d68, -0.06);
+        makeBin(p_9, 9.35, 3.55, 0xd8a02b, 0.4);
+        // umbrella stand
+        var ug_1 = new THREE.Group();
+        ug_1.position.set(0.62, BLOCK_Y, -0.3);
+        boxAt(ug_1, 0.26, 0.46, 0.42, toon(0x9fa8b0), 0, 0, 0);
+        boxAt(ug_1, 0.28, 0.05, 0.44, toon(0xe3e7ea), 0, 0.46, 0);
+        var umb = [0xc0392b, 0x2f6fb5, 0xf0b429];
+        umb.forEach(function (c, i) {
+            var u = new THREE.Group();
+            u.position.set(0, 0.1 + i * 0.02, -0.12 + i * 0.12);
+            u.rotation.z = 0.13 * (i - 1);
+            u.rotation.x = 0.1 * (i - 1);
+            cylAt(u, 0.012, 0.012, 0.86, toon(0xdfe4e8), 0, 0, 0, 6);
+            var canopy = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.5, 7), toon(c));
+            canopy.position.set(0, 0.6, 0);
+            u.add(canopy);
+            var hook = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.012, 4, 8, Math.PI), toon(0xdfe4e8));
+            hook.position.set(0, 0.87, 0);
+            hook.rotation.y = Math.PI / 2;
+            u.add(hook);
+            ug_1.add(u);
+        });
+        p_9.add(ug_1);
+        // potted shrubs near the entrance
+        [[-2.45, 0.9, 0.7], [4.55, 3.1, 0.6]].forEach(function (_a) {
+            var px = _a[0], pz = _a[1];
+            cylAt(p_9, 0.19, 0.15, 0.3, toon(0xb5714f), px, BLOCK_Y, pz, 12);
+            var bush = new THREE.Mesh(new THREE.IcosahedronGeometry(0.3, 0), toon(PAL.leaf));
+            bush.position.set(px, BLOCK_Y + 0.44, pz);
+            bush.castShadow = true;
+            p_9.add(bush);
+            var b2 = new THREE.Mesh(new THREE.IcosahedronGeometry(0.2, 0), toon(PAL.leafDark));
+            b2.position.set(px + 0.16, BLOCK_Y + 0.62, pz - 0.06);
+            p_9.add(b2);
+        });
+    }
+    /* ------------------------------------------------------------ noticeboard -- */
+    {
+        var p = piece('noticeBoard', 2.86, 4);
+        var g = new THREE.Group();
+        g.position.set(-3.62, BLOCK_Y, 0.35);
+        g.rotation.y = -0.62;
+        boxAt(g, 0.06, 1.0, 0.06, toon(0x8d8577), -0.4, 0, 0);
+        boxAt(g, 0.06, 1.0, 0.06, toon(0x8d8577), 0.4, 0, 0);
+        var board = boxAt(g, 1.06, 0.98, 0.07, toon(0xc9bfa8), 0, 0.62, 0);
+        outline(board, 0.012);
+        panelAt(g, 0.96, 0.88, new THREE.MeshBasicMaterial({ map: TEX.poster }), 0, 0.67, 0.045);
+        boxAt(g, 1.12, 0.08, 0.1, toon(0x8d8577), 0, 1.6, 0);
+        p.add(g);
+        // P sign near the parking entrance
+        var pg = new THREE.Group();
+        pg.position.set(7.15, BLOCK_Y, 4.62);
+        cylAt(pg, 0.05, 0.05, 2.3, toon(0xb9bec2), 0, 0, 0, 8);
+        boxAt(pg, 0.52, 0.52, 0.06, new THREE.MeshBasicMaterial({ map: TEX.pSign }), 0, 2.0, 0.05);
+        boxAt(pg, 0.58, 0.58, 0.05, toon(0x2c5f8f), 0, 1.97, 0);
+        p.add(pg);
+    }
+    /* ----------------------------------------------------- street name + mirror */
+    {
+        var p = piece('streetSign', 2.92, 4);
+        var g = new THREE.Group();
+        g.position.set(-4.15, BLOCK_Y, 4.45);
+        var pole = cylAt(g, 0.06, 0.07, 2.9, toon(0xaeb5ba), 0, 0, 0, 10);
+        pole.castShadow = true;
+        // convex traffic mirror
+        var mirror = new THREE.Group();
+        mirror.position.set(0.12, 2.55, 0.2);
+        mirror.rotation.y = -0.5;
+        g.add(mirror);
+        var rimM = new THREE.Mesh(new THREE.TorusGeometry(0.23, 0.03, 6, 20), toon(0xe07a2b));
+        rimM.position.set(0, 0, 0.08);
+        mirror.add(rimM);
+        var glassM = new THREE.Mesh(new THREE.CircleGeometry(0.22, 20), new THREE.MeshBasicMaterial({ color: 0xbcd6e4 }));
+        glassM.position.set(0, 0, 0.1);
+        mirror.add(glassM);
+        boxAt(g, 0.1, 0.1, 0.16, toon(0x9aa1a6), 0, 2.45, 0.02);
+        // street name plate
+        boxAt(g, 1.2, 0.4, 0.05, new THREE.MeshBasicMaterial({ map: TEX.boardSign }), 0.0, 1.72, 0.06, 0.0);
+        boxAt(g, 1.26, 0.46, 0.04, toon(0x2c5f8f), 0, 1.69, 0.0);
+        p.add(g);
+        // traffic cone
+        var cone = new THREE.Group();
+        cone.position.set(4.3, BLOCK_Y, -7.2);
+        cylAt(cone, 0.02, 0.18, 0.55, toon(0xef7a2b), 0, 0, 0, 10);
+        boxAt(cone, 0.34, 0.04, 0.34, toon(0xd9631f), 0, 0, 0);
+        cylAt(cone, 0.13, 0.15, 0.09, new THREE.MeshBasicMaterial({ color: 0xfaf6ea }), 0, 0.24, 0, 10);
+        p.add(cone);
+    }
+    /* --------------------------------------------------------------- trees ---- */
+    function makeTree(parent, x, z, s, hue) {
+        var g = new THREE.Group();
+        g.position.set(x, BLOCK_Y, z);
+        var trunk = cylAt(g, 0.09 * s, 0.13 * s, 1.5 * s, toon(PAL.trunk), 0, 0, 0, 8);
+        trunk.castShadow = true;
+        var leafMat = toon(hue || PAL.leaf);
+        var leafMat2 = toon(PAL.leafDark);
+        var blobs = [
+            [0, 1.75, 0, 0.72], [-0.34, 1.5, 0.16, 0.5], [0.32, 1.55, -0.18, 0.52], [0.1, 2.1, 0.1, 0.44],
+        ];
+        blobs.forEach(function (_a, i) {
+            var bx = _a[0], by = _a[1], bz = _a[2], br = _a[3];
+            var l = new THREE.Mesh(new THREE.IcosahedronGeometry(br * s, 1), i % 2 ? leafMat2 : leafMat);
+            l.position.set(bx * s, by * s, bz * s);
+            l.castShadow = true;
+            l.receiveShadow = true;
+            g.add(l);
+        });
+        parent.add(g);
+        return g;
+    }
+    {
+        var p = piece('trees', 2.98, 4);
+        makeTree(p, -3.55, -7.35, 1.0, PAL.leaf);
+        makeTree(p, 8.5, -7.55, 0.9, 0x5d8a58);
+        makeTree(p, 9.35, 1.9, 0.75, 0x6b9459);
+    }
+    /* ------------------------------------------------------------- guardrail -- */
+    function guardrail(parent, x0, z0, x1, z1) {
+        var g = new THREE.Group();
+        var dx = x1 - x0, dz = z1 - z0;
+        var len = Math.hypot(dx, dz);
+        var ang = Math.atan2(dx, dz);
+        var postMat = toon(0xf1eee4);
+        var railMat = toon(0xe2ddd0);
+        var n = Math.max(1, Math.round(len / 1.5));
+        for (var i = 0; i <= n; i++) {
+            var t = i / n;
+            var px = x0 + dx * t, pz = z0 + dz * t;
+            var post = cylAt(g, 0.045, 0.045, 0.86, postMat, px, BLOCK_Y, pz, 8);
+            post.castShadow = true;
+            var cap = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), postMat);
+            cap.position.set(px, BLOCK_Y + 0.88, pz);
+            g.add(cap);
+        }
+        [0.72, 0.42].forEach(function (ry) {
+            var r = boxAt(g, 0.06, 0.05, len, railMat, (x0 + x1) / 2, BLOCK_Y + ry - 0.025, (z0 + z1) / 2);
+            r.rotation.y = ang;
+            r.castShadow = true;
+        });
+        parent.add(g);
+        return g;
+    }
+    {
+        var p = piece('guardrail', 2.7, 4);
+        guardrail(p, 2.5, 4.86, 6.2, 4.86);
+        guardrail(p, 8.2, 4.86, 9.85, 4.86);
+        guardrail(p, -4.4, -2.6, -4.4, -6.9);
+    }
+    /* ----------------------------------------------------------- street lamp -- */
+    var lampLight = new THREE.PointLight(0xffc98a, 26, 17, 2);
+    {
+        var p = piece('streetLamp', 3.04, 5);
+        var g = new THREE.Group();
+        g.position.set(8.6, BLOCK_Y, 4.45);
+        boxAt(g, 0.42, 0.14, 0.42, toon(0x8d9298), 0, 0, 0);
+        var pole = cylAt(g, 0.085, 0.11, 4.7, toon(0xb6bcc1), 0, 0.14, 0, 10);
+        pole.castShadow = true;
+        lineBetween(g, new THREE.Vector3(0, 4.6, 0), new THREE.Vector3(0, 5.05, 1.35), 0.06, toon(0xb6bcc1));
+        boxAt(g, 0.34, 0.12, 0.66, toon(0xa9b0b6), 0, 4.98, 1.4);
+        boxAt(g, 0.3, 0.04, 0.58, new THREE.MeshBasicMaterial({ color: 0xfff1d2 }), 0, 4.93, 1.4);
+        lampLight.position.set(8.6, BLOCK_Y + 4.8, 5.85);
+        p.add(lampLight);
+        p.add(g);
+        spill(p, 8.6, 0.03, 6.3, 8.5, 8.5, 0.22, 0xffbe78);
+    }
+    /* ---------------------------------------------------------- utility pole -- */
+    function utilityPole(parent, x, z, withTransformer) {
+        var g = new THREE.Group();
+        g.position.set(x, BLOCK_Y, z);
+        var pole = cylAt(g, 0.15, 0.19, 8.7, toon(0xb4b0a8), 0, 0, 0, 10);
+        pole.castShadow = true;
+        outline(pole, 0.02);
+        var metal = toon(0x767c82);
+        [7.62, 7.12].forEach(function (y, i) {
+            boxAt(g, 1.95, 0.11, 0.12, toon(0x9aa0a4), 0, y, 0);
+            for (var k = -2; k <= 2; k += 2) {
+                cylAt(g, 0.045, 0.055, 0.16, toon(0xdfe3e6), k * 0.45, y + 0.11, 0, 8);
+            }
+        });
+        if (withTransformer) {
+            var tr = cylAt(g, 0.31, 0.31, 0.82, toon(0xa7adb2), 0.34, 5.45, 0.34, 14);
+            tr.castShadow = true;
+            cylAt(g, 0.22, 0.31, 0.12, toon(0x8d9398), 0.34, 6.27, 0.34, 14);
+            boxAt(g, 0.42, 0.06, 0.05, metal, 0.34, 5.9, 0.14);
+        }
+        boxAt(g, 0.3, 0.46, 0.22, toon(0xcfd3d6), 0.2, 2.9, 0.12);
+        boxAt(g, 0.26, 0.34, 0.18, toon(0xb9bec2), -0.2, 3.6, -0.1);
+        cylAt(g, 0.2, 0.2, 0.16, metal, 0, 0, 0, 12);
+        parent.add(g);
+        return g;
+    }
+    {
+        var p_10 = piece('poles', 3.1, 7);
+        utilityPole(p_10, -4.1, -1.5, true);
+        utilityPole(p_10, -4.1, -8.7, false);
+        var wireMat_1 = toon(0x2f2c38);
+        var W2_1 = function (a, b, sag) { return tube(p_10, a, b, 0.019, wireMat_1, sag); };
+        // long span between the two poles
+        [-0.86, -0.42, 0.42, 0.86].forEach(function (ox, i) {
+            W2_1(new THREE.Vector3(-4.1 + ox, 7.73 - (i % 2) * 0.5, -1.5), new THREE.Vector3(-4.1 + ox, 7.73 - (i % 2) * 0.5, -8.7), 0.62);
+        });
+        // service drops to the store
+        W2_1(new THREE.Vector3(-4.1, 7.1, -1.5), new THREE.Vector3(-2.45, 3.6, -1.6), 0.35);
+        W2_1(new THREE.Vector3(-3.9, 6.6, -1.5), new THREE.Vector3(1.0, 3.65, -6.75), 0.55);
+        // spans leaving the diorama
+        W2_1(new THREE.Vector3(-4.1, 7.7, -1.5), new THREE.Vector3(10.4, 6.9, 9.6), 1.1);
+        W2_1(new THREE.Vector3(-4.1, 7.25, -1.5), new THREE.Vector3(10.4, 6.5, 9.2), 1.15);
+        W2_1(new THREE.Vector3(-4.1, 7.7, -8.7), new THREE.Vector3(-10.3, 7.3, -12.5), 0.5);
+    }
+    /* ------------------------------------------------------------ pylon sign -- */
+    {
+        var p = piece('pylon', 3.0, 6);
+        var g = new THREE.Group();
+        g.position.set(-4.15, BLOCK_Y, 2.35);
+        g.rotation.y = -0.62;
+        boxAt(g, 1.02, 0.18, 0.62, toon(0xd9d3c6), 0, 0, 0);
+        boxAt(g, 0.9, 0.06, 0.52, toon(0xc3bcae), 0, 0.18, 0);
+        var pole = boxAt(g, 0.26, 3.3, 0.26, toon(0xe6e6e0), 0, 0.2, 0);
+        outline(pole, 0.018);
+        var face = new THREE.MeshBasicMaterial({ map: TEX.pylon });
+        var side = toon(0x1c9b95);
+        var box = new THREE.Mesh(new THREE.BoxGeometry(1.16, 1.94, 0.36), [side, side, toon(0xf4f2ea), side, face, face]);
+        box.position.set(0, 4.5, 0);
+        box.castShadow = true;
+        g.add(box);
+        outline(box, 0.02);
+        boxAt(g, 1.22, 0.09, 0.42, toon(0xf4f2ea), 0, 5.47, 0);
+        boxAt(g, 1.22, 0.09, 0.42, toon(0xf4f2ea), 0, 3.5, 0);
+        p.add(g);
+        spill(p, -4.2, BLOCK_Y + 0.012, 3.7, 4.6, 4.6, 0.14, 0xffe0b0);
+    }
+    /* ------------------------------------------------------- forecourt spill --- */
+    {
+        var p = piece('lightSpill', 2.55, 0);
+        var q = spill(p, -0.6, BLOCK_Y + 0.014, 1.2, 9.0, 5.2, 0.20, 0xffc98a);
+        spill(p, 1.9, BLOCK_Y + 0.015, 0.4, 4.2, 2.4, 0.13, 0xfff0d0);
+    }
+    /* --------------------------------------------------------- back of house -- */
+    {
+        var p = piece('backLot', 3.14, 4);
+        // crates
+        var crateMat = toon(0xd8b679);
+        boxAt(p, 0.62, 0.42, 0.46, crateMat, 0.55, BLOCK_Y, -7.2);
+        boxAt(p, 0.62, 0.42, 0.46, crateMat, 0.58, BLOCK_Y + 0.42, -7.16);
+        boxAt(p, 0.62, 0.42, 0.46, crateMat, 1.3, BLOCK_Y, -7.35);
+        for (var i = 0; i < 3; i++)
+            boxAt(p, 0.66, 0.04, 0.5, toon(0xb8954f), 0.55, BLOCK_Y + 0.1 + i * 0.2, -7.2);
+        // dumpster
+        var dg = new THREE.Group();
+        dg.position.set(2.7, BLOCK_Y, -7.3);
+        dg.rotation.y = 0.15;
+        var db = boxAt(dg, 1.15, 0.92, 0.86, toon(0x4f6a58), 0, 0, 0);
+        outline(db, 0.014);
+        boxAt(dg, 1.2, 0.09, 0.9, toon(0x3d5546), 0, 0.92, 0);
+        boxAt(dg, 0.5, 0.06, 0.06, toon(0x2f4136), 0, 1.0, -0.3);
+        p.add(dg);
+        // hedge along the north edge (solid body + soft crown)
+        var hedge = toon(0x486a48);
+        var hedgeTop = toon(0x577d54);
+        boxAt(p, 12.2, 0.62, 0.62, hedge, 3.5, BLOCK_Y + 0.42, -9.55);
+        for (var i = 0; i < 18; i++) {
+            var b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.34, 0), i % 3 ? hedgeTop : hedge);
+            b.position.set(-2.35 + i * 0.7, BLOCK_Y + 1.0, -9.55 + (i % 2 ? 0.1 : -0.1));
+            b.scale.set(1.0, 0.62, 0.9);
+            b.castShadow = true;
+            p.add(b);
+        }
+        boxAt(p, 12.6, 0.44, 0.28, toon(0xb0a596), 3.5, BLOCK_Y, -9.72);
+        // hedge along the east edge — south stretch (the neighbour house owns the rest)
+        boxAt(p, 0.62, 0.62, 3.6, hedge, 9.55, BLOCK_Y + 0.42, 0.45);
+        for (var i = 0; i < 5; i++) {
+            var b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.34, 0), i % 3 ? hedgeTop : hedge);
+            b.position.set(9.55 + (i % 2 ? 0.1 : -0.1), BLOCK_Y + 1.0, -1.1 + i * 0.78);
+            b.scale.set(0.9, 0.62, 1.0);
+            b.castShadow = true;
+            p.add(b);
+        }
+        boxAt(p, 0.28, 0.4, 3.9, toon(0xb0a596), 9.78, BLOCK_Y, 0.45);
+        // north stretch, behind the neighbour
+        boxAt(p, 0.62, 0.62, 2.4, hedge, 9.55, BLOCK_Y + 0.42, -7.4);
+        for (var i = 0; i < 3; i++) {
+            var b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.34, 0), i % 3 ? hedgeTop : hedge);
+            b.position.set(9.55 + (i % 2 ? 0.1 : -0.1), BLOCK_Y + 1.0, -8.3 + i * 0.78);
+            b.scale.set(0.9, 0.62, 1.0);
+            b.castShadow = true;
+            p.add(b);
+        }
+        // back wall dressing
+        boxAt(p, 0.34, 0.5, 0.2, toon(0xc9cdd0), 3.35, BLOCK_Y + 1.35, S.z0 - 0.12);
+        boxAt(p, 0.1, 0.14, 0.3, toon(0x8f9599), 1.2, BLOCK_Y + 2.3, S.z0 - 0.12);
+        boxAt(p, 0.14, 0.06, 0.22, new THREE.MeshBasicMaterial({ color: 0xffe6b8 }), 1.2, BLOCK_Y + 2.24, S.z0 - 0.14);
+        cylAt(p, 0.05, 0.05, 0.5, toon(0xb9bec2), 4.4, BLOCK_Y + 1.9, S.z0 - 0.1, 8);
+        boxAt(p, 0.6, 0.3, 0.06, toon(0xe8e4d8), 1.9, BLOCK_Y + 1.5, S.z0 - 0.1);
+        // pipes and service clutter on the back wall
+        var pipeMat = toon(0xc9c4ba);
+        cylAt(p, 0.07, 0.07, 2.6, pipeMat, 3.95, BLOCK_Y, -6.85, 8);
+        cylAt(p, 0.07, 0.07, 2.6, pipeMat, 2.15, BLOCK_Y, -6.85, 8);
+        boxAt(p, 0.5, 0.7, 0.4, toon(0xd7d2c8), 4.35, BLOCK_Y, -7.0);
+        makeACUnit(p, 5.25, BLOCK_Y, -2.3, Math.PI / 2);
+        makeACUnit(p, 5.25, BLOCK_Y, -3.5, Math.PI / 2);
+        makeACUnit(p, 5.25, BLOCK_Y, -4.7, Math.PI / 2);
+        // piles of empty crates at the side
+        boxAt(p, 0.5, 0.36, 0.4, toon(0xcfae74), 7.0, BLOCK_Y, -5.4);
+        boxAt(p, 0.5, 0.36, 0.4, toon(0xc7a76f), 7.0, BLOCK_Y + 0.36, -5.4);
+        // bike rack along the south fence
+        for (var i = 0; i < 3; i++) {
+            var b = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.028, 5, 12, Math.PI), toon(0xaeb5ba));
+            b.position.set(6.5 + i * 0.75, BLOCK_Y, 4.6);
+            p.add(b);
+        }
+    }
+    /* ============================================================================
+       05B · STREET PAINT · LOT DRESSING — tactile paving, nobori, cart, bollards
+       ========================================================================== */
+    /* ------------------------------------------------------------- textures --- */
+    TEX.tactile = mkTex(128, 128, function (g, w, h) {
+        g.fillStyle = '#dcc06a';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#efd88d';
+        for (var y = 0; y < 4; y++)
+            for (var x = 0; x < 4; x++) {
+                g.beginPath();
+                g.arc(16 + x * 32, 16 + y * 32, 11, 0, 7);
+                g.fill();
+            }
+        g.fillStyle = 'rgba(150,110,20,0.18)';
+        for (var y = 0; y < 4; y++)
+            for (var x = 0; x < 4; x++) {
+                g.beginPath();
+                g.arc(16 + x * 32, 20 + y * 32, 11, 0, 7);
+                g.fill();
+            }
+    }, [1, 1]);
+    TEX.stopMark = mkTex(420, 220, function (g, w, h) {
+        g.clearRect(0, 0, w, h);
+        g.fillStyle = '#f4efe2';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.font = 'bold 104px "Yu Gothic", "MS Gothic", sans-serif';
+        g.fillText('止まれ', w / 2, h * 0.34);
+        g.font = 'bold 46px "Segoe UI", sans-serif';
+        g.fillText('STOP', w / 2, h * 0.76);
+    });
+    TEX.nobori = mkTex(200, 640, function (g, w, h) {
+        g.fillStyle = '#ffffff';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#1c9b95';
+        g.fillRect(0, 0, w, 130);
+        g.fillStyle = '#ffffff';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.font = 'bold 62px "Segoe UI", sans-serif';
+        g.fillText('OPEN', w / 2, 66);
+        g.fillStyle = '#ef7a2b';
+        g.fillRect(0, 130, w, 12);
+        g.fillStyle = '#26405c';
+        g.font = 'bold 150px "Segoe UI", sans-serif';
+        g.fillText('24', w / 2, 250);
+        g.font = 'bold 54px "Segoe UI", sans-serif';
+        g.fillText('HOURS', w / 2, 350);
+        g.fillStyle = '#1c9b95';
+        g.font = 'bold 52px "Yu Gothic", sans-serif';
+        g.fillText('ほしマート', w / 2, 470);
+        g.fillStyle = '#ef7a2b';
+        g.beginPath();
+        g.arc(w / 2, 560, 46, 0, 7);
+        g.fill();
+        g.fillStyle = '#ffffff';
+        g.font = 'bold 34px "Segoe UI", sans-serif';
+        g.fillText('SALE', w / 2, 560);
+    });
+    /* --------------------------------------------------------- ground paint --- */
+    {
+        var p = piece('streetPaint', 0.72, 4);
+        var ty = BLOCK_Y + 0.012;
+        var tact = new THREE.MeshBasicMaterial({ map: TEX.tactile });
+        // tactile pads at both crossings
+        plateAt(p, 1.9, 0.42, tact, 0.0, ty, BZ1 - 0.28);
+        plateAt(p, 0.42, 2.4, tact, BX0 + 0.28, ty, 3.55);
+        // stop marking on the west road
+        var stopMat = new THREE.MeshBasicMaterial({
+            map: TEX.stopMark, transparent: true, depthWrite: false,
+            polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
+        });
+        plateAt(p, 3.0, 1.6, stopMat, -8.6, 0.018, -0.4);
+        // straight-ahead arrow in the near lane of the south road
+        var arrowMat = new THREE.MeshBasicMaterial({
+            map: TEX.arrow, transparent: true, depthWrite: false,
+            polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
+        });
+        plateAt(p, 1.15, 2.4, arrowMat, 3.1, 0.018, 6.35, -Math.PI / 2);
+        plateAt(p, 1.15, 2.4, arrowMat, -8.55, 0.018, 7.7);
+        // asphalt joints — subtle seams across the road surface
+        var joint = new THREE.MeshBasicMaterial({ color: 0x4b4859 });
+        plateAt(p, 0.05, 4.8, joint, -7.2, 0.012, 7.6);
+        plateAt(p, 0.05, 4.8, joint, 1.4, 0.012, 7.6);
+    }
+    /* ------------------------------------------------------ forecourt dressing */
+    function makeCart(parent, x, z, ry) {
+        var g = new THREE.Group();
+        g.position.set(x, BLOCK_Y, z);
+        g.rotation.y = ry || 0;
+        var wire = toon(0xcdd3da);
+        var dark = toon(0x8e959c);
+        boxAt(g, 0.54, 0.04, 0.8, wire, 0, 0.44, 0);
+        boxAt(g, 0.54, 0.32, 0.04, wire, 0, 0.44, -0.4);
+        boxAt(g, 0.54, 0.32, 0.04, wire, 0, 0.44, 0.4);
+        boxAt(g, 0.04, 0.32, 0.8, wire, -0.27, 0.44, 0);
+        boxAt(g, 0.04, 0.32, 0.8, wire, 0.27, 0.44, 0);
+        boxAt(g, 0.06, 0.05, 0.86, dark, 0, 0.78, -0.42);
+        [[-0.22, -0.34], [0.22, -0.34], [-0.22, 0.34], [0.22, 0.34]].forEach(function (_a) {
+            var wx = _a[0], wz = _a[1];
+            var w = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.04, 8), dark);
+            w.rotation.x = Math.PI / 2;
+            w.position.set(wx, 0.05, wz + 0.06);
+            g.add(w);
+            boxAt(g, 0.03, 0.4, 0.03, dark, wx, 0.06, wz);
+        });
+        parent.add(g);
+        return g;
+    }
+    function makeNobori(parent, x, z, ry) {
+        var g = new THREE.Group();
+        g.position.set(x, BLOCK_Y, z);
+        g.rotation.y = ry || 0;
+        cylAt(g, 0.024, 0.03, 2.45, toon(0x9aa1a7), 0, 0, 0, 6);
+        var arm = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.5, 6), toon(0x9aa1a7));
+        arm.rotation.z = Math.PI / 2;
+        arm.position.set(0.25, 2.38, 0);
+        g.add(arm);
+        var flag = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 1.55), new THREE.MeshBasicMaterial({
+            map: TEX.nobori, side: THREE.DoubleSide,
+        }));
+        flag.rotation.y = Math.PI / 2;
+        flag.position.set(0.26, 1.6, 0);
+        g.add(flag);
+        boxAt(g, 0.34, 0.05, 0.34, toon(0xb5bcc2), 0, 0, 0);
+        parent.add(g);
+    }
+    function makeAFrame(parent, x, z, ry) {
+        var g = new THREE.Group();
+        g.position.set(x, BLOCK_Y, z);
+        g.rotation.y = ry || 0;
+        var mat = new THREE.MeshBasicMaterial({ map: TEX.poster });
+        var face = toon(0xf0ebdd);
+        [-1, 1].forEach(function (s) {
+            var panel = new THREE.Mesh(new THREE.PlaneGeometry(0.68, 0.9), mat);
+            panel.position.set(0, 0.52, s * 0.16);
+            panel.rotation.x = s * 0.18;
+            if (s < 0)
+                panel.rotation.y = Math.PI;
+            g.add(panel);
+            var back = boxAt(g, 0.7, 0.92, 0.03, face, 0, 0.06, s * 0.17);
+            back.rotation.x = s * 0.18;
+            back.visible = false;
+        });
+        boxAt(g, 0.72, 0.04, 0.1, toon(0xb9b3a3), 0, 0.95, 0);
+        parent.add(g);
+    }
+    {
+        var p = piece('lotDressing', 2.92, 4);
+        var c1 = makeCart(p, 2.85, 1.15, 0.55);
+        c1.scale.setScalar(0.8);
+        makeNobori(p, 6.95, 4.35, -0.35);
+        makeNobori(p, 5.85, 1.75, 0.25);
+        makeAFrame(p, 1.55, 0.35, -0.28);
+        // bollards along the parking edge
+        var bMat = toon(0xdcd6c8);
+        var bBand = new THREE.MeshBasicMaterial({ color: 0xef7a2b });
+        for (var i = 0; i < 5; i++) {
+            var bx = 0.55 + i * 1.55;
+            cylAt(p, 0.055, 0.055, 0.72, bMat, bx, BLOCK_Y, 0.28, 8);
+            cylAt(p, 0.06, 0.06, 0.1, bBand, bx, BLOCK_Y + 0.5, 0.28, 8);
+        }
+        // delivery crates by the side entrance
+        var crate = toon(0xd2b06e);
+        boxAt(p, 0.5, 0.34, 0.36, crate, 4.35, BLOCK_Y, 1.28);
+        boxAt(p, 0.5, 0.34, 0.36, crate, 4.35, BLOCK_Y + 0.34, 1.28);
+        boxAt(p, 0.5, 0.34, 0.36, crate, 4.9, BLOCK_Y, 1.3);
+    }
+    /* ---------------- 交给 world01 的把手 ---------------- */
+    sky.userData.colExempt = '背景天穹：不参与碰撞';
+    sky.material.uniforms.sunDir.value.applyAxisAngle(new THREE.Vector3(0, 1, 0), DUSK_YAW);
+    worldScene.add(sky);
+    return {
+        host: root,
+        sky: sky,
+        lights: { hemi: hemi, sun: sun, fill: fill, bounce: bounce },
+        store: { x0: S.x0, x1: S.x1, z0: S.z0, z1: S.z1 }
+    };
+}
+
+/* ================= v0.23.0 两关 + 出生点 =================
+   关卡 A：黄昏街角便利店（模型来自 dusk-konbini-corner.html）
+   关卡 B：原来的测试场地（房子 / 台阶 / 靶板，本来就是世界的一部分）
+   出生点：两扇门之间的一小片空地——没有房间，只有无限延伸的地平线。
+   两扇门都是真门：门后就是真实几何，不是贴图。 */
+
+/* ---------------- 门 ---------------- */
+var gateMats = null;
+function gateMaterialSet() {
+  if (gateMats) return gateMats;
+  gateMats = {
+    plaster: new THREE.MeshStandardMaterial({ color: 0xe6dfd0, roughness: 0.93 }),
+    stone: new THREE.MeshStandardMaterial({ color: 0xbfb8a8, roughness: 0.96 }),
+    wood: new THREE.MeshStandardMaterial({ color: 0x8d7a63, roughness: 0.86 }),
+    roof: new THREE.MeshStandardMaterial({ color: 0x6f7176, roughness: 0.82 }),
+    dark: new THREE.MeshStandardMaterial({ color: 0x4a443c, roughness: 0.9 }),
+    moss: new THREE.MeshStandardMaterial({ color: 0x5d6b4c, roughness: 1 })
+  };
+  return gateMats;
+}
+
+function gateBox(parent, w, h, d, mat, x, y, z) {
+  var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x, y + h / 2, z);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  parent.add(m);
+  return m;
+}
+
+/* 一扇能走过去的日式小门：两柱一梁、一坡小顶、石门坎、一扇朝外敞开的门扇。 */
+function makeGate(parent, x, z, ry, name) {
+  var M = gateMaterialSet();
+  var g = new THREE.Group();
+  g.position.set(x, 0.01, z);
+  g.rotation.y = ry || 0;
+  g.name = name || 'gate';
+  parent.add(g);
+
+  gateBox(g, 2.06, 0.12, 0.36, M.stone, 0, 0, 0.02);          /* 门槛石：一级踏步 */
+  gateBox(g, 0.34, 0.18, 0.34, M.stone, -1.05, 0, 0);          /* 柱础 */
+  gateBox(g, 0.34, 0.18, 0.34, M.stone, 1.05, 0, 0);
+  gateBox(g, 0.22, 2.72, 0.22, M.wood, -1.05, 0.18, 0);        /* 两根柱子 */
+  gateBox(g, 0.22, 2.72, 0.22, M.wood, 1.05, 0.18, 0);
+  gateBox(g, 2.5, 0.26, 0.3, M.plaster, 0, 2.55, 0);           /* 门楣 */
+  gateBox(g, 2.9, 0.12, 0.36, M.wood, 0, 2.81, 0);             /* 上枋 */
+  var roofL = gateBox(g, 3.1, 0.06, 0.74, M.roof, 0, 3.04, -0.28);
+  roofL.rotation.x = -0.3;
+  var roofR = gateBox(g, 3.1, 0.06, 0.74, M.roof, 0, 3.04, 0.28);
+  roofR.rotation.x = 0.3;
+  gateBox(g, 3.14, 0.08, 0.12, M.dark, 0, 3.16, 0);            /* 屋脊 */
+
+  var leaf = new THREE.Group();                                 /* 敞开的门扇 */
+  leaf.position.set(-0.84, 0.18, 0.1);
+  leaf.rotation.y = -1.92;
+  g.add(leaf);
+  gateBox(leaf, 1.0, 2.16, 0.05, M.wood, 0.5, 0, 0);
+  gateBox(leaf, 0.05, 2.1, 0.06, M.dark, 0.14, 0.03, 0.03);
+  gateBox(leaf, 0.05, 2.1, 0.06, M.dark, 0.86, 0.03, 0.03);
+  var knob = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), M.dark);
+  knob.position.set(0.9, 1.08, 0.06);
+  leaf.add(knob);
+
+  gateBox(g, 0.46, 0.2, 0.03, M.wood, 0, 2.22, 0.17);          /* 门牌 */
+  gateBox(g, 0.016, 0.2, 0.016, M.dark, -0.13, 2.42, 0.17);    /* 吊绳 */
+  gateBox(g, 0.016, 0.2, 0.016, M.dark, 0.13, 2.42, 0.17);
+  gateBox(g, 0.5, 0.05, 0.3, M.moss, -1.3, 0, 0.14);           /* 墙根草 */
+  gateBox(g, 0.36, 0.05, 0.24, M.moss, 1.22, 0, -0.12);
+
+  /* 门扇不参与碰撞：它朝外敞着，别在门口挡路。 */
+  leaf.traverse(function (m) { if (m.isMesh) m.userData.colExempt = '敞开的门扇：不挡路'; });
+  return g;
+}
+
+/* 一条会踩出一段路的石板：不用图片，纯几何。 */
+function layPath(parent, x0, z0, x1, z1, n, mat) {
+  var i, k, px, pz, ang = Math.atan2(x1 - x0, z1 - z0);
+  for (i = 0; i < n; i++) {
+    k = (i + 0.5) / n;
+    px = x0 + (x1 - x0) * k + (hash(i, 41) - 0.5) * 0.16;
+    pz = z0 + (z1 - z0) * k + (hash(i, 42) - 0.5) * 0.16;
+    var m = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.05, 0.6), mat);
+    m.position.set(px, 0.025, pz);
+    m.rotation.y = ang + (hash(i, 43) - 0.5) * 0.12;
+    m.receiveShadow = true;
+    parent.add(m);
+  }
+}
+
+function stoneLantern(parent, x, z) {
+  var M = gateMaterialSet();
+  var g = new THREE.Group();
+  g.position.set(x, 0, z);
+  parent.add(g);
+  gateBox(g, 0.62, 0.12, 0.62, M.stone, 0, 0, 0);
+  var shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.15, 0.92, 8), M.stone);
+  shaft.position.set(0, 0.58, 0);
+  shaft.castShadow = true; shaft.receiveShadow = true;
+  g.add(shaft);
+  gateBox(g, 0.5, 0.36, 0.5, M.stone, 0, 1.02, 0);
+  gateBox(g, 0.3, 0.18, 0.3, M.dark, 0, 1.11, 0);
+  var cap = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.26, 4), M.stone);
+  cap.position.set(0, 1.54, 0);
+  cap.rotation.y = Math.PI / 4;
+  cap.castShadow = true;
+  g.add(cap);
+}
+
+function bareTree(parent, x, z) {
+  var M = gateMaterialSet();
+  var g = new THREE.Group();
+  g.position.set(x, 0, z);
+  parent.add(g);
+  var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.17, 2.7, 7), M.wood);
+  trunk.position.y = 1.35;
+  trunk.castShadow = true;
+  g.add(trunk);
+  var branches = [
+    [0.32, 2.62, 0.06, 1.5, -0.62, 0.24],
+    [-0.3, 2.86, -0.02, 1.3, 0.66, -0.2],
+    [0.06, 3.0, 0.26, 1.15, -0.2, 0.72],
+    [-0.04, 2.34, -0.24, 1.0, 0.5, -0.5]
+  ];
+  for (var i = 0; i < branches.length; i++) {
+    var b = branches[i];
+    var br = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.07, b[3], 6), M.wood);
+    br.position.set(b[0], b[1], b[2]);
+    br.rotation.set(b[5], 0, b[4]);
+    br.castShadow = true;
+    g.add(br);
+  }
+}
+
+function standingStone(parent, x, z, w, h, ry) {
+  var M = gateMaterialSet();
+  var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.34), M.stone);
+  m.position.set(x, h / 2, z);
+  m.rotation.y = ry || 0;
+  m.rotation.z = (hash(x * 13 + z * 7, 77) - 0.5) * 0.08;
+  m.castShadow = true;
+  m.receiveShadow = true;
+  parent.add(m);
+}
+
+/* 出生点这一小片：两扇门、两块石板路、一盏石灯、一棵枯树、几块立石。
+   刻意留白——地平线是空的，东西只有这几件。 */
+function buildPlaza() {
+  var M = gateMaterialSet();
+  makeGate(scene, DUSK_GATE.x, DUSK_GATE.z, Math.PI / 2, 'gateDusk');   /* 朝东，正对出生点 */
+  makeGate(scene, FIELD_GATE.x, FIELD_GATE.z, 0, 'gateField');          /* 朝南 */
+
+  var pathMat = new THREE.MeshStandardMaterial({ color: 0xd7d0c0, roughness: 0.95 });
+  layPath(scene, -0.55, 26.2, -12.7, 22.15, 13, pathMat);
+  layPath(scene, 0.5, 25.6, -2.7, 16.6, 8, pathMat);
+
+  stoneLantern(scene, 5.2, 24.2);
+  bareTree(scene, -7.4, 29.0);
+  standingStone(scene, 7.2, 30.4, 0.5, 1.15, 0.35);
+  standingStone(scene, -4.1, 31.9, 0.42, 0.85, -0.5);
+  standingStone(scene, 9.1, 21.2, 0.36, 0.7, 0.9);
+
+  /* 石头脚下的苔：3 块扁片 */
+  var i, moss = M.moss;
+  var spots = [[6.9, 30.2], [7.6, 30.6], [-7.2, 28.8], [-7.7, 29.2], [5.0, 24.0]];
+  for (i = 0; i < spots.length; i++) {
+    var m = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.03, 0.3), moss);
+    m.position.set(spots[i][0], 0.015, spots[i][1]);
+    m.rotation.y = hash(i, 61) * 3.14;
+    m.receiveShadow = true;
+    scene.add(m);
+  }
+}
+
+/* ---------------- 黄昏天气：只在这一关的范围里生效 ---------------- */
+var duskLevel = null;
+var duskBlend = 0;
+var duskShadowOn = false;
+var DUSK_FOG = new THREE.Color(0x7d5449);
+
+function updateDuskWeather(dt) {
+  if (!duskLevel) return;
+  var want = inDuskZone(P.pos.x, P.pos.z) ? 1 : 0;
+  duskBlend += (want - duskBlend) * Math.min(1, dt * 3.4);
+  if (duskBlend < 0.002 && !want) duskBlend = 0;
+  if (duskBlend > 0.998) duskBlend = 1;
+  var b = duskBlend;
+  var th = THEMES[themeName];
+
+  /* 距离温度：7m 内全亮，29m 外不亮。门外也能看到街角是暖的，
+     进门后 b 接管，天空/雾/世界灯才整体切换。 */
+  var _dx = P.pos.x - DUSK_SPOT.x, _dz = P.pos.z - DUSK_SPOT.z;
+  var _near = 1 - Math.max(0, Math.min(1, (Math.sqrt(_dx * _dx + _dz * _dz) - 7) / 22));
+  var lg = Math.max(b, 0.6 * _near);
+  hemi.intensity = th.hemiI * (1 - b);
+  sun.intensity = th.sunI * (1 - b);
+  duskLevel.lights.hemi.intensity = 0.58 * lg;
+  duskLevel.lights.sun.intensity = 1.78 * lg;
+  duskLevel.lights.fill.intensity = 0.55 * lg;
+  duskLevel.lights.bounce.intensity = 0.18 * lg;
+
+  duskLevel.sky.visible = b > 0.002;
+  duskLevel.sky.material.opacity = b;
+  if (duskLevel.sky.visible) duskLevel.sky.position.copy(activeCam.position);
+
+  scene.fog.color.setHex(th.fog).lerp(DUSK_FOG, b);
+  scene.fog.near = 20 + 25 * b;
+  scene.fog.far = 145 - 15 * b;
+
+  var shadowOn = b > 0.55;
+  if (shadowOn !== duskShadowOn) {
+    duskShadowOn = shadowOn;
+    sun.castShadow = !shadowOn;
+    duskLevel.lights.sun.castShadow = shadowOn;
+  }
+}
+
+/* ---------------- 把这一关放进世界 ---------------- */
+duskLevel = buildDuskLevel(scene);
+duskLevel.host.position.set(DUSK_SPOT.x, 0, DUSK_SPOT.z);
+duskLevel.host.rotation.y = DUSK_YAW;
+scene.add(duskLevel.host);
+duskLevel.sky.material.transparent = true;
+duskLevel.sky.material.opacity = 0;
+duskLevel.sky.visible = false;
+duskLevel.lights.sun.castShadow = false;
+buildPlaza();
+
+
 fillCollisionGaps();
 
 /* ---------------- 主循环 ---------------- */
@@ -3893,6 +6220,7 @@ function loop(t) {
   drawStick();
   if (colVizOn && playerViz) playerViz.position.set(P.pos.x, P.pos.y + 0.93, P.pos.z);
 
+  updateDuskWeather(dt);
   renderer.render(scene, activeCam);
   adaptResolution(dt);
   /* 音效在渲染之后播：手机上 <audio> / WebAudio 的调度是同步开销，
@@ -3908,7 +6236,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.22.0';
+window.__worldVersion = 'v0.23.0';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
