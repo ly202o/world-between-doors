@@ -109,6 +109,56 @@
   #settingsBtn { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 182px); display: block; }
   #mouseBtn  { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 224px); display: block; }
   #mouseBtn  { right: 14px; top: calc(env(safe-area-inset-top, 0px) + 224px); }
+  /* ---- 设置面板（F2 / 右上角「设置」） ----
+     v0.20.0 补样式。根因：这块从 v0.15.0 之前就没有任何 CSS，
+     `<section>` 在文档流里被 100% 高的画布顶到视口外，按 F2 确实切了 hidden，
+     但人永远看不见——表现就是"按 F2 没反应"。
+     注意不能用 display 布局覆盖 hidden：这里只给定位与外观，靠 [hidden] 兜底。 */
+  #settingsPanel {
+    position: fixed; right: 14px;
+    top: calc(env(safe-area-inset-top, 0px) + 268px);
+    width: 272px; max-width: calc(100vw - 28px);
+    max-height: calc(100vh - 300px);
+    overflow-y: auto; overscroll-behavior: contain;
+    padding: 12px 14px 14px; box-sizing: border-box;
+    border-radius: 14px;
+    background: var(--panel-solid);
+    box-shadow: 0 6px 22px var(--shadow);
+    color: var(--ink);
+    font: 500 12px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    letter-spacing: .02em;
+    z-index: 400;
+    touch-action: pan-y;
+    -webkit-user-select: text; user-select: text;
+  }
+  #settingsPanel[hidden] { display: none; }
+  #settingsPanel > strong { display: block; font-size: 12px; letter-spacing: .12em; color: var(--ink-soft); margin-bottom: 10px; }
+  #settingsPanel .settingGroup { margin: 12px 0 6px; padding-top: 10px; border-top: 1px solid var(--shadow); }
+  #settingsPanel .settingGroup strong { display: block; font-size: 11px; color: var(--ink-soft); letter-spacing: .1em; }
+  #settingsPanel .settingGroup span { display: block; font-size: 10.5px; color: var(--ink-dim); margin-top: 3px; line-height: 1.55; }
+  #settingsPanel label { display: block; margin: 9px 0; font-size: 11.5px; color: var(--ink); }
+  #settingsPanel output { float: right; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  #settingsPanel input[type=range] { display: block; width: 100%; margin-top: 6px; height: 18px; accent-color: var(--on-bg); }
+  #settingsPanel input[type=checkbox] { accent-color: var(--on-bg); margin-right: 6px; vertical-align: -2px; }
+  #settingsPanel select { width: 100%; margin-top: 6px; padding: 5px 8px; border-radius: 8px;
+    border: 1px solid var(--shadow); background: var(--bg); color: var(--ink); font: inherit; }
+  #debugInfo { margin: 10px 0 0; padding: 8px; border-radius: 8px; background: var(--bg); color: var(--ink-dim);
+    font: 400 10.5px/1.6 ui-monospace, Menlo, Consolas, monospace;
+    white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow: auto; }
+  #settingsStatus { margin: 10px 0 8px; font-size: 10.5px; color: var(--ink-dim); line-height: 1.5; }
+  #settingsPanel button { margin-top: 2px; padding: 7px 13px; border: 0; border-radius: 999px; cursor: pointer;
+    background: var(--on-bg); color: var(--on-ink);
+    font: 600 11.5px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    letter-spacing: .04em; }
+  #settingsReset { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1px var(--shadow); margin-right: 8px; }
+  /* 面板内容比面板高（滑条太多）：页脚吸底，滚到哪「关闭」都在手边 */
+  #settingsFoot { position: sticky; bottom: -14px; margin: 0 -14px -14px; padding: 8px 14px 14px;
+    background: var(--bg);   /* 用不透明的页面底色：半透明面板色会把身后的滑条透出来 */
+    box-shadow: 0 -6px 10px -8px var(--shadow); }
+  /* 矮屏（横屏手机）：改成贴底的面板，否则顶边 268px 会把可用高度吃光 */
+  @media (max-height: 560px) {
+    #settingsPanel { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); max-height: 74vh; }
+  }
   #fps {
     position: fixed; left: 10px; top: 8px;
     font: 400 10px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -149,11 +199,13 @@
   <label><input id="settingsCollision" type="checkbox">实际移动碰撞体</label>
   <label><input id="settingsAmb" type="checkbox">环境音（风 / 鸟叫，默认关）</label>
   <pre id="debugInfo"></pre>
+  <div id="settingsFoot">
   <div id="settingsStatus">设置修改后自动保存到本浏览器</div>
   <button id="settingsReset" type="button">恢复默认</button>
   <button id="settingsClose" type="button">关闭</button>
+  </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.19.0</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.20.0</div>
 <script>
 /**
  * @license
@@ -1795,7 +1847,7 @@ var FRICT = 22;
 var camYaw   = 0;          /* 水平角，0 = 在角色正后方 */
 var camPitch = 0.30;       /* 俯角 */
 var camDist  = 8.6;
-/* 视角模式：0=第一人称 1=第三人称 2=自由 3=等距（默认——v0.19.0 起开局就是等距，
+/* 视角模式：0=第一人称 1=第三人称 2=自由 3=等距（默认——v0.20.0 起开局就是等距，
    进来第一眼看到的是完整的村子，不是角色的后背） */
 var viewMode = 3;
 var firstMode = false, freeMode = false, isoMode = true;
@@ -1826,7 +1878,7 @@ var lockYaw = 0;
    真等距 = 正交投影 + 仰角 atan(1/√2)=35.264° + 45° 方位。
    不是"把 FOV 调窄假装远摄"：透视再窄，平行线仍会收敛，屋顶的边和院子的地砖永远对不齐。
    正交是画法几何意义上的等距——远处的门和近处的门一样大，三条棱两两夹 120°。
-      水平角有两级档（v0.19.0）：Q/E 轻按走 15° 细档，Shift+Q/E 与拖动走 90° 粗档。
+      水平角有两级档（v0.20.0）：Q/E 轻按走 15° 细档，Shift+Q/E 与拖动走 90° 粗档。
     45°+k·90° 那四个方位是**唯一**三条轴等长的角度，其余细档是正交斜视（方块会拉长），
     这是用户明确要的取舍：微调优先于几何纯度。 */
 var ISO_PITCH = Math.atan(1 / Math.SQRT2);      /* 35.264°：真等距仰角 */
@@ -1837,10 +1889,10 @@ var ISO_YAW_COARSE = 6;                         /* 粗档 = 6 细格 = 90°（Sh
 var isoYawIdx = 0;                              /* 细档序号 0..23 → 方位 = 45° + n×15° */
 var isoDragX = 0;                               /* 拖动累计量：吸附模式下够 ISO_DRAG_STEP 走一格粗档 */
 var ISO_DRAG_STEP = 80;                         /* 80px 一格粗档（90°），和自由视角的转速手感接近 */
-/* 拖动手感开关（v0.19.0）：默认「自由」——跟手连续转，松手停在哪是哪；
-   开「吸附」后回到粗档跳格（80px 一格 90°），松手也落在 15° 格上。
+/* 拖动手感开关：默认「固定」（v0.20.0 改的，用户要求"默认固定"）——拖动按粗档跳格，
+   80px 一格 90°，松手落在 15° 格上；按 G / 点按钮可切「自由」，跟手连续转、松手停在哪是哪。
    档位本身（Q/E 15°、Shift 90°）不受这个开关影响，随时可用。 */
-var isoFreeDrag = true;
+var isoFreeDrag = false;
 var isoDistCur = 0;                             /* 等距的当前机距（每帧缓动到目标） */
 /* 取景用"画面纵向覆盖多少米世界"来定（isoViewH），不用"窄边"那套：
    竖屏窄边是宽，一旦按窄边算，纵向会撑到 34m，人为一个小点、上下全是空地。
@@ -2073,9 +2125,9 @@ function syncBtns() {
     lockBtn.textContent = LOCK_NAME[freeLock ? 1 : 0];
     lockBtn.classList.toggle('on', freeLock);
   }
-  if (snapBtn) {                                  /* 等距专属：拖动手感 自由/吸附，与 lockBtn 共用槽位 */
+  if (snapBtn) {                                  /* 等距专属：拖动手感 固定/自由，与 lockBtn 共用槽位 */
     snapBtn.style.display = (TOUCH_UI && isoMode) ? 'block' : 'none';
-    snapBtn.textContent = isoFreeDrag ? '自由' : '吸附';
+    snapBtn.textContent = isoFreeDrag ? '自由' : '固定';
     snapBtn.classList.toggle('on', !isoFreeDrag);
   }
   if (themeBtn) {
@@ -2135,7 +2187,7 @@ function toggleLock() {
   syncBtns();
   hideTip();
 }
-/* 等距拖动手感开关（v0.19.0）：自由 ↔ 吸附。
+/* 等距拖动手感开关（v0.20.0）：自由 ↔ 吸附。
    开吸附那一刻把当前机位落回最近的 15° 格——从"停在哪是哪"平滑过渡到"停在格上"。 */
 function toggleIsoSnap() {
   isoFreeDrag = !isoFreeDrag;
@@ -2212,11 +2264,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里吸附键切 自由/吸附拖动　·　v0.19.0';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定/自由拖动　·　v0.20.0';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · Q/E 等距微调 15°（Shift 90°） · G 等距拖动 自由/吸附 · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.19.0';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · Q/E 等距微调 15°（Shift 90°） · G 等距拖动 固定/自由 · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.20.0';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -2302,7 +2354,7 @@ function turnBy(dx, dy, sensitivity) {
   var rawDx = dx;                 /* 未乘灵敏度的物理位移：等距档位阈值按它算 */
   dx *= sensitivity; dy *= sensitivity;
   var locked = (freeMode && freeLock);
-  /* 等距：俯角焊死（上下拖不动）。水平拖动有两档手感（v0.19.0）：
+  /* 等距：俯角焊死（上下拖不动）。水平拖动有两档手感（v0.20.0）：
      · 自由（默认）——跟手连续转，camYaw 是主，isoYawIdx 每帧反着同步；
      · 吸附——累计 80px 跳一格粗档（90°），永远落在档位上。
      方向跟自由视角一致（右拖 = 视角顺时针转），不让同一块画布出现两种手感。 */
@@ -3695,6 +3747,25 @@ var last = performance.now();
 var acc = 0;
 var FIXED = 1 / 120;
 var renderPaused = false;   /* 切后台就停循环省电 */
+/* ---------------- 待机检测（v0.20.0） ----------------
+   切后台（标签页不可见）已经被 visibilitychange 整个停掉了，这条路本来就不耗电。
+   漏的是另一种：窗口在前台、人却在做别的事——60fps 全速跑着一个不动的画面。
+   判据三条同时成立才进待机：① 30 秒没有任何输入 ② 角色静止且着地 ③ 没在播转身 / 攀爬 / 设置面板没开。
+   进待机后**既不跑物理也不渲染**（只留一个空转的 rAF 分支，开销在 0.1% 以下），
+   任何一次按键 / 点击 / 滚轮 / 触摸立刻退出，不用等。
+   风声鸟叫继续跑：那是"环境还在"，不是空转。 */
+var IDLE_MS = 30000;
+var idleMode = false;
+var idleTxtT = 0;
+var lastInputT = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+function markInput() {
+  lastInputT = performance.now();
+  if (idleMode) { idleMode = false; fpsN = 0; fpsT0 = lastInputT; }
+}
+/* 捕获阶段挂，保证别处 stopPropagation 也不影响计时（这只是一个时间戳） */
+['keydown', 'pointerdown', 'mousedown', 'wheel', 'touchstart'].forEach(function (ev) {
+  window.addEventListener(ev, markInput, { passive: true, capture: true });
+});
 var rafId = 0;
 
 /* FPS 弱显示：左上角小灰字，半秒更新一次；顺便记长帧（>45ms）便于定位卡顿 */
@@ -3743,6 +3814,22 @@ function fpsTick(t) {
 
 function loop(t) {
   if (renderPaused) return;   /* 后台不跑，回来时由 visibilitychange 重新拉起来 */
+  /* 待机：什么都不算、什么都不画，只留一个空转分支等人碰。 */
+  var idleNow = !settingsOpen && !climb && !TURN.on &&
+    (t - lastInputT) > IDLE_MS &&
+    Math.hypot(vel.x, vel.z) < 0.05 && P.onGround;
+  if (idleNow) {
+    if (!idleMode) { idleMode = true; idleTxtT = 0; }
+    last = t; acc = 0;                 /* 时间基准跟着走，回来时不会卡一大跳 */
+    if (t - idleTxtT > 1000) {
+      idleTxtT = t;
+      fpsEl.textContent = '待机 · 已停渲染（动一下就回来）';
+    }
+    ambientTick();
+    rafId = requestAnimationFrame(loop);
+    return;
+  }
+  if (idleMode) { idleMode = false; fpsN = 0; fpsT0 = t; }
   var dt = (t - last) / 1000;
   last = t;
   /* 长帧记录：>45ms 记一笔（带当时动画状态），屏幕上直接显示最近一笔。
@@ -3789,7 +3876,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.19.0';
+window.__worldVersion = 'v0.20.0';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
@@ -3822,6 +3909,13 @@ targets: targets,
   get axis() { return getAxis(); },
   get camBlockCur() { return camBlockCur; },
   get viewMode() { return viewMode; },
+  /* 诊断（v0.20.0）：待机状态。idle = 前台待机（停渲染），hidden = 切后台（停循环） */
+  get power() {
+    return { idle: idleMode, hidden: renderPaused, idleMs: IDLE_MS,
+      sinceInput: Math.round(performance.now() - lastInputT) };
+  },
+  setIdleMs: function (ms) { IDLE_MS = Math.max(200, +ms || 30000); markInput(); return IDLE_MS; },
+  get frameCount() { return renderer.info.render.frame; },
   /* 诊断（v0.15.0）：等距视角。renderer 到底在用哪台相机、投影是不是正交、
      视锥半高是否等于机距×tan(FOV/2)（这条不等就说明投影和机位脱节了）。 */
   get activeCamObj() { return activeCam; },
