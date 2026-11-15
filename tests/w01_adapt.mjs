@@ -26,7 +26,7 @@ console.log('变化次数', changes, '终值', series[series.length - 1]);
 let pass = 0, fail = 0;
 const ck = (n, ok, extra) => { console.log((ok ? 'PASS ' : 'FAIL ') + n + (extra !== undefined ? '  ' + extra : '')); ok ? pass++ : fail++; };
 ck('低帧率下会自动降分辨率', series[series.length - 1].s < 1, '终值 ' + series[series.length - 1].s);
-ck('降到下限 0.62 就停住', series[series.length - 1].s >= 0.62, series[series.length - 1].s);
+ck('降到下限 0.55 就停住', series[series.length - 1].s >= 0.55, series[series.length - 1].s);
 ck('没有来回抖动（≤2 次调整）', changes <= 2, changes + ' 次');
 ck('canvas 尺寸跟着缩放', series[series.length - 1].cw < 585, series[series.length - 1].cw);
 console.log('\n' + pass + ' pass / ' + fail + ' fail');

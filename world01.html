@@ -228,7 +228,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.23.2</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.23.3</div>
 <script>
 /**
  * @license
@@ -309,7 +309,7 @@ var IS_MOBILE = (function () {
   return touch && coarse && Math.min(window.innerWidth, window.innerHeight) <= 820;
 })();
 /* 手机档默认按设备像素上限渲染（清晰优先），掉帧由 renderScale 自动往下兜底 */
-var DPR_CAP = IS_MOBILE ? 3 : 2;
+var DPR_CAP = IS_MOBILE ? 2.5 : 2;
 var canvas = document.getElementById('c');
 var renderer;
 try {
@@ -320,7 +320,7 @@ try {
 }
 /* 自适应分辨率倍率（1 = 该设备上限，往下只会降）。
    真机上 GPU 温度/占用一上来就会掉帧，靠这个把渲染像素动态收回去。 */
-var renderScale = 1;
+var renderScale = IS_MOBILE ? 0.8 : 1;
 function applyPixelRatio() {
   var dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP) * renderScale;
   if (renderer.getPixelRatio() !== dpr) renderer.setPixelRatio(dpr);
@@ -2313,11 +2313,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.23.2';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.23.3';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.23.2';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.23.3';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -3599,26 +3599,26 @@ function adaptResolution(dt) {
   if (dt <= 0 || dt > 0.25) return;      /* 切后台/断点回来的长帧不算 */
   /* 开局 1.5 秒不动：头几帧在做着色器编译，全是最慢的帧，
      拿它们当依据会一进场就把画质砍到底。 */
-  if (s.warm < 1.5) { s.warm += dt; return; }
+  if (s.warm < (IS_MOBILE ? 2.2 : 1.5)) { s.warm += dt; return; }
   s.acc += dt; s.samples++;
   s.cool = Math.max(0, s.cool - dt);
-  if (s.samples < 24) return;
+  if (s.samples < (IS_MOBILE ? 18 : 24)) return;
   s.avg = s.acc / s.samples; s.acc = 0; s.samples = 0;
   if (s.cool > 0) return;
   s.badT += 0.024 * 24;                  /* 记一个粗略的"距上次降档多久" */
   var next = renderScale;
-  if (s.avg > 0.0235) {                  /* 平均不到 43 FPS：降两档更快 */
+  if (s.avg > (IS_MOBILE ? 0.020 : 0.0235)) {                  /* 平均不到 43 FPS：降两档更快 */
     next = renderScale - (s.avg > 0.034 ? 0.16 : 0.08); s.good = 0;
     s.bad = renderScale; s.badT = 0;     /* 记住这个档位是撑不住的 */
-  } else if (s.avg < 0.0178) {           /* 稳定 56 FPS 以上：攒够 4 次再升 */
-    if (++s.good >= 4) {
+  } else if (s.avg < (IS_MOBILE ? 0.0165 : 0.0178)) {           /* 稳定 56 FPS 以上：攒够 4 次再升 */
+    if (++s.good >= (IS_MOBILE ? 8 : 4)) {
       /* 不回到刚被证伪的档位，否则会在两档之间来回闪 */
-      var ceil = (s.badT < 12 && s.bad > 0) ? s.bad - 0.08 : 1;
+      var ceil = (s.badT < (IS_MOBILE ? 60 : 12) && s.bad > 0) ? s.bad - 0.08 : 1;
       next = Math.min(renderScale + 0.08, ceil);
       s.good = 0;
     }
   } else s.good = 0;
-  next = Math.max(0.62, Math.min(1, Math.round(next * 100) / 100));
+  next = Math.max(IS_MOBILE ? 0.55 : 0.62, Math.min(1, Math.round(next * 100) / 100));
   if (Math.abs(next - renderScale) > 0.001) {
     renderScale = next; s.scale = next; s.cool = 0.9;
     applyPixelRatio();
@@ -3968,7 +3968,7 @@ function buildDuskLevel(worldScene) {
     var sun = new THREE.DirectionalLight(0xffb173, 1.78);
     sun.position.set(-24, 8.6, 16);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.set(IS_MOBILE ? 1024 : 2048, IS_MOBILE ? 1024 : 2048);
     sun.shadow.camera.left = -17;
     sun.shadow.camera.right = 17;
     sun.shadow.camera.top = 17;
@@ -6087,8 +6087,8 @@ function updateDuskWeather(dt) {
   sun.intensity = th.sunI * (1 - b);
   duskLevel.lights.hemi.intensity = 0.58 * lg;
   duskLevel.lights.sun.intensity = 1.78 * lg;
-  duskLevel.lights.fill.intensity = 0.55 * lg;
-  duskLevel.lights.bounce.intensity = 0.18 * lg;
+  duskLevel.lights.fill.intensity = (IS_MOBILE ? 0 : 0.55) * lg;
+  duskLevel.lights.bounce.intensity = (IS_MOBILE ? 0 : 0.18) * lg;
 
   duskLevel.sky.visible = b > 0.002;
   duskLevel.sky.material.opacity = b;
@@ -6098,7 +6098,11 @@ function updateDuskWeather(dt) {
   scene.fog.near = 20 + 25 * b;
   scene.fog.far = 145 - 15 * b;
 
-  var shadowOn = b > 0.55;
+  /* 阴影切换带滞回：进出关卡时两套太阳的 castShadow 不能在 0.55 附近来回翻，
+     否则站在门口会看到地面阴影一闪一闪。0.9 以上才关世界太阳，0.2 以下才关关卡太阳。 */
+  var shadowOn = duskShadowOn;
+  if (b > 0.9) shadowOn = true;
+  else if (b < 0.2) shadowOn = false;
   if (shadowOn !== duskShadowOn) {
     duskShadowOn = shadowOn;
     sun.castShadow = !shadowOn;
@@ -6374,7 +6378,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.23.2';
+window.__worldVersion = 'v0.23.3';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },

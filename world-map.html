@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>world01 · 世界地图</title>
+<style>
+  :root{
+    --ink:#1c1f24; --sub:#6b7280; --line:#e3e6ea; --bg:#f7f8fa;
+    --ok:#0f7a4d; --okbg:#e7f5ee; --wip:#9a6200; --wipbg:#fdf3e2; --todo:#4c5fd0; --todobg:#eef0fd;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.75 -apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+  h1{font-size:26px;margin:0 0 6px;letter-spacing:.5px}
+  .lead{color:var(--sub);margin:0 0 20px}
+  .lead b{color:var(--ink)}
+  .bar{position:sticky;top:0;background:var(--bg);padding:12px 0;z-index:5;
+    display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+  .bar button{font:inherit;font-size:13px;padding:5px 14px;border-radius:20px;cursor:pointer;
+    border:1px solid var(--line);background:#fff;color:var(--sub)}
+  .bar button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .bar .count{margin-left:auto;align-self:center;color:var(--sub);font-size:13px}
+  h2{font-size:15px;color:var(--sub);font-weight:600;letter-spacing:2px;
+    margin:34px 0 14px;padding-left:2px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px 14px;
+    display:flex;flex-direction:column;gap:10px}
+  .card:hover{border-color:#c6ccd4}
+  .top{display:flex;align-items:center;gap:10px}
+  .name{font-size:17px;font-weight:600}
+  .ver{margin-left:auto;color:var(--sub);font-size:12px;white-space:nowrap}
+  .fig{height:104px;display:flex;align-items:center;justify-content:center;
+    background:var(--bg);border-radius:10px;color:#8a939f}
+  .fig svg{width:100%;height:88px}
+  .what{margin:0}
+  .use{margin:0;color:var(--sub);font-size:14px}
+  .use b{color:var(--ink);font-weight:500}
+  .tag{align-self:flex-start;font-size:12px;padding:2px 10px;border-radius:6px;white-space:nowrap}
+  .ok{background:var(--okbg);color:var(--ok)}
+  .wip{background:var(--wipbg);color:var(--wip)}
+  .todo{background:var(--todobg);color:var(--todo)}
+  ul.keys{margin:0;padding-left:18px;color:var(--sub);font-size:14px}
+  ul.keys li{margin:2px 0}
+  kbd{font:12px/1.6 ui-monospace,Consolas,monospace;background:#eef0f3;border:1px solid var(--line);
+    border-bottom-width:2px;border-radius:4px;padding:0 5px;color:var(--ink)}
+  .howto{margin-top:44px;background:#fff;border:1px dashed #c6ccd4;border-radius:14px;padding:20px 22px}
+  .howto h3{margin:0 0 8px;font-size:15px}
+  .howto ol{margin:0;padding-left:20px;color:var(--sub);font-size:14px}
+  .howto code{background:#eef0f3;border-radius:4px;padding:1px 5px;font-size:13px}
+  .hidden{display:none!important}
+  footer{margin-top:24px;color:var(--sub);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>world01 · 世界地图</h1>
+  <p class="lead">这一页只回答三件事：<b>世界里有什么 · 你能用它干什么 · 做到哪了</b>。<br>
+  不看代码、不看版本流水账。技术细节在 <code>docs/</code>，这里不看。</p>
+
+  <div class="bar">
+    <button data-f="all" class="on">全部</button>
+    <button data-f="ok">已做好</button>
+    <button data-f="wip">待补</button>
+    <button data-f="todo">没决定</button>
+    <span class="count" id="count"></span>
+  </div>
+
+  <!-- ============ 世界 ============ -->
+  <h2>世 界</h2>
+  <div class="grid">
+
+    <article class="card" data-s="ok">
+      <div class="top"><span class="name">出生点 · 两扇门</span><span class="ver">v0.23.0</span></div>
+      <div class="fig"><svg viewBox="0 0 200 88" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+        <path d="M10 74 H190"/><path d="M52 74 V26 h30 v48"/><path d="M60 74 V34 h14 v40"/>
+        <path d="M118 74 V26 h30 v48"/><path d="M126 74 V34 h14 v40"/>
+        <circle cx="100" cy="52" r="4"/><path d="M100 56 v10 m-5 8 5-8 5 8 m-9-14 4 3 4-3"/>
+        <path d="M84 44 h10 m-4-4 4 4-4 4 M116 44 h-10 m4-4-4 4 4 4"/>
+      </svg></div>
+      <p class="what">打开游戏站的地方，一片极简空地，正前方两扇真门。</p>
+      <p class="use"><b>东门</b>走进黄昏便利店，<b>南门</b>走进测试场。走过去天光会跟着区域变。</p>
+      <span class="tag ok">已做好</span>
+    </article>
+
+    <article class="card" data-s="ok">
+      <div class="top"><span class="name">黄昏便利店</span><span class="ver">v0.23.0 – 0.23.3</span></div>
+      <div class="fig"><svg viewBox="0 0 200 88" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+        <path d="M8 78 H192"/><path d="M46 78 V40 h108 v38"/><path d="M40 40 h120 l-6-12 H46 Z"/>
+        <path d="M56 78 V52 h30 v26"/><path d="M70 52 v26"/><path d="M98 78 V52 h44 v26"/>
+        <path d="M100 56 h40 M100 62 h40 M100 68 h40"/>
+        <path d="M30 78 V58 m-6 0 h12 M168 78 V58 m-6 0 h12"/>
+        <circle cx="168" cy="24" r="8"/><path d="M168 8v4m0 24v4m-16-16h4m24 0h4"/>
+      </svg></div>
+      <p class="what">黄昏街角的一间便利店，整条街的几何都搬进来了，站在门口就能看到亮着的店内。</p>
+      <p class="use">门口按 <kbd>E</kbd>（手机点按钮）<b>开玻璃门</b>；进店后屋顶、顶棚、吊灯<b>自动收起</b>，能看清里面。</p>
+      <span class="tag ok">已做好</span>
+    </article>
+
+    <article class="card" data-s="ok">
+      <div class="top"><span class="name">测试场</span><span class="ver">最早那片场地</span></div>
+      <div class="fig"><svg viewBox="0 0 200 88" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+        <path d="M8 78 H192"/>
+        <path d="M22 78 V52 l20-16 20 16 v26 Z"/><path d="M22 52 h40"/><path d="M36 78 V62 h12 v16"/>
+        <path d="M80 78 V58 h22 v20 Z M80 58 l22 0 M80 58 v20"/>
+        <path d="M112 78 V46 h20 v32 M112 46 l10-8 10 8"/>
+        <path d="M150 78 V30 h6 v48 M156 34 h18 v10 h-18"/>
+        <path d="M66 78 v-10 m0 0 h10 m-10 4 h10 M176 78 v-12"/>
+      </svg></div>
+      <p class="what">一栋带车库和小院的房子、72 块积木、11 座高塔、台阶、栅栏、3 块靶板。</p>
+      <p class="use">用来<b>试走跑跳攀</b>。看得见的东西都有碰撞、能站上去；<b>靶板只是摆设</b>——没有武器，那条线已经砍了。</p>
+      <span class="tag ok">已做好</span>
+    </article>
+
+  </div>
+
+  <!-- ============ 角色 ============ -->
+  <h2>角 色</h2>
+  <div class="grid">
+
+    <article class="card" data-s="wip">
+      <div class="top"><span class="name">身体与动作</span><span class="ver">持续在做</span></div>
+      <div class="fig"><svg viewBox="0 0 200 88" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="100" cy="16" r="7"/><path d="M100 23 v22"/>
+        <path d="M100 30 84 42 M100 30 l16 12"/>
+        <path d="M100 45 88 66 l-4 12 M100 45 l12 21 4 12"/>
+        <path d="M30 70 h34 m-8-6 8 6-8 6 M136 24 h34 m-8-6 8 6-8 6"/>
+        <path d="M146 40 a22 22 0 0 1 14 14"/>
+      </svg></div>
+      <p class="what">一个 1.8 米的人形。走、跑、快跑、跳、攀爬都有对应动作，不是滑来滑去的胶囊。</p>
+      <ul class="keys">
+        <li><b>脚真的贴地</b>：斜坡、台阶、石头顶，两只脚都踩实</li>
+        <li><b>站着转视角会迈步转身</b>，不是原地转模型</li>
+        <li>边走边转头看，头最多转 65°</li>
+        <li>起步前压、急停后仰、落地身体沉一下</li>
+      </ul>
+      <p class="use">还缺：<b>180° 转身、落地翻滚</b>——在等动画素材。</p>
+      <span class="tag wip">已做好 · 部分待补</span>
+    </article>
+
+  </div>
+
+  <!-- ============ 看与操作 ============ -->
+  <h2>看 与 操 作</h2>
+  <div class="grid">
+
+    <article class="card" data-s="ok">
+      <div class="top"><span class="name">视角 · 四档</span><span class="ver">v0.15.0 起</span></div>
+      <div class="fig"><svg viewBox="0 0 200 88" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+        <path d="M100 30 130 48 100 66 70 48 Z"/><path d="M70 48 v18 l30 18 30-18 V48"/>
+        <path d="M100 66 v18"/><path d="M100 30 v18 l30 18 M100 48 70 66"/>
+        <path d="M22 20 62 44 M178 20 138 44 M22 40 62 64 M178 40 138 64" stroke-dasharray="3 4"/>
+        <circle cx="22" cy="20" r="4"/><circle cx="178" cy="20" r="4"/>
+      </svg></div>
+      <p class="what">按 <kbd>V</kbd> 或手机视角键循环：<b>等距（默认）→ 第一人称 → 第三人称 → 自由</b>。</p>
+      <ul class="keys">
+        <li><b>等距</b>：远处近处一样大，俯角焊死 35.26°</li>
+        <li><b>固定档</b>完全不能转；<b>自由档</b>（<kbd>G</kbd>）能拖 + <kbd>Q</kbd><kbd>E</kbd></li>
+        <li>滚轮 / 双指缩放是<b>即时的</b>，没有拖尾</li>
+        <li>挡住视线的房子会变半透明</li>
+      </ul>
+      <span class="tag ok">已做好</span>
+    </article>
+
+    <article class="card" data-s="wip">
+      <div class="top"><span class="name">操作</span><span class="ver">桌面 + 手机</span></div>
+      <div class="fig"><svg viewBox="0 0 200 88" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+        <rect x="16" y="26" width="86" height="40" rx="5"/>
+        <path d="M26 36h10v10H26z M40 36h10v10H40z M54 36h10v10H54z M40 50h10v10H40z"/>
+        <rect x="130" y="14" width="42" height="62" rx="6"/>
+        <circle cx="144" cy="56" r="9"/><path d="M144 47 v-6 M151 44a10 10 0 0 1 8 8"/>
+        <path d="M158 30a8 8 0 0 1 6 8 M160 24a14 14 0 0 1 12 12"/>
+      </svg></div>
+      <p class="what"><b>桌面</b>：<kbd>WASD</kbd> 走、<kbd>Shift</kbd> 快跑、<kbd>空格</kbd> 跳/攀、<kbd>V</kbd> 视角、<kbd>Q</kbd><kbd>E</kbd> 转、滚轮缩放、<kbd>T</kbd> 主题、<kbd>F2</kbd> 设置。</p>
+      <p class="use"><b>手机</b>：左半屏<b>落指即摇杆</b>（按哪哪是原点）；右半屏拖动转视角、轻点跳、双指缩放。左右手能同时用。</p>
+      <p class="use">还缺：手机上没有 <b>15° 微调角度</b>的入口（Q/E 是键盘专属）。</p>
+      <span class="tag wip">已做好 · 一处待补</span>
+    </article>
+
+    <article class="card" data-s="ok">
+      <div class="top"><span class="name">界面与设置</span><span class="ver">v0.22.0</span></div>
+      <div class="fig"><svg viewBox="0 0 200 88" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+        <rect x="14" y="14" width="172" height="60" rx="6"/>
+        <path d="M132 14 v60"/><path d="M142 26h32 M142 36h32 M142 46h20"/>
+        <circle cx="142" cy="60" r="3"/><path d="M150 60h24"/>
+        <path d="M26 60 46 40 66 54 86 32 106 52"/>
+      </svg></div>
+      <p class="what">桌面上设置是<b>右边并行的侧栏</b>：画面缩窄让位，谁也不挡谁，不用收起面板就能继续转视角。手机上仍是覆盖式卡片。</p>
+      <p class="use">能调：移动速度、鼠标/触屏灵敏度、画质、主题、碰撞盒显示、声音。选择会存在本浏览器。</p>
+      <span class="tag ok">已做好</span>
+    </article>
+
+  </div>
+
+  <!-- ============ 底层 ============ -->
+  <h2>底 层（看不见但在工作）</h2>
+  <div class="grid">
+
+    <article class="card" data-s="ok">
+      <div class="top"><span class="name">声音</span><span class="ver">默认静音</span></div>
+      <div class="fig"><svg viewBox="0 0 200 88" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M60 36 h14 l16-14 v44 L74 52 H60 Z"/>
+        <path d="M102 32a18 18 0 0 1 0 24 M114 24a30 30 0 0 1 0 40 M126 16a42 42 0 0 1 0 56"/>
+        <path d="M34 66 h16 m-6-5 6 5-6 5"/>
+      </svg></div>
+      <p class="what">脚步（走和跑是不同录音，按真实落脚时刻响）、跳跃落地、按钮点击、风与鸟叫。</p>
+      <p class="use"><b>打开页面不响。</b>点左下角「静音」才开声音；环境音要在设置里单独勾。</p>
+      <span class="tag ok">已做好</span>
+    </article>
+
+    <article class="card" data-s="ok">
+      <div class="top"><span class="name">省电与画质</span><span class="ver">v0.20.0 / 0.23.3</span></div>
+      <div class="fig"><svg viewBox="0 0 200 88" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+        <rect x="24" y="30" width="118" height="30" rx="5"/><path d="M146 38h8v14h-8"/>
+        <path d="M34 38h60v14H34z"/><path d="M104 45h30" stroke-dasharray="3 4"/>
+        <path d="M158 62 172 44 m0 0 h-12 m12 0 v12"/>
+        <path d="M158 26 172 8" opacity=".4"/>
+      </svg></div>
+      <p class="what"><b>30 秒不动</b>就停渲染，动一下立刻回来；<b>切后台</b>整个循环停，CPU/显卡归零。</p>
+      <p class="use">帧率撑不住会<b>自动降渲染分辨率</b>，恢复了再爬回来；手机单独一档画质。操作手感不受影响。</p>
+      <span class="tag ok">已做好</span>
+    </article>
+
+  </div>
+
+  <!-- ============ 没决定 ============ -->
+  <h2>还 没 决 定（等你拍板）</h2>
+  <div class="grid">
+
+    <article class="card" data-s="todo">
+      <div class="top"><span class="name">核心动作</span></div>
+      <p class="what">现在只有「走跑跳攀看」，<b>还没有「对世界做了什么」</b>。候选：显形、留痕、建造。这是这个世界下一步最重要的一件事。</p>
+      <span class="tag todo">没决定</span>
+    </article>
+
+    <article class="card" data-s="todo">
+      <div class="top"><span class="name">相机自动回正</span></div>
+      <p class="what">松手之后镜头要不要慢慢转回角色背后。</p>
+      <span class="tag todo">没决定</span>
+    </article>
+
+    <article class="card" data-s="todo">
+      <div class="top"><span class="name">世界边界</span></div>
+      <p class="what">现在地面跟着角色走、走不出去也看不到边。要不要有一个真正的边。</p>
+      <span class="tag todo">没决定</span>
+    </article>
+
+    <article class="card" data-s="todo">
+      <div class="top"><span class="name">昼夜变化</span></div>
+      <p class="what">天光现在只按区域切换，不随时间变。</p>
+      <span class="tag todo">没决定</span>
+    </article>
+
+    <article class="card" data-s="todo">
+      <div class="top"><span class="name">角色更多动作</span></div>
+      <p class="what">蹲、推、抓。另外 180° 转身和落地翻滚在等动画素材。</p>
+      <span class="tag todo">没决定</span>
+    </article>
+
+    <article class="card" data-s="todo">
+      <div class="top"><span class="name">等距固定档能否用 Q/E</span></div>
+      <p class="what">现在固定档是完全不能转。要不要留一个键盘微调的口子。</p>
+      <span class="tag todo">没决定</span>
+    </article>
+
+  </div>
+
+  <div class="howto">
+    <h3>怎么加新模块（不用懂代码）</h3>
+    <ol>
+      <li>用记事本/编辑器打开这个文件，找一张长得像的卡片，<b>从 <code>&lt;article</code> 到 <code>&lt;/article&gt;</code> 整段复制</b>，粘到对应分区的 <code>&lt;/div&gt;</code> 之前。</li>
+      <li>改三处：<b>标题</b>、<b>两段中文说明</b>、<b>状态标签</b>。示意图那段 <code>&lt;svg&gt;</code> 不会画就直接删掉，不影响。</li>
+      <li>状态改两个地方要一致：卡片开头的 <code>data-s="ok"</code>（ok 已做好 / wip 待补 / todo 没决定），和底部标签的 <code>class="tag ok"</code>。</li>
+    </ol>
+  </div>
+
+  <footer>world-map.html · 手工维护的模块清单 · 对应 v0.23.3</footer>
+</div>
+
+<script>
+  var btns = document.querySelectorAll('.bar button');
+  var cards = document.querySelectorAll('.card');
+  var heads = document.querySelectorAll('h2');
+  function apply(f){
+    for (var i=0;i<btns.length;i++) btns[i].classList.toggle('on', btns[i].dataset.f===f);
+    var n=0;
+    for (var j=0;j<cards.length;j++){
+      var show = (f==='all' || cards[j].dataset.s===f);
+      cards[j].classList.toggle('hidden', !show);
+      if(show) n++;
+    }
+    for (var k=0;k<heads.length;k++){
+      var g = heads[k].nextElementSibling, any=false;
+      if(g){ for(var m=0;m<g.children.length;m++){ if(!g.children[m].classList.contains('hidden')) any=true; } }
+      heads[k].classList.toggle('hidden', !any);
+      if(g) g.classList.toggle('hidden', !any);
+    }
+    document.getElementById('count').textContent = n + ' 个模块';
+  }
+  for (var i=0;i<btns.length;i++) btns[i].onclick = function(){ apply(this.dataset.f); };
+  apply('all');
+</script>
+</body>
+</html>
