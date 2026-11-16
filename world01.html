@@ -228,7 +228,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.29.8</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.29.9</div>
 <script>
 /**
  * @license
@@ -2341,11 +2341,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.29.8';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.29.9';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.29.8';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.29.9';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -2387,7 +2387,10 @@ window.addEventListener('keydown', function (e) {
   hideTip();
 }, { passive: false });
 
-window.addEventListener('keyup', function (e) { keys[e.key.toLowerCase()] = false; }, { passive: true });
+window.addEventListener('keyup', function (e) {
+  keys[e.key.toLowerCase()] = false;
+  if (portalMoveYaw) syncPortalMoveAxis(getAxis());
+}, { passive: true });
 window.addEventListener('blur', resetInput);
 document.addEventListener('visibilitychange', function () { if (document.hidden) resetInput(); });
 
@@ -3085,8 +3088,7 @@ function update(dt) {
 
   /* 目标速度：屏幕方向 → 相对相机的世界方向 */
   var MOVE_V = (sprint ? settings.sprintSpeed : (slowWalkOn ? settings.walkSpeed * settings.slowWalk : settings.runSpeed)) * (motionDebug.stumble > 0 ? 0.15 : 1);
-  if (portalMoveYaw && (axisMag < 0.01 ||
-      (axis.x * portalHeldAxis.x + axis.y * portalHeldAxis.y) / axisMag < 0.94)) portalMoveYaw = 0;
+  if (portalMoveYaw) syncPortalMoveAxis(axis);
   var moveYaw = camYaw + portalMoveYaw;
   var fx = -Math.sin(moveYaw), fz = -Math.cos(moveYaw);
   var rx =  Math.cos(moveYaw), rz = -Math.sin(moveYaw);
@@ -6446,7 +6448,7 @@ function buildSunnyGarden(worldScene) {
     var g = new THREE.Group();
     var R = GAZEBO.r;
     var postAngles = [30, 90, 150, 210, 270, 330].map(function (d) { return (d * Math.PI) / 180; });
-    var openEdges = [0, 5]; // 边 0:30-90, 边5:330-30（前与右前敞开）
+    var openEdges = [0, 1, 5]; // 小径前的两个入口与右侧入口
     var postTop = 3.05;
 
     // 石台
@@ -6456,6 +6458,15 @@ function buildSunnyGarden(worldScene) {
     deck.rotation.y = Math.PI / 6;
     var deckTop = CY(R + 0.3, R + 0.3, 0.05, M(0xdcc9a4), 0, GY + 0.49, 0, 6, g);
     deckTop.rotation.y = Math.PI / 6;
+
+    // 两组低台阶将小径与 0.515m 高的台面接起来。
+    [Math.PI / 3, 2 * Math.PI / 3].forEach(function (angle) {
+      var x = Math.cos(angle), z = Math.sin(angle);
+      var yaw = Math.atan2(x, z);
+      var lower = B(1.46, 0.17, 0.86, matStoneDark, x * 3.92, GY + 0.085, z * 3.92, g);
+      var upper = B(1.40, 0.34, 1.0, matStone, x * 3.43, GY + 0.17, z * 3.43, g);
+      lower.rotation.y = upper.rotation.y = yaw;
+    });
 
     // 立柱
     postAngles.forEach(function (a) {
@@ -6521,7 +6532,7 @@ function buildSunnyGarden(worldScene) {
     });
 
     // 亭内长凳（三边）
-    [1, 2, 3].forEach(function (bi) {
+    [2, 3, 4].forEach(function (bi) {
       var ba0 = postAngles[bi], ba1 = postAngles[bi + 1];
       var bp0 = new THREE.Vector3(Math.cos(ba0) * (R - 0.5), 0, Math.sin(ba0) * (R - 0.5));
       var bp1 = new THREE.Vector3(Math.cos(ba1) * (R - 0.5), 0, Math.sin(ba1) * (R - 0.5));
@@ -7468,6 +7479,10 @@ var portalPawnPosition = new THREE.Vector3();
 var portalDelta = new THREE.Vector3();
 var portalMoveYaw = 0;
 var portalHeldAxis = new THREE.Vector2();
+function syncPortalMoveAxis(axis) {
+  var length = Math.hypot(axis.x, axis.y);
+  if (length < 0.01 || (axis.x * portalHeldAxis.x + axis.y * portalHeldAxis.y) / length < 0.94) portalMoveYaw = 0;
+}
 var portalBlendFixed = false;
 
 function movePortalCamera(camera, through) {
@@ -8082,7 +8097,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.29.8';
+window.__worldVersion = 'v0.29.9';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
