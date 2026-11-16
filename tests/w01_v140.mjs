@@ -123,9 +123,9 @@ ok(Math.abs(ikGap.foot_r - 0.100) < 0.05, '右脚踝离地还是 0.100 附近', 
 const audit = await ev(`__collisionAudit && ({missing:__collisionAudit.verify.missing, exempt:__collisionAudit.verify.exempt})`);
 ok(audit && audit.missing === 0, '碰撞自检遗漏 0', audit);
 /* 豁免从 30 掉到 2：少掉的 28 条正是挂在 hand_r 上的枪零件 —— 反过来证明枪真的从场景图里摘掉了 */
-ok(audit && audit.exempt === 11, '碰撞豁免 3 + 8 片敞开门扇（枪的 28 个零件仍不在场）', audit);
+ok(audit && audit.exempt === 27, '碰撞豁免 3 + 24 个门扇/门后画面（四扇传送门）', audit);
 const prof = await ev(`(function(){var by={};for(var i=0;i<__colliders.length;i++){var k=__colliders[i].kind;by[k]=(by[k]||0)+1;}return {n:__colliders.length,by:by};})()`);
-ok(prof.n === 670, '碰撞体 670 个（v0.23.0 两关后）', prof.n);
+ok(prof.n === 676, '碰撞体 676 个（v0.24.0 传送门后）', prof.n);
 ok(prof.by.target === 3 && prof.by.stand === 3, '靶板 3 块 + 支架 3 根都还在', prof.by);
 
 ok(await ev(`__world.sound.muted === true`), '仍然默认静音');

@@ -40,6 +40,8 @@ const key = async k => {
 
 await send('Page.navigate', { url: 'http://127.0.0.1:8779/world01.html?s=' + Date.now() });
 await until(async () => (await ev('typeof __world')) === 'object', 12000);
+/* v0.24.0：便利店在独立的世界里，测试前先切过去（门店门系统本身与所在世界无关） */
+await ev('__world.gotoWorld("konbini")'); await sleep(300);
 
 console.log('\n【1】出生点：没有提示，门关着');
 const d0 = await door(), t0 = await tip();
