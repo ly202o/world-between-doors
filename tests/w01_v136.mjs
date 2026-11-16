@@ -33,6 +33,9 @@ await send('Emulation.setDeviceMetricsOverride', { width: 1000, height: 700, dev
 await ev(`try{localStorage.removeItem('w01.testlist.v2');localStorage.removeItem('world01.sound.v1');localStorage.removeItem('world01.amb.v1')}catch(e){}`);
 await send('Page.navigate', { url: 'http://127.0.0.1:8779/world01.html?s=' + Date.now() });
 await sleep(9500);
+await ev('__world.gotoWorld("field")');   /* v0.26.0：屋顶/碎石/土坡都归 field 关卡，先在它的世界里测 */
+await sleep(450);
+
 
 console.log('\n[1] 版本');
 ok(/^v0\.\d+\.\d+$/.test(await ev(`window.__worldVersion`)), '版本格式', await ev(`window.__worldVersion`));
@@ -75,7 +78,7 @@ ok(kinds.pebble > 50, '碎石碰撞体都在', kinds);
 const stoneProbe = await ev(`(function(){
   var cs=window.__colliders||[], sb=null;
   for(var i=0;i<cs.length;i++){ var c=cs[i];
-    if(c.kind==='pebble' && c.top>0.10 && Math.abs(c.x)<20 && Math.abs(c.z)<20){ sb=c; break; } }
+    if(c.kind==='pebble' && c.world==='field' && c.top>0.10 && Math.abs(c.x)<20 && Math.abs(c.z)<20){ sb=c; break; } }
   if(!sb) return null;
   var h=__world.supportAt(sb.x, sb.z, 1.0);
   return {x:+sb.x.toFixed(2), z:+sb.z.toFixed(2), top:+sb.top.toFixed(3), sup:+h.toFixed(3)};})()`);

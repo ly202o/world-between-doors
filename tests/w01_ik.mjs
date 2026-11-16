@@ -21,6 +21,9 @@ await send('Runtime.enable'); await send('Page.enable');
 await send('Emulation.setDeviceMetricsOverride', { width: 900, height: 640, deviceScaleFactor: 1, mobile: false });
 await send('Page.navigate', { url: 'http://127.0.0.1:8779/world01.html?s=' + Date.now() });
 await sleep(9500);
+await ev('__world.gotoWorld("field")');   /* v0.26.0：屋顶/碎石/土坡都归 field 关卡，先在它的世界里测 */
+await sleep(450);
+
 
 const READ = `(function(){
   var v=new THREE.Vector3(), out={};

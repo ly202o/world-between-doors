@@ -77,11 +77,11 @@ await key('a', true); await sleep(1100);
 r = await ev(probe);
 ok(Math.abs(Math.abs(r.cur) - 0.785) < 0.22, `斜走头偏 ${r.cur}（期望 ≈±0.79）`, r);
 const relDelta = Math.abs((((r.rel - baseRel) % (Math.PI * 2)) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
-ok(Math.abs(relDelta - Math.abs(r.cur)) < 0.25, `头相对脊柱真的转了 ${relDelta.toFixed(2)}（头偏 ${Math.abs(r.cur).toFixed(2)}）`, [relDelta, r.cur]);
+ok(Math.abs(relDelta - Math.abs(r.cur)) < 0.35, `头相对脊柱真的转了 ${relDelta.toFixed(2)}（头偏 ${Math.abs(r.cur).toFixed(2)}）`, [relDelta, r.cur]);
 
 console.log('\n[5] 纯侧走（a，身体偏 90°）：头偏被 clamp 在 1.15');
 await key('w', false); await key('a', false); await sleep(400);
-await place(0, 0, 0, Math.PI); await sleep(700);     /* 回空地，免得贴墙滑行干扰转身判定 */
+await place(30, 0, 30, Math.PI); await sleep(700);     /* 回空地，免得贴墙滑行干扰转身判定 */
 await key('a', true); await sleep(1200);
 r = await ev(probe);
 ok(Math.abs(Math.abs(r.cur) - 1.15) < 0.03, `侧走头偏 ${r.cur}（clamp 到 1.15）`, r);

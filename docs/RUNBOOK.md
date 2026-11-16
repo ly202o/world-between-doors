@@ -53,6 +53,7 @@ world01/
 | 角色状态 | 1837 | `P`（pos/vy/onGround/face/faceTarget/phase/...）、`vel` |
 | 相机（三档透视） | 1869 | `camYaw` / `camPitch` / `camDist` / `freePitch` / `freeDist`；遮挡拉近与 `ghostMat` |
 | **等距** | 1907~1974 | `ISO_PITCH`(35.264°)、`ISO_YAW_BASE`(45°)、`ISO_YAW_FINE`(15°)、`ISO_YAW_TICKS`(24)、`ISO_YAW_COARSE`(6)；`isoDistTarget()` / `isoZoom()` / `isoSnap()` / `isoYawIdx` / `isoFreeDrag` / `isoViewH` |
+| **重叠层/传送门** | `splitWorlds` / `buildPortalDoors` / `enterPortal` / `renderPortals`（约 6146~6470） | `curWorld`、`portalDoors`、`spawnRoot`、`fieldRoot`、`BUILD_WORLD`；跨门只切世界不改坐标 |
 | 视角切换 | ~2181 | `toggleView()`（四档循环）、`toggleIsoSnap()`（固定/自由，~2226） |
 | 输入：滚轮 / 捏合 / 拖动 | ~2356 / ~2388 | `zoomFree(k)`、`turnBy(dx,dy,sens)`、`pinch` 对象、`ptrs` |
 | **键盘分发** | ~2308 | `window.addEventListener('keydown', ...)`：V 切视角、F2 面板、M 鼠标、Q/E 等距档位（`isoMode && isoFreeDrag && (k==='q'\|\|k==='e')`，~2328）、G 固定/自由 |

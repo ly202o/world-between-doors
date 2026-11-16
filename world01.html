@@ -228,7 +228,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.25.1</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.26.0</div>
 <script>
 /**
  * @license
@@ -438,6 +438,7 @@ var propMat = new THREE.MeshStandardMaterial({ color: 0xf4f7fa, roughness: 0.92,
 /* 房子里的专用材质定义在 house() 内部，注册到这里供主题切换访问 */
 var HOUSE_MATS = {};
 var blockers = [];   /* 会挡住相机的实体（积木 + 高塔），散石太小不参与 */
+var BUILD_WORLD = 'field';   /* v0.26.0 重叠层：碰撞体属于哪个世界（field / spawn / konbini） */
 window.__blockers = blockers;   /* 诊断用 */
 
 /* 自由视角的遮挡遮罩：挡住角色的物体换成这个半透明材质，而不是把相机拉近。
@@ -469,7 +470,7 @@ function addCollider(mesh, w, d, h) {
     x: mesh.position.x, z: mesh.position.z,
     hw: w / 2, hd: d / 2,
     c: Math.cos(yaw), s: Math.sin(yaw),
-    bottom: mesh.position.y - h / 2, kind: 'solid',
+    bottom: mesh.position.y - h / 2, kind: 'solid', world: BUILD_WORLD || 'field',
     top: mesh.position.y + h / 2,
     reach: Math.sqrt(w * w + d * d) / 2 + PLAYER_R + 0.6
   });
@@ -480,7 +481,7 @@ function addPost(x, y, z, r, h) {
   colliders.push({
     mesh: null, x: x, z: z,
     hw: r, hd: r, c: 1, s: 0, round: 1,
-    bottom: y - h / 2, top: y + h / 2, kind: 'solid',
+    bottom: y - h / 2, top: y + h / 2, kind: 'solid', world: BUILD_WORLD || 'field',
     reach: r + PLAYER_R + 0.6
   });
   return colliders[colliders.length - 1];
@@ -552,13 +553,25 @@ function addMeshCollider(localBox, matrix, mesh, res) {
   addCollider({ position: { x: (_mb.max.x + _mb.min.x) / 2, y: (_mb.max.y + _mb.min.y) / 2, z: (_mb.max.z + _mb.min.z) / 2 },
               rotation: { y: 0 } }, w, d, h);
   var c = colliders[colliders.length - 1];
-  c.kind = kind; c.auto = true;
+  c.kind = kind; c.auto = true; c.world = worldOfMesh(mesh);
   res.auto++;
   res.autoNames[kind] = (res.autoNames[kind] || 0) + 1;
   return kind;
 }
 
 /* fill=true：顺手把没覆盖的补上；fill=false：只统计（用于复核和面板显示） */
+/* 网格属于哪个世界：沿父链比对三个世界根（v0.26.0 重叠层） */
+function worldOfMesh(m) {
+  var p = m;
+  while (p) {
+    if (p === spawnRoot) return 'spawn';
+    if (p === fieldRoot) return 'field';
+    if (duskLevel && p === duskLevel.host) return 'konbini';
+    p = p.parent;
+  }
+  return 'field';
+}
+
 function collisionAudit(fill) {
   var res = { meshes: 0, instances: 0, covered: 0, ownMeshes: 0, auto: 0, exempt: 0, missing: 0,
               byKind: {}, exemptions: {}, autoNames: {}, missingNames: [] };
@@ -1851,11 +1864,11 @@ function fireSteps(d, t0, t1) {
 
 /* ---------------- 角色状态 ---------------- */
 var P = {
-  pos: new THREE.Vector3(0, 0, 200),   /* v0.24.0 出生点：传送门空场 */
+  pos: new THREE.Vector3(-17.4, 0.03, 24.5),   /* v0.26.0 出生点：便利店石门的正面（门内 1.9m，直接看到开门提示） */
   vy: 0,
   onGround: true,
-  face: Math.PI,    /* 当前朝向角（弧度）。π = 背对相机，camYaw 0 时相机在角色正后方 */
-  faceTarget: Math.PI,
+  face: Math.PI / 2,    /* 当前朝向角（弧度）；出生在门前，面朝东（正对门） */
+  faceTarget: -Math.PI / 2,
   phase: 0,
   idleT: 0,
   squash: 1,
@@ -2313,11 +2326,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.25.1';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.26.0';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.25.1';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.26.0';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -2880,6 +2893,7 @@ function collideXZ(dt, tx, tz) {
   var stepAllow = P.onGround ? STEP_UP : 0.08;
   for (var i = 0; i < colliders.length; i++) {
     var col = colliders[i];
+    if (col.world && col.world !== curWorld) continue;   /* v0.26.0：隐藏世界的碰撞不参与 */
     if (NON_BLOCKING_KIND[col.kind]) continue;   /* 碎屑/树叶/薄地砖：不挡移动 */
     var surface = colHeight(col, P.pos.x, P.pos.z);
     if (surface - feet <= stepAllow || P.pos.y + 1.86 <= col.bottom) continue;
@@ -2996,6 +3010,7 @@ function supportAt(px, pz, feet) {
   var best = 0, limit = feet + STEP_UP + 0.02;
   for (var i = 0; i < colliders.length; i++) {
     var col = colliders[i];
+    if (col.world && col.world !== curWorld) continue;   /* v0.26.0：隐藏世界的碰撞不参与支撑 */
     if (NON_BLOCKING_KIND[col.kind]) continue;   /* 小石子不把人颠起来 */
     var height = colHeight(col, px, pz);
     if (height <= best || height > limit) continue;
@@ -6111,7 +6126,9 @@ function updateDuskWeather(dt) {
 }
 
 /* ---------------- 把这一关放进世界 ---------------- */
+var _bwD = BUILD_WORLD; BUILD_WORLD = 'konbini';
 duskLevel = buildDuskLevel(scene);
+BUILD_WORLD = _bwD;
 duskLevel.host.position.set(DUSK_SPOT.x, 0, DUSK_SPOT.z);
 duskLevel.host.rotation.y = DUSK_YAW;
 scene.add(duskLevel.host);
@@ -6132,7 +6149,8 @@ buildPlaza();
    ============================================================================ */
 var SPAWN_Z = 200;
 var spawnRoot = new THREE.Group(); spawnRoot.name = 'spawnWorld';
-spawnRoot.position.set(0, 0, SPAWN_Z);
+/* v0.26.0 重叠层：出生世界不再偏移，与便利店/场地共用世界坐标 */
+spawnRoot.position.set(0, 0, 0);
 var fieldRoot = new THREE.Group(); fieldRoot.name = 'fieldWorld';
 scene.add(spawnRoot); scene.add(fieldRoot);
 var curWorld = 'spawn';
@@ -6259,14 +6277,39 @@ function buildSpawnWorld() {
   /* 石灯笼的一点暖光：空场不至于死黑 */
   var lamp = new THREE.PointLight(0xffb066, 9, 10, 2);
   lamp.position.set(lx, 1.02, lz); spawnRoot.add(lamp);
+  /* 便利店门旁：第二盏石灯笼 + 枯树 + 石阶路（门在 -15.5, 24.5） */
+  var lx2 = -18.2, lz2 = 27.0;
+  var c1 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.16, 0.5), stone); c1.position.set(lx2, 0.08, lz2); spawnRoot.add(c1);
+  var c2 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.62, 8), stone); c2.position.set(lx2, 0.47, lz2); spawnRoot.add(c2);
+  var c3 = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.24, 0.34), stone); c3.position.set(lx2, 0.9, lz2); spawnRoot.add(c3);
+  var c4 = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.2, 4), stone); c4.position.set(lx2, 1.12, lz2); c4.rotation.y = Math.PI / 4; spawnRoot.add(c4);
+  var lamp2 = new THREE.PointLight(0xffb066, 9, 10, 2);
+  lamp2.position.set(lx2, 1.02, lz2); spawnRoot.add(lamp2);
+  /* 门前一点暖光，把门和门框从黑场里托出来 */
+  var doorLamp = new THREE.PointLight(0xffb066, 5, 7, 2);
+  doorLamp.position.set(-16.9, 1.9, 24.5); spawnRoot.add(doorLamp);
+  var trunk2 = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.13, 2.6, 7), wood);
+  trunk2.position.set(-20.6, 1.3, 21.4); trunk2.castShadow = true; spawnRoot.add(trunk2);
+  for (i = 0; i < 4; i++) {
+    var br2 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.04, 0.95, 5), wood);
+    br2.position.set(-20.6 + Math.cos(i * 1.6) * 0.32, 2.0 + (i % 2) * 0.32, 21.4 + Math.sin(i * 1.6) * 0.32);
+    br2.rotation.set(0.6, i * 1.3, 0.5); spawnRoot.add(br2);
+  }
+  for (i = 0; i < 5; i++) slab(-16.4 - i * 0.62, 24.5, 0);
+  var st1 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.82, 0.34), stone);
+  st1.position.set(-16.9, 0.41, 27.3); st1.rotation.y = 0.5; st1.castShadow = true; spawnRoot.add(st1);
+  var mo3 = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.03, 10), moss);
+  mo3.position.set(-17.9, 0.015, 21.2); spawnRoot.add(mo3);
 }
 
 /* ---------------- 建三组世界的门并互相链接 ---------------- */
 var doorK, doorF, doorRK, doorRF;
 function buildPortalDoors() {
   var dz = -4;
-  doorK = makeStandaloneDoor(spawnRoot, -2.6, dz, 0, 'doorKonbini');
-  doorF = makeStandaloneDoor(spawnRoot, 2.6, dz, 0, 'doorField');
+  /* 与便利店侧的回程门同坐标、同朝向（世界 -15.5, 24.5，正面朝西） */
+  doorK = makeStandaloneDoor(spawnRoot, -15.5, 24.5, -Math.PI / 2, 'doorKonbini');
+  /* 与场地侧的回程门同坐标、同朝向（世界 2, -4，正面朝南） */
+  doorF = makeStandaloneDoor(spawnRoot, 2, -4, Math.PI, 'doorField');
   /* 便利店世界：宿主在 (-23,22) 转 90°，门的本地 (x,z) 映射到世界 (-23+z, 22-x)。
      放在店前场空地的北侧（世界 -19.0, 25.5），离店面 4m 多、四周留空，正面对西。 */
   doorRK = makeStandaloneDoor(duskLevel.host, -2.5, 7.5, -Math.PI, 'returnKonbini');
@@ -6326,8 +6369,8 @@ function togglePortal(d) {
    M = B * R180 * A^-1 搬到对面世界去渲染；跨过门槛时位置/朝向/速度也走同一个 M，
    所以镜头不切、人不跳，走进去就像走进另一个空间。 */
 var PORTAL_R180 = new THREE.Matrix4().makeRotationY(Math.PI);
-var PORTAL_VS = 'void main(){ gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }';
-var PORTAL_FS = 'uniform sampler2D uMap; uniform vec2 uRes; void main(){ vec2 p = gl_FragCoord.xy / uRes; gl_FragColor = texture2D(uMap, p); }';
+var PORTAL_VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }';
+var PORTAL_FS = 'uniform sampler2D uMap; varying vec2 vUv; void main(){ gl_FragColor = texture2D(uMap, vUv); }';
 
 function makePortalCam() {
   var cam = new THREE.PerspectiveCamera(48, 1, 0.05, 320);
@@ -6352,6 +6395,7 @@ function initPortals() {
       hw: DOOR_W / 2 + 0.06, hd: 0.16, h: DOOR_H, bottom: 0, top: DOOR_H,
       kind: 'solid', c: Math.cos(yaw), s: Math.sin(yaw), reach: DOOR_W / 2 + 0.36 + 0.6, mesh: null };
     colliders.push(blk);
+    blk.world = d.world;   /* v0.26.0：门挡板只在本世界生效 */
     d.blocker = blk;
     var cw = renderer.domElement.width || 800, ch = renderer.domElement.height || 600;
     var rw = Math.max(200, Math.round(cw / 2)), rh = Math.max(200, Math.round(ch / 2));
@@ -6362,7 +6406,7 @@ function initPortals() {
     d.plane.material = new THREE.ShaderMaterial({
       uniforms: { uMap: { value: d.rt.texture }, uRes: { value: new THREE.Vector2(cw, ch) } },
       vertexShader: PORTAL_VS, fragmentShader: PORTAL_FS,
-      depthWrite: false, side: THREE.FrontSide
+      depthWrite: false, side: THREE.DoubleSide
     });
   }
 }
@@ -6383,13 +6427,14 @@ function updatePortals(dt) {
     if (d.world !== curWorld) { d.focus = false; continue; }
     wp.copy(P.pos);
     d.group.worldToLocal(wp);
-    var near = wp.z > -0.6 && wp.z < 2.4 && Math.abs(wp.x) < 0.8 && wp.y < 2.5;
+    var near = Math.abs(wp.z) < 2.4 && Math.abs(wp.x) < 0.8 && wp.y < 2.5;   /* v0.26.0 重叠层：门两侧都能交互 */
     d.focus = near;
     if (near && Math.abs(wp.z) < bestZ) { bestZ = Math.abs(wp.z); best = d; }
     var px = wp.x, pz = wp.z;
-    if (d.open && portalCool <= 0 && px > -DOOR_W / 2 + 0.06 && px < DOOR_W / 2 - 0.06 && wp.y < DOOR_H) {
-      if (d.prevZ > 0.02 && pz <= 0.02) enterPortal(d);
-    }
+    /* v0.26.0 重叠层：踏进门洞就切层（进/出两个方向都算），离开门洞后重新武装 */
+    var inZone = d.open && Math.abs(px) < 0.42 && Math.abs(pz) < 0.55 && wp.y < DOOR_H;
+    if (inZone && !d.wasIn && portalCool <= 0) enterPortal(d);
+    d.wasIn = inZone;
     d.prevZ = pz;
   }
   portalFocusDoor = best;
@@ -6408,20 +6453,26 @@ function updatePortals(dt) {
 function enterPortal(d) {
   if (portalCool > 0 || !d || !d.toDest) return;
   portalCool = 0.25;
-  var m = d.toDest;
-  var p = new THREE.Vector3().copy(P.pos).applyMatrix4(m);
-  if (d.arrive && d.arrive.front) p.addScaledVector(d.arrive.front, 0.8);
-  var yawDelta = new THREE.Euler().setFromRotationMatrix(m, 'YXZ').y;
-  P.pos.set(p.x, p.y, p.z);
+  /* v0.26.0 重叠层：跨门只切层，坐标 / 朝向 / 镜头都不动 */
   P.vy = 0; P.onGround = false;
-  P.face = P.faceTarget = P.face + yawDelta;
-  camYaw += yawDelta;
   P.phase = 0; P.squash = 0; P.land = 0; P.lead = 0; P.landLock = 0;
   P.inX = 0; P.inZ = 0; P.idleT = 0;
   curWorld = d.dest;
   setWorldVisible(curWorld);
   applyWorldLighting(curWorld);
-  for (var i = 0; i < portalDoors.length; i++) portalDoors[i].prevZ = 99;
+  /* 玩家正站在落点门的门洞里：把这扇门也留着开，别让门板或碰撞把玩家推出去 */
+  if (d.arrive) {
+    d.arrive.open = true; d.arrive.target = -1.75;
+    if (d.arrive.blocker) { d.arrive.blocker.x = 9999; d.arrive.blocker.z = 9999; }
+  }
+  /* 用当前站位重置 prevZ，避免刚落点就被判成一次新的穿越 */
+  for (var i = 0; i < portalDoors.length; i++) {
+    var q = portalDoors[i];
+    var w2 = P.pos.clone();
+    q.group.worldToLocal(w2);
+    q.prevZ = w2.z;
+    q.wasIn = Math.abs(w2.z) < 0.55 && Math.abs(w2.x) < 0.42;
+  }
   hideTip();
   markInput();
 }
@@ -6441,20 +6492,29 @@ function renderPortals() {
     applyWorldLighting(d.dest);
     if (d.arrive) d.arrive.group.visible = false;
     var cam = d.cam;
-    mtmp.multiplyMatrices(d.toDest, activeCam.matrixWorld);
-    cam.matrixWorld.copy(mtmp);
+    /* 门后画面：沿用玩家相机（同一视角看另一层），UV 取样显示在门板上。
+       TODO(v0.27)：等距正交下做屏幕空间取样会得到极窄条带，等换成按门面投影的透视相机再改。 */
+    var cam = d.cam;
+    cam.matrixWorld.copy(activeCam.matrixWorld);
     cam.matrixWorldInverse.copy(cam.matrixWorld).invert();
     cam.projectionMatrix.copy(activeCam.projectionMatrix);
     cam.projectionMatrixInverse.copy(activeCam.projectionMatrixInverse);
     var vc = new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld);
     ground.position.x = Math.round(vc.x); ground.position.z = Math.round(vc.z);
     pawn.visible = false;
+    /* 本世界的门后平面先藏起来：否则平面采样自己正在写的 RT，会出条纹 */
+    var _hid = [];
+    for (var pi = 0; pi < portalDoors.length; pi++) {
+      var pd = portalDoors[pi];
+      if (pd.world === here && pd.plane && pd.plane.visible) { pd.plane.visible = false; _hid.push(pd.plane); }
+    }
     renderer.setRenderTarget(d.rt);
     renderer.setClearColor(scene.fog.color, 1);
     renderer.clear();
     renderer.render(scene, cam);
     renderer.setRenderTarget(null);
     pawn.visible = true;
+    for (var pj = 0; pj < _hid.length; pj++) _hid[pj].visible = true;
     if (d.arrive) d.arrive.group.visible = true;
     setWorldVisible(here);
     applyWorldLighting(here);
@@ -6465,8 +6525,13 @@ function renderPortals() {
 /* 初始化（放在 fillCollisionGaps 之后，门的碰撞体和落点要用世界矩阵） */
 function initPortalWorlds() {
   splitWorlds();
-  buildSpawnWorld();
+  var _bwS = BUILD_WORLD; BUILD_WORLD = 'spawn';
+buildSpawnWorld();
+BUILD_WORLD = _bwS;
   buildPortalDoors();
+  /* 门后画面看向对面世界里有东西的地方；不设就看门的正前方 */
+  if (doorK) doorK.look = new THREE.Vector3(-23.0, 1.4, 20.6);
+  if (doorF) doorF.look = new THREE.Vector3(0, 1.4, -16.0);
   setWorldVisible('spawn');
   applyWorldLighting('spawn');
 }
@@ -6732,7 +6797,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.25.1';
+window.__worldVersion = 'v0.26.0';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
