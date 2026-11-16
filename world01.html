@@ -228,7 +228,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.27.8</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.28.0</div>
 <script>
 /**
  * @license
@@ -313,7 +313,7 @@ var DPR_CAP = IS_MOBILE ? 2.5 : 2;
 var canvas = document.getElementById('c');
 var renderer;
 try {
-  renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !IS_MOBILE, powerPreference: 'high-performance' });
+  renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !IS_MOBILE, stencil: true, powerPreference: 'high-performance' });
 } catch (e) {
   fail('WebGL 初始化失败：' + (e && e.message ? e.message : '未知原因'));
   return;
@@ -2320,11 +2320,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.27.8';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.28.0';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.27.8';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.28.0';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -6022,7 +6022,15 @@ scene.add(spawnRoot); scene.add(fieldRoot);
 var curWorld = 'spawn';
 var portalDoors = [];
 var portalFocusDoor = null;
-var portalCool = 0;
+var portalMaskScene = new THREE.Scene();
+var portalFrustum = new THREE.Frustum();
+var portalProjection = new THREE.Matrix4();
+var portalCameraPosition = new THREE.Vector3();
+var portalClip = new THREE.Plane();
+var portalClipPlanes = [portalClip];
+var portalStart = new THREE.Vector3(), portalEnd = new THREE.Vector3();
+var portalViews = [];
+var portalPreviousPosition = new THREE.Vector3();
 var portalTip = null, portalBtn = null;
 
 /* 把世界一分为三：保留地面/角色/世界灯/便利店关，其余（房子、树、靶板、散布、
@@ -6073,7 +6081,7 @@ var DOOR_W = 0.96, DOOR_H = 2.30;
    只缩放 group，门框/台阶/门板/压条/把手一起变，比例不会走形。 */
 var DOOR_SCALE = 1.25;
 /* 开到位的角度（弧度）。门板碰撞体按这个姿态摆，改角度这里也要改。 */
-var DOOR_OPEN_ANGLE = -2.00;
+var DOOR_OPEN_ANGLE = -2.00, DOOR_PASS_ANGLE = 1.55;
 /* v0.27.8：两扇门并排立在房子车道口前，门面朝房子（-z）。这两个点是唯一事实源。 */
 var DOOR_A = { x: 1.65, z: -2.7 };
 var DOOR_B = { x: 4.15, z: -2.7 };
@@ -6115,15 +6123,14 @@ function makeStandaloneDoor(parent, x, z, ry, name) {
   var knob = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), brass);
   knob.position.set(-(DOOR_W - 0.10), 1.06, -0.055); knob.userData.colExempt = true; hinge.add(knob);
   var plane = new THREE.Mesh(new THREE.PlaneGeometry(DOOR_W, DOOR_H),
-    new THREE.MeshBasicMaterial({ color: 0x05070a }));
-  plane.position.set(0, DOOR_H / 2 + 0.02, 0.004); plane.visible = false;
+    new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, toneMapped: false }));
+  plane.position.set(0, DOOR_H / 2 + 0.02, 0); plane.visible = false;
   plane.userData.colExempt = true; g.add(plane);
   parent.add(g);
   return {
     group: g, hinge: hinge, plane: plane, name: name,
-    open: false, angle: 0, target: 0, focus: false, prevZ: 0,
-    rt: null, cam: null, dest: null, arrive: null, world: null,
-    spawnPos: null, spawnFace: 0, blocker: null
+    open: false, angle: 0, target: 0, focus: false,
+    dest: null, arrive: null, world: null, blocker: null
   };
 }
 
@@ -6148,7 +6155,6 @@ function buildPortalDoors() {
   /* 便利店世界的回程门：宿主在 DUSK_SPOT 转 90°，本地 (x,z) 映射到世界
      (host.x+z, host.z-x)。本地 (-2.5,7.5) 正好落回 DOOR_A；localRy 让世界朝向 = DOOR_FACE。 */
   doorRK = makeStandaloneDoor(duskLevel.host, -2.5, 7.5, DOOR_FACE - DUSK_YAW, 'returnKonbini');
-  doorRK.group.position.y = 0.02;
   /* 场地世界的回程门：与 doorF 同坐标、同朝向。 */
   doorRF = makeStandaloneDoor(fieldRoot, DOOR_B.x, DOOR_B.z, DOOR_FACE, 'returnField');
 
@@ -6190,31 +6196,13 @@ function makePortalUI() {
 
 function togglePortal(d) {
   if (!d) return;
-  d.open = !d.open;
-  d.target = d.open ? DOOR_OPEN_ANGLE : 0;   /* 往观察者一侧甩 115°，门板落在门框侧前方 */
-  if (d.blocker) {
-    if (d.open) { d.blocker.x = 9999; d.blocker.z = 9999; }
-    else { d.blocker.x = d.blocker.x0; d.blocker.z = d.blocker.z0; }
-  }
-  if (d.leafCol) {   /* v0.27.8：门板碰撞跟着开合走（和挡板相反） */
-    if (d.open) { d.leafCol.x = d.leafCol.x0; d.leafCol.z = d.leafCol.z0; }
-    else { d.leafCol.x = 9999; d.leafCol.z = 9999; }
-  }
+  d.open = d.arrive.open = !d.open;
+  d.target = d.arrive.target = d.open ? DOOR_OPEN_ANGLE : 0;
   markInput();
 }
 
-/* ---------------- 门后实时画面：玩家相机经门对变换后渲染，门洞按屏幕坐标取样 ----------------
-   两个世界不共享坐标，门是唯一的缝。门洞里看到的画面 = 把玩家的相机按
-   M = B * R180 * A^-1 搬到对面世界去渲染；跨过门槛时位置/朝向/速度也走同一个 M，
-   所以镜头不切、人不跳，走进去就像走进另一个空间。 */
-var PORTAL_R180 = new THREE.Matrix4().makeRotationY(Math.PI);
-var PORTAL_VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }';
-var PORTAL_FS = 'uniform vec3 uTint; varying vec2 vUv; void main(){ float g = 0.18 + 0.82 * pow(1.0 - vUv.y, 1.7); gl_FragColor = vec4(uTint * g, 1.0); }';
-
-function makePortalCam() {
-  var cam = new THREE.PerspectiveCamera(48, 1, 0.05, 320);
-  cam.matrixAutoUpdate = false;
-  return cam;
+function portalPassable(d) {
+  return d.open && Math.abs(d.angle) >= DOOR_PASS_ANGLE;
 }
 
 function initPortals() {
@@ -6224,11 +6212,19 @@ function initPortals() {
     d.group.updateMatrixWorld(true);
     var q = new THREE.Quaternion(); d.group.getWorldQuaternion(q);
     var wp = d.group.getWorldPosition(new THREE.Vector3());
-    var a = d.arrive;
-    a.group.updateMatrixWorld(true);
-    /* A 的正面进、B 的正面出：位置与视线都按这个变换走 */
-    var invA = new THREE.Matrix4().copy(d.group.matrixWorld).invert();
-    d.toDest = new THREE.Matrix4().multiplyMatrices(a.group.matrixWorld, PORTAL_R180).multiply(invA);
+    d.worldToDoor = d.group.matrixWorld.clone().invert();
+    d.seam = new THREE.Plane().setFromNormalAndCoplanarPoint(
+      new THREE.Vector3(0, 0, 1).applyQuaternion(q), wp);
+    d.mask = new THREE.Mesh(d.plane.geometry, d.plane.material);
+    d.mask.matrixAutoUpdate = false;
+    d.plane.updateMatrix();
+    d.mask.matrix.multiplyMatrices(d.group.matrixWorld, d.plane.matrix);
+    portalMaskScene.add(d.mask);
+    d.mask.material.stencilWrite = true;
+    d.mask.material.stencilRef = i + 1;
+    d.mask.material.stencilFunc = THREE.AlwaysStencilFunc;
+    d.mask.material.stencilZPass = THREE.ReplaceStencilOp;
+    d.mask.material.depthWrite = false;
     var yaw = new THREE.Euler().setFromQuaternion(q, 'YXZ').y;
     var blk = { x: wp.x, z: wp.z, x0: wp.x, z0: wp.z,
       hw: (DOOR_W / 2 + 0.06) * DOOR_SCALE, hd: 0.16 * DOOR_SCALE,
@@ -6260,130 +6256,111 @@ function initPortals() {
        （漏了这一步就会在关着的门前飘一块看不见的挡板，按 C 才看得见） */
     leafCol.x = 9999; leafCol.z = 9999;
     d.leafCol = leafCol;
-    var cw = renderer.domElement.width || 800, ch = renderer.domElement.height || 600;
-    var rw = Math.max(200, Math.round(cw / 2)), rh = Math.max(200, Math.round(ch / 2));
-    d.rt = new THREE.WebGLRenderTarget(rw, rh, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
-    d.rt.texture.colorSpace = THREE.SRGBColorSpace;
-    d.cam = makePortalCam();
-    d.plane.material.dispose();
-    d.plane.material = new THREE.ShaderMaterial({
-      uniforms: { uTint: { value: new THREE.Color(d.dest === 'konbini' ? 0xff9a5a : 0x9fb2c8) }, uRes: { value: new THREE.Vector2(cw, ch) } },
-      vertexShader: PORTAL_VS, fragmentShader: PORTAL_FS,
-      depthWrite: false, side: THREE.DoubleSide
-    });
   }
 }
 
-/* ---------------- 每帧：焦点、开合、跨门 ---------------- */
 function updatePortals(dt) {
-  if (portalCool > 0) portalCool = Math.max(0, portalCool - dt);
-  var best = null, bestZ = 99;
-  var wp = new THREE.Vector3();
-  var cw = renderer.domElement.width || 800, ch = renderer.domElement.height || 600;
+  var best = null, bestDistance = Infinity;
   for (var i = 0; i < portalDoors.length; i++) {
     var d = portalDoors[i];
-    d.group.updateMatrixWorld(true);
     d.angle += (d.target - d.angle) * Math.min(1, dt * 9);
     d.hinge.rotation.y = d.angle;
-    d.plane.visible = d.open && Math.abs(d.angle) > 0.5;
-    if (d.plane.visible && d.plane.material.uniforms) d.plane.material.uniforms.uRes.value.set(cw, ch);
-    if (d.world !== curWorld) { d.focus = false; continue; }
-    wp.copy(P.pos);
-    d.group.worldToLocal(wp);
-    var near = Math.abs(wp.z) < 2.4 * DOOR_SCALE && Math.abs(wp.x) < 1.15 * DOOR_SCALE && wp.y < 2.5 * DOOR_SCALE;   /* v0.27.8 门并排后放宽横向范围，站在两门之间也能开门 */
-    d.focus = near;
-    if (near && Math.abs(wp.z) < bestZ) { bestZ = Math.abs(wp.z); best = d; }
-    var px = wp.x, pz = wp.z;
-    /* v0.26.0 重叠层：踏进门洞就切层（进/出两个方向都算），离开门洞后重新武装 */
-    var inZone = d.open && Math.abs(px) < 0.42 * DOOR_SCALE && Math.abs(pz) < 0.55 * DOOR_SCALE && wp.y < DOOR_H * DOOR_SCALE;
-    if (inZone && !d.wasIn && portalCool <= 0) enterPortal(d);
-    d.wasIn = inZone;
-    d.prevZ = pz;
+    var passable = portalPassable(d);
+    d.blocker.x = passable ? 9999 : d.blocker.x0;
+    d.blocker.z = passable ? 9999 : d.blocker.z0;
+    d.leafCol.x = passable ? d.leafCol.x0 : 9999;
+    d.leafCol.z = passable ? d.leafCol.z0 : 9999;
+
+    d.focus = false;
+    if (d.world !== curWorld) continue;
+    portalEnd.copy(P.pos).applyMatrix4(d.worldToDoor);
+    d.focus = Math.abs(portalEnd.z) < 2.4 && Math.abs(portalEnd.x) < 1.15 && portalEnd.y < DOOR_H;
+    var distance = portalEnd.x * portalEnd.x + portalEnd.z * portalEnd.z;
+    if (d.focus && distance < bestDistance) { bestDistance = distance; best = d; }
   }
   portalFocusDoor = best;
+  portalTip.style.opacity = best && !TOUCH_UI ? '1' : '0';
+  portalTip.style.transform = best ? 'translateX(-50%) translateY(0)' : 'translateX(-50%) translateY(8px)';
+  portalBtn.style.display = best && TOUCH_UI ? 'block' : 'none';
   if (best) {
     portalTip.textContent = best.open ? '按 E 关门' : '按 E 开门';
-    portalTip.style.opacity = '1';
-    portalTip.style.transform = 'translateX(-50%) translateY(0)';
-    if (TOUCH_UI) portalBtn.style.display = 'block';
-  } else {
-    portalTip.style.opacity = '0';
-    portalTip.style.transform = 'translateX(-50%) translateY(8px)';
-    portalBtn.style.display = 'none';
+    portalBtn.textContent = best.open ? '关门' : '开门';
   }
 }
 
-function enterPortal(d) {
-  if (portalCool > 0 || !d || !d.toDest) return;
-  portalCool = 0.25;
-  /* v0.26.0 重叠层：跨门只切层，坐标 / 朝向 / 镜头都不动 */
-  P.vy = 0; P.onGround = false;
-  P.phase = 0; P.squash = 0; P.land = 0; P.lead = 0; P.landLock = 0;
-  P.inX = 0; P.inZ = 0; P.idleT = 0;
-  curWorld = d.dest;
-  setWorldVisible(curWorld);
-  applyWorldLighting(curWorld);
-  refreshColViz();
-  /* 玩家正站在落点门的门洞里：把这扇门也留着开，别让门板或碰撞把玩家推出去 */
-  if (d.arrive) {
-    d.arrive.open = true; d.arrive.target = DOOR_OPEN_ANGLE;
-    if (d.arrive.blocker) { d.arrive.blocker.x = 9999; d.arrive.blocker.z = 9999; }
-    if (d.arrive.leafCol) { d.arrive.leafCol.x = d.arrive.leafCol.x0; d.arrive.leafCol.z = d.arrive.leafCol.z0; }
-  }
-  /* 用当前站位重置 prevZ，避免刚落点就被判成一次新的穿越 */
-  for (var i = 0; i < portalDoors.length; i++) {
-    var q = portalDoors[i];
-    var w2 = P.pos.clone();
-    q.group.worldToLocal(w2);
-    q.prevZ = w2.z;
-    q.wasIn = Math.abs(w2.z) < 0.55 && Math.abs(w2.x) < 0.42;
-  }
-  hideTip();
-  markInput();
-}
-
-/* ---------------- 门后画面：每个开着的门渲染一次 ---------------- */
-function renderPortals() {
-  var here = curWorld;
-  var gx = ground.position.x, gz = ground.position.z;
-  var cw = renderer.domElement.width || 800, ch = renderer.domElement.height || 600;
-  var mtmp = new THREE.Matrix4();
+/* 按物理步检测真实的门面交点，保留角色、运动和相机状态。 */
+function crossPortal(previousPosition) {
   for (var i = 0; i < portalDoors.length; i++) {
     var d = portalDoors[i];
-    if (!d.open || d.world !== here || !d.rt) continue;
-    var rw = Math.max(200, Math.round(cw / 2)), rh = Math.max(200, Math.round(ch / 2));
-    if (d.rt.width !== rw || d.rt.height !== rh) { d.rt.setSize(rw, rh); d.plane.material.uniforms.uMap.value = d.rt.texture; }
-    setWorldVisible(d.dest);
-    applyWorldLighting(d.dest);
-    if (d.arrive) d.arrive.group.visible = false;
-    var cam = d.cam;
-    /* 门后画面：沿用玩家相机（同一视角看另一层），UV 取样显示在门板上。
-       TODO(v0.27)：等距正交下屏幕空间取样会退化成窄条，透视正确的门后取样留到下一版。 */
-    var cam = d.cam;
-    cam.matrixWorld.copy(activeCam.matrixWorld);
-    cam.matrixWorldInverse.copy(cam.matrixWorld).invert();
-    cam.projectionMatrix.copy(activeCam.projectionMatrix);
-    cam.projectionMatrixInverse.copy(activeCam.projectionMatrixInverse);
-    var vc = new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld);
-    ground.position.x = Math.round(vc.x); ground.position.z = Math.round(vc.z);
+    if (d.world !== curWorld || !portalPassable(d)) continue;
+    portalStart.copy(previousPosition).applyMatrix4(d.worldToDoor);
+    portalEnd.copy(P.pos).applyMatrix4(d.worldToDoor);
+    if ((portalStart.z >= 0) === (portalEnd.z >= 0)) continue;
+    portalStart.lerp(portalEnd, portalStart.z / (portalStart.z - portalEnd.z));
+    if (Math.abs(portalStart.x) + rBody / DOOR_SCALE >= DOOR_W / 2 ||
+        portalStart.y < -0.1 || portalStart.y + 1.8 / DOOR_SCALE > DOOR_H) continue;
+    curWorld = d.dest;
+    setWorldVisible(curWorld);
+    applyWorldLighting(curWorld);
+    refreshColViz();
+    hideTip();
+    return;
+  }
+}
+
+/* 主世界先写颜色和深度；门洞用深度测试标记可见像素，再在其中直接画另一层。 */
+function renderPortals() {
+  activeCam.updateMatrixWorld();
+  portalCameraPosition.setFromMatrixPosition(activeCam.matrixWorld);
+  portalProjection.multiplyMatrices(activeCam.projectionMatrix, activeCam.matrixWorldInverse);
+  portalFrustum.setFromProjectionMatrix(portalProjection);
+  portalViews.length = 0;
+  portalMaskScene.updateMatrixWorld(true);
+  var background = scene.background;
+  for (var i = 0; i < portalDoors.length; i++) {
+    var d = portalDoors[i];
+    d.mask.visible = d.world === curWorld && Math.abs(d.angle) > 0.08 && portalFrustum.intersectsObject(d.mask);
+    if (!d.mask.visible) continue;
+    d.mask.material.color.copy(background);
+    portalViews.push(d);
+  }
+  if (!portalViews.length) return;
+
+  var stencil = renderer.state.buffers.stencil;
+  var clipping = renderer.clippingPlanes;
+  var autoClear = renderer.autoClear;
+  var pawnVisible = pawn.visible;
+  renderer.autoClear = false;
+  try {
+    renderer.render(portalMaskScene, activeCam);
+    scene.background = null;
     pawn.visible = false;
-    /* 本世界的门后平面先藏起来：否则平面采样自己正在写的 RT，会出条纹 */
-    var _hid = [];
-    for (var pi = 0; pi < portalDoors.length; pi++) {
-      var pd = portalDoors[pi];
-      if (pd.world === here && pd.plane && pd.plane.visible) { pd.plane.visible = false; _hid.push(pd.plane); }
+    for (var j = 0; j < portalViews.length; j++) {
+      var view = portalViews[j];
+      setWorldVisible(view.dest);
+      applyWorldLighting(view.dest);
+      view.arrive.group.visible = false;
+      portalClip.copy(view.seam);
+      if (portalClip.distanceToPoint(portalCameraPosition) >= 0) portalClip.negate();
+      renderer.clippingPlanes = portalClipPlanes;
+      renderer.clearDepth();
+      stencil.setTest(true);
+      stencil.setFunc(THREE.EqualStencilFunc, view.mask.material.stencilRef, 0xff);
+      stencil.setOp(THREE.KeepStencilOp, THREE.KeepStencilOp, THREE.KeepStencilOp);
+      stencil.setLocked(true);
+      renderer.render(scene, activeCam);
+      view.arrive.group.visible = true;
     }
-    renderer.setRenderTarget(d.rt);
-    renderer.setClearColor(scene.fog.color, 1);
-    renderer.clear();
-    renderer.render(scene, cam);
-    renderer.setRenderTarget(null);
-    pawn.visible = true;
-    for (var pj = 0; pj < _hid.length; pj++) _hid[pj].visible = true;
-    if (d.arrive) d.arrive.group.visible = true;
-    setWorldVisible(here);
-    applyWorldLighting(here);
-    ground.position.x = gx; ground.position.z = gz;
+  } finally {
+    stencil.setLocked(false);
+    stencil.setTest(false);
+    renderer.autoClear = autoClear;
+    renderer.clippingPlanes = clipping;
+    scene.background = background;
+    pawn.visible = pawnVisible;
+    for (var k = 0; k < portalViews.length; k++) portalViews[k].arrive.group.visible = true;
+    setWorldVisible(curWorld);
+    applyWorldLighting(curWorld);
   }
 }
 
@@ -6394,9 +6371,6 @@ function initPortalWorlds() {
 buildSpawnWorld();
 BUILD_WORLD = _bwS;
   buildPortalDoors();
-  /* 门后画面看向对面世界里有东西的地方；不设就看门的正前方 */
-  if (doorK) doorK.look = new THREE.Vector3(-6.0, 1.4, -6.2);
-  if (doorF) doorF.look = new THREE.Vector3(0, 1.4, -16.0);
   setWorldVisible('spawn');
   applyWorldLighting('spawn');
 }
@@ -6626,7 +6600,9 @@ function loop(t) {
   acc += simDt;
   var guard = 0;
   while (acc >= FIXED && guard++ < 24) {
+    portalPreviousPosition.copy(P.pos);
     update(FIXED);
+    crossPortal(portalPreviousPosition);
     acc -= FIXED;
   }
   if (acc > FIXED * 24) acc = 0;
@@ -6645,8 +6621,8 @@ function loop(t) {
 
   updateStoreDoor(dt);
   updatePortals(dt);
-  /* renderPortals(); —— v0.27 再做透视正确的门后画面，现在门洞里只透光 */
   renderer.render(scene, activeCam);
+  renderPortals();
   adaptResolution(dt);
   /* 音效在渲染之后播：手机上 <audio> / WebAudio 的调度是同步开销，
      放在起跳那一帧的渲染前会抢主线程（用户感觉「起跳时掉帧」）。 */
@@ -6661,7 +6637,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.27.8';
+window.__worldVersion = 'v0.28.0';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },

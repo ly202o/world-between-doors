@@ -1,3 +1,10 @@
+## v0.28.0 · 2026-11-16
+
+- 门洞按主相机实时渲染目标世界，门框和角色用当前世界的深度遮挡。
+- 物理步跨越门平面且身体在门洞内时才切换世界层，保留位置、速度、动画和相机状态。双侧门扇同步，可立即原路折返。
+UnrealEditor-Cmd.exe D:/temp/als_export/AdvancedLocomotionSystemV.uproject \
+  -ExecutePythonScript="tools/anim/export_anims.py" -unattended -nosplash -stdout
+
 ## v0.27.8 — 2026-11-16 · 关门时收起门板碰撞体（补 v0.27.7 的漏）
 
 > 关着的门前飘着两块绿框（按 C 才看得见）。
@@ -2334,8 +2341,6 @@ tools/anim/export_anims.py  # UE 命令行导出动画 FBX
 
 ```
 # 1) UE 命令行导出动画 FBX（复用上次导模型的工程副本）
-UnrealEditor-Cmd.exe D:/temp/als_export/AdvancedLocomotionSystemV.uproject \
-  -ExecutePythonScript="tools/anim/export_anims.py" -unattended -nosplash -stdout
 
 # 2) 解析 FBX → 精简 JSON（每骨每帧四元数，3 位小数）
 node tools/anim/bake_anims.cjs

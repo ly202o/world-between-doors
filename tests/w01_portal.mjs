@@ -4,7 +4,7 @@
    ③ 穿过门面：切到便利店世界，落在回程门前
    ④ 便利店侧开门、穿回出生世界
    ⑤ 场地门同理：穿到场地世界再穿回来
-   ⑥ 碰撞体 589、全程无 JS 异常
+   ⑥ 碰撞体 595、全程无 JS 异常
    软件渲染帧率低，状态都用轮询等。 */
 const list = await (await fetch('http://127.0.0.1:9230/json/list')).json();
 const page = list.filter(t => t.type === 'page').pop();
@@ -35,6 +35,17 @@ const key = async k => {
   await sleep(300);
 };
 
+const walkThrough = async (x, startZ, k, world) => {
+  await ev(`__world.P.pos.set(${x}, 0, ${startZ}); __world.setIso(21); __world.setYaw(2 * Math.PI)`);
+  if ((await portals()).cur === world) return false;
+  const code = 'Key' + k.toUpperCase();
+  const keyCode = k.toUpperCase().charCodeAt(0);
+  const input = { key: k, code, windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode };
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', ...input });
+  try { const reached = await until(async () => (await portals()).cur === world, 14000); if (!reached) console.log(await ev('__world.P.pos.toArray()')); return reached; }
+  finally { await send('Input.dispatchKeyEvent', { type: 'keyUp', ...input }); }
+};
+
 await send('Page.navigate', { url: 'http://127.0.0.1:8779/world01.html?s=' + Date.now() });
 await until(async () => (await ev('typeof __world')) === 'object', 12000);
 
@@ -56,33 +67,21 @@ ok(await until(async () => (await state()).doorKonbini.open === true), 'E 开门
 ok(await until(async () => (await tipText()) === '按 E 关门', 4000), '提示变「按 E 关门」', await tipText());
 
 console.log('\n【3】穿过门面：进入便利店世界');
-await ev('__world.P.pos.set(1.9, 0.4, -2.4)'); await sleep(300);
-ok(await until(async () => (await portals()).cur === 'konbini'), '跨过门面切到便利店世界', (await portals()).cur);
-const pos1 = JSON.parse(await ev('JSON.stringify([+__world.P.pos.x.toFixed(1), +__world.P.pos.z.toFixed(1)])'));
-ok(Math.abs(pos1[0] - 1.9) < 1.5 && Math.abs(pos1[1] + 2.4) < 1.5, '跨门后坐标不变（1.9, -2.4）', pos1);
-ok(await until(async () => (await portals()).focus === 'returnKonbini'), '回程门进入交互范围');
-
-console.log('\n【4】便利店侧开门：穿回出生世界');
-await ev('__world.P.pos.set(1.9, 0.4, -4.2)'); await sleep(1000);
-ok(await until(async () => (await state()).returnKonbini.open === true, 3000), '落点门保持打开');
-await ev('__world.P.pos.set(1.9, 0.4, -2.4)'); await sleep(300);
-ok(await until(async () => (await portals()).cur === 'spawn'), '穿回空场世界', (await portals()).cur);
+ok(await walkThrough(1.65, -3.5, 's', 'konbini'), '正常走过门面进入便利店世界', (await portals()).cur);
+ok(await until(async () => (await state()).returnKonbini.open === true), '对侧门同步保持打开');
+ok(await walkThrough(1.65, -2.1, 'w', 'spawn'), '原路走回空场世界', (await portals()).cur);
 
 console.log('\n【5】场地门：穿过去再穿回来');
-await ev('__world.P.pos.set(3.9, 0, -4.2)'); await sleep(300);
+await ev('__world.P.pos.set(4.15, 0, -4.2)');
 ok(await until(async () => (await portals()).focus === 'doorField'), '走到场地门前');
 await key('e');
 ok(await until(async () => (await state()).doorField.open === true), '打开场地门');
-await ev('__world.P.pos.set(3.9, 0.4, -2.4)'); await sleep(600);
-ok(await until(async () => (await portals()).cur === 'field'), '跨到场地世界', (await portals()).cur);
-ok(await until(async () => (await portals()).focus === 'returnField'), '场地回程门在范围');
-await ev('__world.P.pos.set(3.9, 0.4, -4.2)'); await sleep(1400);
-await ev('__world.P.pos.set(3.9, 0.4, -2.4)'); await sleep(600);
-ok(await until(async () => (await portals()).cur === 'spawn', 8000), '从场地穿回空场世界', (await portals()).cur);
+ok(await walkThrough(4.15, -3.5, 's', 'field'), '走进旧测试场', (await portals()).cur);
+ok(await walkThrough(4.15, -2.1, 'w', 'spawn'), '从场地走回空场世界', (await portals()).cur);
 
 console.log('\n【6】收尾');
 const n = await ev('window.__colliders.length');
-ok(n === 595, '碰撞体 589 个', n);
+ok(n === 595, '碰撞体 595 个', n);
 const errs = await ev('window.__errors ? window.__errors.length : 0');
 ok(errs === 0, '全程无 JS 异常', errs);
 console.log('\n' + (fail === 0 ? '全部通过' : '有 ' + fail + ' 项失败') + '（' + pass + '/' + (pass + fail) + '）');
