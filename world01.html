@@ -216,7 +216,7 @@
   <label>走加速度 <output id="walkAccelValue"></output><input id="walkAccel" type="range" min="2" max="30" step="0.5"></label>
   <label>快跑加速度 <output id="sprintAccelValue"></output><input id="sprintAccel" type="range" min="2" max="40" step="0.5"></label>
   <label>慢走倍率 <output id="slowWalkValue"></output><input id="slowWalk" type="range" min="0.2" max="0.8" step="0.05"></label>
-  <label>角色跟随视角 <input id="followView" type="checkbox"></label></div>
+  <label>第三人称角色跟随视角 <input id="followView" type="checkbox"></label></div>
   <div class="settingGroup"><strong>鼠标</strong><span>显示/隐藏快捷键：M；F2 不会自动显示鼠标</span></div>
   <label>主题 <select id="settingsTheme"><option value="dark">深色</option><option value="light">白色</option></select></label>
   <label><input id="settingsCollision" type="checkbox">实际移动碰撞体</label>
@@ -228,7 +228,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.29.7</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.29.8</div>
 <script>
 /**
  * @license
@@ -1368,7 +1368,7 @@ function updateLookPose(dt) {
   var neck = boneByName.neck_01, head = boneByName.head;
   if (!neck || !head) return;
   var want = 0;
-  if (LOOK.on && !climb && fpBlend < 0.5 && ANIM.cur !== 'mantle' && ANIM.cur !== 'mantle2' &&
+  if (LOOK.on && !isoMode && !climb && fpBlend < 0.5 && ANIM.cur !== 'mantle' && ANIM.cur !== 'mantle2' &&
       motionDebug.stumble <= 0) {
     /* 相机看的方向（camYaw + π）就是角色的"视线"，和 P.face 是同一个角度约定 */
     want = camYaw + Math.PI - P.face;
@@ -2015,6 +2015,7 @@ function isoSnap() {
 
 /* ---------------- 输入 ---------------- */
 var keys = Object.create(null);
+var slowWalkOn = false;
 
 /* ---- 视角切换：手机右上角按钮 / 桌面 V 键，循环：第一 → 第三 → 自由 → 等距 ---- */
 var viewBtn  = document.getElementById('viewBtn');
@@ -2340,11 +2341,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.29.7';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.29.8';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.29.7';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.29.8';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -2360,6 +2361,7 @@ window.addEventListener('keydown', function (e) {
   if (settingsOpen && k === 'escape') { showSettings(false); return; }
   if (k === ' ' || k === 'spacebar' || k.indexOf('arrow') === 0) e.preventDefault();
   if (e.repeat) return;
+  if (k === 'control' && !settingsOpen) { slowWalkOn = !slowWalkOn; markInput(); return; }
   if (k === 'h' && !TOUCH_UI) { setTip(!tipShown); return; }   /* 桌面：一个键管显示与隐藏 */
   if (k === ' ' || k === 'spacebar') doJump();
   if (k === 'v') toggleView();
@@ -3082,9 +3084,12 @@ function update(dt) {
   if ((keys['shift'] || keys['shiftleft'] || keys['shiftright'] || RUN_TOGGLE) && axisMag > 0) sprint = true;
 
   /* 目标速度：屏幕方向 → 相对相机的世界方向 */
-  var MOVE_V = (sprint ? settings.sprintSpeed : (keys['control'] ? settings.walkSpeed * settings.slowWalk : settings.runSpeed)) * (motionDebug.stumble > 0 ? 0.15 : 1);
-  var fx = -Math.sin(camYaw), fz = -Math.cos(camYaw);
-  var rx =  Math.cos(camYaw), rz = -Math.sin(camYaw);
+  var MOVE_V = (sprint ? settings.sprintSpeed : (slowWalkOn ? settings.walkSpeed * settings.slowWalk : settings.runSpeed)) * (motionDebug.stumble > 0 ? 0.15 : 1);
+  if (portalMoveYaw && (axisMag < 0.01 ||
+      (axis.x * portalHeldAxis.x + axis.y * portalHeldAxis.y) / axisMag < 0.94)) portalMoveYaw = 0;
+  var moveYaw = camYaw + portalMoveYaw;
+  var fx = -Math.sin(moveYaw), fz = -Math.cos(moveYaw);
+  var rx =  Math.cos(moveYaw), rz = -Math.sin(moveYaw);
   var tx = (rx * axis.x - fx * axis.y) * MOVE_V;
   var tz = (rz * axis.x - fz * axis.y) * MOVE_V;
 
@@ -3220,14 +3225,14 @@ function update(dt) {
     P.faceTarget = Math.atan2(tx, tz); /* 输入意图不受墙面消速影响 */
   }
   /* 第一人称：身体跟着视线转，不然会横着走 */
-  if (fpBlend > 0.5 || (settings.followView && !freeMode)) {
+  if (fpBlend > 0.5 || (settings.followView && !freeMode && !isoMode)) {
     P.faceTarget = camYaw + Math.PI;
   }
   /* 站定时身体跟着视线转：v0.13.2 的原地转身（90° TurnInPlace）全靠这里给触发点 ——
      不接管这一下，站定甩视角就再也不会迈步转身了。
      v0.14.0 拆武器时只摘掉了原来那句 -0.5rad（约 29°）的侧身偏移：那是持枪站姿，
      为了让右肩和枪露出来；没有枪之后身体应该正对视线，不用斜着站。 */
-  if (!climb && fpBlend < 0.5 && sp < 0.2 && tx * tx + tz * tz < 0.01) {
+  if (!climb && !isoMode && fpBlend < 0.5 && sp < 0.2 && tx * tx + tz * tz < 0.01) {
     P.faceTarget = camYaw + Math.PI;
   }
   var diff = P.faceTarget - P.face;
@@ -7227,14 +7232,14 @@ var FIELD_EXIT = { x: 0.2, z: 1.7, yaw: Math.PI };
 var DOOR_FACE = 3 * Math.PI / 2;
 var RETURN_DOOR_FACE = DOOR_FACE - Math.PI;
 var GARDEN_ARCH = { x: 1.65, z: -8.0, halfWidth: 0.68, shoulder: 2.81, crown: 3.30 };
-function makeStandaloneDoor(parent, x, z, ry, name, steel) {
+function makeStandaloneDoor(parent, x, z, ry, name) {
   var g = new THREE.Group(); g.name = name;
   g.position.set(x, 0, z); g.rotation.y = ry;
   g.scale.setScalar(DOOR_SCALE);
-  var wood = new THREE.MeshStandardMaterial({ color: steel ? 0x82929f : 0x6b4a33, roughness: 0.92, metalness: steel ? 0.16 : 0 });
-  var dark = new THREE.MeshStandardMaterial({ color: steel ? 0x394753 : 0x47301f, roughness: 0.95 });
+  var wood = new THREE.MeshStandardMaterial({ color: 0x6b4a33, roughness: 0.92 });
+  var dark = new THREE.MeshStandardMaterial({ color: 0x47301f, roughness: 0.95 });
   var stone = new THREE.MeshStandardMaterial({ color: 0x8d8781, roughness: 1 });
-  var brass = new THREE.MeshStandardMaterial({ color: steel ? 0xb8c4ce : 0xc19a58, roughness: 0.45, metalness: 0.6 });
+  var brass = new THREE.MeshStandardMaterial({ color: 0xc19a58, roughness: 0.45, metalness: 0.6 });
   function bx(w, h, d, mat, px, py, pz) {
     var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
     m.position.set(px, py, pz); m.castShadow = true; m.receiveShadow = true;
@@ -7257,13 +7262,11 @@ function makeStandaloneDoor(parent, x, z, ry, name, steel) {
   leaf.position.set(-DOOR_W / 2, DOOR_H / 2 + 0.02, 0); leaf.castShadow = true; leaf.receiveShadow = true;
   leaf.userData.colExempt = true; hinge.add(leaf);
   for (var i = 0; i < 3; i++) {
-    var p = new THREE.Mesh(steel ? new THREE.BoxGeometry(DOOR_W - 0.16, 0.10, 0.018) :
-      new THREE.BoxGeometry(0.018, DOOR_H - 0.14, 0.012), dark);
-    if (steel) p.position.set(-DOOR_W / 2, 0.30 + i * 0.85, -0.039);
-    else p.position.set(-(0.18 + i * 0.26), DOOR_H / 2 + 0.02, -0.036);
+    var p = new THREE.Mesh(new THREE.BoxGeometry(0.018, DOOR_H - 0.14, 0.012), dark);
+    p.position.set(-(0.18 + i * 0.26), DOOR_H / 2 + 0.02, -0.036);
     p.userData.colExempt = true; hinge.add(p);
   }
-  var knob = new THREE.Mesh(steel ? new THREE.BoxGeometry(0.12, 0.045, 0.055) : new THREE.SphereGeometry(0.035, 10, 8), brass);
+  var knob = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), brass);
   knob.position.set(-(DOOR_W - 0.10), 1.06, -0.055); knob.userData.colExempt = true; hinge.add(knob);
   var plane = new THREE.Mesh(new THREE.PlaneGeometry(DOOR_W, DOOR_H),
     new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, toneMapped: false }));
@@ -7290,6 +7293,35 @@ function buildSpawnWorld() {
 
 /* ---------------- 建三组世界的门并互相链接 ---------------- */
 var doorK, doorF, doorRK, doorRF, doorG, doorRG;
+function makeStonePortal(parent, x, z, yaw, name, world, dest) {
+  var frame = new THREE.Group();
+  frame.name = name;
+  frame.position.set(x, 0, z);
+  frame.rotation.y = yaw;
+  parent.add(frame);
+  var stone = new THREE.MeshStandardMaterial({ color: 0x697680, roughness: 0.98, flatShading: true });
+  var cap = new THREE.MeshStandardMaterial({ color: 0x78818a, roughness: 0.97, flatShading: true });
+  function block(points, depth, material) {
+    var shape = new THREE.Shape();
+    shape.moveTo(points[0][0], points[0][1]);
+    for (var i = 1; i < points.length; i++) shape.lineTo(points[i][0], points[i][1]);
+    shape.closePath();
+    var geometry = new THREE.ExtrudeGeometry(shape, { depth: depth, bevelEnabled: false });
+    geometry.translate(0, 0, -depth / 2);
+    var mesh = new THREE.Mesh(geometry, material);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    frame.add(mesh);
+  }
+  block([[-1.04,0],[-0.67,0],[-0.66,2.37],[-0.73,2.68],[-1.05,2.74],[-1.18,2.30]], 0.56, stone);
+  block([[0.65,0],[1.05,0],[1.13,0.43],[1.10,2.52],[0.98,2.78],[0.70,2.68],[0.66,2.39]], 0.61, stone);
+  block([[-1.24,2.62],[-0.91,2.55],[0.82,2.58],[1.23,2.68],[1.16,2.99],[0.76,3.10],[-0.98,3.07],[-1.26,2.91]], 0.73, cap);
+  var plane = new THREE.Mesh(new THREE.PlaneGeometry(1.30, 2.58),
+    new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, toneMapped: false }));
+  plane.position.y = 1.29;
+  return { group: frame, name: name, world: world, dest: dest, plane: plane,
+    open: true, focus: false, apertureWidth: 0.65, apertureHeight: 2.58 };
+}
+
 function gardenArchPortal(group, name, world, dest) {
   var a = GARDEN_ARCH;
   var opening = new THREE.Shape();
@@ -7358,16 +7390,16 @@ function buildPortalDoors() {
   /* 木门与花藤拱门沿 Z 轴并排。
      便利店与花园共用门槛；旧测试场使用独立的出口位置与方向。 */
   doorK = makeStandaloneDoor(spawnRoot, DOOR_A.x, DOOR_A.z, DOOR_FACE, 'doorKonbini');
-  doorF = makeStandaloneDoor(spawnRoot, DOOR_B.x, DOOR_B.z, DOOR_FACE, 'doorField', true);
+  doorF = makeStonePortal(spawnRoot, DOOR_B.x, DOOR_B.z, DOOR_FACE, 'doorField', 'spawn', 'field');
   /* 便利店世界的回程门：宿主在 DUSK_SPOT 转 90°，本地 (x,z) 映射到世界
      (host.x+z, host.z-x)。本地 (-2.5,7.5) 正好落回 DOOR_A；门面与出生侧相反。 */
   doorRK = makeStandaloneDoor(duskLevel.host, -2.5, 7.5, RETURN_DOOR_FACE - DUSK_YAW, 'returnKonbini');
-  doorRF = makeStandaloneDoor(fieldRoot, FIELD_EXIT.x, FIELD_EXIT.z, FIELD_EXIT.yaw, 'returnField', true);
+  doorRF = makeStonePortal(fieldRoot, FIELD_EXIT.x, FIELD_EXIT.z, FIELD_EXIT.yaw, 'returnField', 'field', 'spawn');
 
   doorK.dest = 'konbini'; doorK.world = 'spawn'; doorK.arrive = doorRK;
-  doorF.dest = 'field';   doorF.world = 'spawn'; doorF.arrive = doorRF;
+  doorF.arrive = doorRF;
   doorRK.dest = 'spawn';  doorRK.world = 'konbini'; doorRK.arrive = doorK;
-  doorRF.dest = 'spawn';  doorRF.world = 'field';  doorRF.arrive = doorF;
+  doorRF.arrive = doorF;
   connectGardenArch();
   portalDoors = [doorK, doorF, doorRK, doorRF, doorG, doorRG];
   connectOffsetDoors(doorF, doorRF, FIELD_EXIT.yaw + Math.PI - DOOR_FACE);
@@ -7433,6 +7465,10 @@ var portalTurn = new THREE.Quaternion();
 var portalUp = new THREE.Vector3(0, 1, 0);
 var portalRecoil = new THREE.Vector3();
 var portalPawnPosition = new THREE.Vector3();
+var portalDelta = new THREE.Vector3();
+var portalMoveYaw = 0;
+var portalHeldAxis = new THREE.Vector2();
+var portalBlendFixed = false;
 
 function movePortalCamera(camera, through) {
   camera.updateMatrixWorld(true);
@@ -7456,19 +7492,36 @@ function portalCamera(source, door, ortho, perspective) {
 function carryThroughPortal(door) {
   var turn = door.turnYaw;
   var matrix = door.through;
-  P.pos.applyMatrix4(matrix);
-  follow.applyMatrix4(matrix);
+  if (isoMode && !isoFreeDrag) {
+    portalDelta.copy(P.pos).negate();
+    P.pos.applyMatrix4(matrix);
+    portalDelta.add(P.pos);
+    follow.add(portalDelta);
+    camera.position.add(portalDelta);
+    orthoCam.position.add(portalDelta);
+    camera.updateMatrixWorld(true);
+    orthoCam.updateMatrixWorld(true);
+    var held = getAxis();
+    portalHeldAxis.set(held.x, held.y).normalize();
+    if (portalHeldAxis.lengthSq() > 0) portalMoveYaw += turn;
+  } else {
+    P.pos.applyMatrix4(matrix);
+    follow.applyMatrix4(matrix);
+    camYaw += turn; lockYaw += turn;
+    isoYawIdx = (isoYawIdx + Math.round(turn / ISO_YAW_FINE) + ISO_YAW_TICKS) % ISO_YAW_TICKS;
+    movePortalCamera(camera, matrix);
+    movePortalCamera(orthoCam, matrix);
+    portalMoveYaw = 0;
+  }
   portalTurn.setFromAxisAngle(portalUp, turn);
   vel.applyQuaternion(portalTurn);
+  portalRecoil.set(P.inX, 0, P.inZ).applyQuaternion(portalTurn);
+  P.inX = portalRecoil.x; P.inZ = portalRecoil.z;
   portalRecoil.set(motionDebug.recoilX, 0, motionDebug.recoilZ).applyQuaternion(portalTurn);
   motionDebug.recoilX = portalRecoil.x;
   motionDebug.recoilZ = portalRecoil.z;
   P.face += turn; P.faceTarget += turn;
   TURN.face0 += turn; TURN.lastTarget += turn;
-  camYaw += turn; lockYaw += turn;
-  isoYawIdx = (isoYawIdx + Math.round(turn / ISO_YAW_FINE) + ISO_YAW_TICKS) % ISO_YAW_TICKS;
-  movePortalCamera(camera, matrix);
-  movePortalCamera(orthoCam, matrix);
   pawn.position.copy(P.pos);
   pawn.rotation.y = P.face;
 }
@@ -7657,6 +7710,7 @@ function beginPortalBlend(from, to, returnDoor) {
   }
   portalBlendWorld = from;
   portalBlendDoor = returnDoor;
+  portalBlendFixed = isoMode && !isoFreeDrag && !!(returnDoor && returnDoor.through);
   portalBlendFresh = true;
 }
 
@@ -7668,6 +7722,11 @@ function drawPortalSource() {
     portalPawnPosition.copy(pawn.position);
     pawn.position.applyMatrix4(mapped);
     pawn.rotation.y += portalBlendDoor.turnYaw;
+    if (portalBlendFixed) {
+      sourceCamera.position.copy(activeCam.position).add(pawn.position).sub(portalPawnPosition);
+      sourceCamera.quaternion.copy(activeCam.quaternion);
+      sourceCamera.updateMatrixWorld(true);
+    }
   }
   try {
     renderer.render(scene, sourceCamera);
@@ -8023,7 +8082,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.29.7';
+window.__worldVersion = 'v0.29.8';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
@@ -8081,7 +8140,7 @@ targets: targets,
       out.push({ name: d.name, open: d.open, focus: d.focus, world: d.world, dest: d.dest, arch: !d.hinge }); }
     return { cur: curWorld, focus: portalFocusDoor ? portalFocusDoor.name : null, doors: out };
   },
-  gotoWorld: function (w) { portalBlendWorld = null; curWorld = w; setWorldVisible(w); applyWorldLighting(w); refreshColViz(); return curWorld; },
+  gotoWorld: function (w) { portalBlendWorld = null; portalMoveYaw = 0; curWorld = w; setWorldVisible(w); applyWorldLighting(w); refreshColViz(); return curWorld; },
   /* 诊断（v0.15.0）：等距视角。renderer 到底在用哪台相机、投影是不是正交、
      视锥半高是否等于机距×tan(FOV/2)（这条不等就说明投影和机位脱节了）。 */
   get activeCamObj() { return activeCam; },

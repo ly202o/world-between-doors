@@ -4,7 +4,7 @@
    ③ 穿过门面：切到便利店世界，落在回程门前
    ④ 便利店侧开门、穿回出生世界
    ⑤ 场地门同理：穿到场地世界再穿回来
-   ⑥ 碰撞体 820、全程无 JS 异常
+   ⑥ 碰撞体 816、全程无 JS 异常
    软件渲染帧率低，状态都用轮询等。 */
 const list = await (await fetch('http://127.0.0.1:9230/json/list')).json();
 const page = list.filter(t => t.type === 'page').pop();
@@ -52,8 +52,8 @@ await until(async () => (await ev('typeof __world')) === 'object', 12000);
 console.log('\n【1】出生世界');
 const p0 = await portals();
 ok(p0.cur === 'spawn', '出生在空场世界', p0.cur);
-ok(p0.doors.length === 6, '木门、钢门和花藤拱门各一组', p0.doors.length);
-ok(p0.doors.every(d => d.open === d.arch), '木门和钢门默认关闭，花藤拱门始终连通');
+ok(p0.doors.length === 6, '木门、巨石门和花藤拱门各一组', p0.doors.length);
+ok(p0.doors.every(d => d.open === d.arch), '木门默认关闭，巨石门和花藤拱门常开');
 ok(p0.focus === 'doorKonbini', '出生点就能看到开门提示');
 const pos0 = JSON.parse(await ev('JSON.stringify([+__world.P.pos.x.toFixed(1), +__world.P.pos.z.toFixed(1)])'));
 ok(Math.abs(pos0[0] - 3.85) < 0.5 && Math.abs(pos0[1] + 3.7) < 0.5, '出生在门列正面', pos0);
@@ -72,10 +72,7 @@ ok(await until(async () => (await state()).returnKonbini.open === true), '对侧
 ok(await walkThrough(0.95, -2.7, 's', 'spawn'), '原路走回空场世界', (await portals()).cur);
 
 console.log('\n【5】场地门：穿过去再穿回来');
-await ev('__world.P.pos.set(3.15, 0, -5.2)');
-ok(await until(async () => (await portals()).focus === 'doorField'), '走到场地门前');
-await key('e');
-ok(await until(async () => (await state()).doorField.open === true), '打开场地门');
+ok((await state()).doorField.open === true, '巨石门无需开门即可通行');
 ok(await walkThrough(2.45, -5.2, 'w', 'field'), '走进旧测试场', (await portals()).cur);
 ok(await walkThrough(0.2, 2.45, 'w', 'spawn', 21), '从场地走回空场世界', (await portals()).cur);
 
@@ -87,7 +84,7 @@ ok(gardenAudit === 0, '分世界碰撞覆盖自检无遗漏', gardenAudit);
 
 console.log('\n【7】收尾');
 const n = await ev('window.__colliders.length');
-ok(n === 820, '碰撞体 820 个', n);
+ok(n === 816, '碰撞体 816 个', n);
 const errs = await ev('window.__errors ? window.__errors.length : 0');
 ok(errs === 0, '全程无 JS 异常', errs);
 console.log('\n' + (fail === 0 ? '全部通过' : '有 ' + fail + ' 项失败') + '（' + pass + '/' + (pass + fail) + '）');
