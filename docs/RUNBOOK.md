@@ -65,20 +65,20 @@ world01/
 | 诊断口 | ~3940 | `window.__world = {...}`（`iso` / `power` / `setIso` / `setYaw` / `frameCount`） |
 | 版本号（两处） | `#tip` 文案 + `window.__worldVersion` | 历史注释里的旧版本号**不要**改 |
 
-## 0.2 传送门结构（v0.24.0）
+## 0.2 传送门结构（v0.25.0，真门）
 
 | 要改什么 | 位置 / 符号 |
 |---|---|
 | 三个世界怎么分 | `splitWorlds()`（portal 段）把 `scene` 除地面/角色/灯外的子节点按组挂进 `spawnRoot` / `fieldRoot`；`duskLevel.host` 是便利店世界 |
 | 出生世界 | `buildSpawnWorld()`：两扇门在 `(±2.6, 0, -4)`（z=200），石板/石灯（带 `PointLight`）/枯树/立石/苔 |
-| 回程门 | `buildPortalDoors()`：便利店 `(-12.4, 22)` 朝西、场地 `(2, -4)` 朝北；`d.group` 的局部 +Z 是门的正面 |
-| 门后画面 | `initPortals()` 建 216×517 `WebGLRenderTarget` 与 `PerspectiveCamera(42, DOOR_W/DOOR_H)`；`renderPortals()` 每帧把目的地世界渲进去 |
-| 传送 | `updatePortals()` 判断跨门面（`prevZ > 0.02 && z <= 0.02`）→ `enterPortal()`；`portalCool` 0.25s |
+| 回程门 | `buildPortalDoors()`：便利店世界 `(-21.6, 19.0)` 朝西（店门口台阶上）、场地 `(2, -4)` 朝北；`d.group` 的局部 +Z 是门的正面 |
+| 门后画面 | 透视正确：`toDest = 目的门矩阵 · 180° · 源门矩阵⁻¹`；`initPortals()` 建半分辨率 RT（画布/2）与 `ShaderMaterial`（屏幕空间采样 `gl_FragCoord/uRes`）；`renderPortals()` 用 `虚拟相机矩阵 = toDest · activeCam.matrixWorld`、投影复用 activeCam，渲染时隐藏目的地回程门组 |
+| 传送 | `updatePortals()` 判断跨门面（`prevZ > 0.02 && z <= 0.02`）→ `enterPortal()`：位置/朝向/相机方位按同一个 `toDest` 变换，落点前推 0.45m；`portalCool` 0.25s |
 | 视觉/灯光 | `applyWorldLighting(w)`：便利店开自身 4 盏灯 + 橙雾；spawn/field 用主题灯、关卡灯归零 |
-| 门的开关/提示 | `togglePortal()` / `#portalTip` / `#portalBtn`；E 在键盘分支里先于便利店门处理 |
+| 门的开关/提示 | `togglePortal()` / `#portalTip` / `#portalBtn`；门扇向内开 -1.75 rad；E 在键盘分支里先于便利店门处理 |
 | 便利店店内门 | `storeDoor` 系统不变（v0.23.1），`initStoreDoor()` 在 `initPortals()` 之前 |
 | 诊断 | `__world.portals`（getter，不是函数）、`__world.gotoWorld('spawn'|'field'|'konbini')` |
-| 测试 | `tests/w01_portal.mjs`；碰撞体 676、豁免 27 已写进 `w01_v160` / `w01_v140` |
+| 测试 | `tests/w01_portal.mjs`；碰撞体 677、豁免 27 已写进 `w01_v160` / `w01_v140` |
 
 ### 0.2 两关 / 门 / 出生点（v0.23.0）
 

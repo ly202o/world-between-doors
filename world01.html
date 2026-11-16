@@ -228,7 +228,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.24.0</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.25.0</div>
 <script>
 /**
  * @license
@@ -2313,11 +2313,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.24.0';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.25.0';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.24.0';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.25.0';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -6269,7 +6269,8 @@ function buildPortalDoors() {
   doorF = makeStandaloneDoor(spawnRoot, 2.6, dz, 0, 'doorField');
   /* 便利店世界：宿主在 (-23,22) 转 90°，门的本地 (0,0,10.6)、转 -π 之后
      正好落在世界 (-12.4,22)，正面朝西（对着街）。 */
-  doorRK = makeStandaloneDoor(duskLevel.host, 0, 10.6, -Math.PI, 'returnKonbini');
+  doorRK = makeStandaloneDoor(duskLevel.host, 3.0, 1.4, -Math.PI, 'returnKonbini');
+  doorRK.group.position.y = 0.38;
   /* 场地世界：在 (2,-4)，正面朝北（对着院子）。 */
   doorRF = makeStandaloneDoor(fieldRoot, 2, -4, Math.PI, 'returnField');
 
@@ -6312,7 +6313,7 @@ function makePortalUI() {
 function togglePortal(d) {
   if (!d) return;
   d.open = !d.open;
-  d.target = d.open ? 1.9 : 0;
+  d.target = d.open ? -1.75 : 0;
   if (d.blocker) {
     if (d.open) { d.blocker.x = 9999; d.blocker.z = 9999; }
     else { d.blocker.x = d.blocker.x0; d.blocker.z = d.blocker.z0; }
@@ -6320,65 +6321,71 @@ function togglePortal(d) {
   markInput();
 }
 
-/* ---------------- RenderTarget 与门后实时画面 ---------------- */
+/* ---------------- 门后实时画面：玩家相机经门对变换后渲染，门洞按屏幕坐标取样 ----------------
+   两个世界不共享坐标，门是唯一的缝。门洞里看到的画面 = 把玩家的相机按
+   M = B * R180 * A^-1 搬到对面世界去渲染；跨过门槛时位置/朝向/速度也走同一个 M，
+   所以镜头不切、人不跳，走进去就像走进另一个空间。 */
+var PORTAL_R180 = new THREE.Matrix4().makeRotationY(Math.PI);
+var PORTAL_VS = 'void main(){ gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }';
+var PORTAL_FS = 'uniform sampler2D uMap; uniform vec2 uRes; void main(){ vec2 p = gl_FragCoord.xy / uRes; gl_FragColor = texture2D(uMap, p); }';
+
 function makePortalCam() {
-  var cam = new THREE.PerspectiveCamera(42, DOOR_W / DOOR_H, 0.05, 260);
+  var cam = new THREE.PerspectiveCamera(48, 1, 0.05, 320);
+  cam.matrixAutoUpdate = false;
   return cam;
 }
+
 function initPortals() {
   makePortalUI();
   for (var i = 0; i < portalDoors.length; i++) {
     var d = portalDoors[i];
     d.group.updateMatrixWorld(true);
     var q = new THREE.Quaternion(); d.group.getWorldQuaternion(q);
-    var f = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
     var wp = d.group.getWorldPosition(new THREE.Vector3());
-    d.front = f.clone();
-    /* 传送落点：对面那扇门正面 1.7m 处，朝向门面朝外的方向 */
     var a = d.arrive;
     a.group.updateMatrixWorld(true);
-    var aq = new THREE.Quaternion(); a.group.getWorldQuaternion(aq);
-    var af = new THREE.Vector3(0, 0, 1).applyQuaternion(aq);
-    var awp = a.group.getWorldPosition(new THREE.Vector3());
-    d.spawnPos = awp.clone().addScaledVector(af, 1.7);
-    d.spawnPos.y = 0.5;
-    d.spawnFace = Math.atan2(af.x, af.z);
-    /* 关门时挡一下门洞：自己塞一个碰撞体，开门时挪走 */
+    /* A 的正面进、B 的正面出：位置与视线都按这个变换走 */
+    var invA = new THREE.Matrix4().copy(d.group.matrixWorld).invert();
+    d.toDest = new THREE.Matrix4().multiplyMatrices(a.group.matrixWorld, PORTAL_R180).multiply(invA);
     var yaw = new THREE.Euler().setFromQuaternion(q, 'YXZ').y;
     var blk = { x: wp.x, z: wp.z, x0: wp.x, z0: wp.z,
       hw: DOOR_W / 2 + 0.06, hd: 0.16, h: DOOR_H, bottom: 0, top: DOOR_H,
       kind: 'solid', c: Math.cos(yaw), s: Math.sin(yaw), reach: DOOR_W / 2 + 0.36 + 0.6, mesh: null };
     colliders.push(blk);
     d.blocker = blk;
-    /* 门后画面 */
-    d.rt = new THREE.WebGLRenderTarget(216, 517, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+    var cw = renderer.domElement.width || 800, ch = renderer.domElement.height || 600;
+    var rw = Math.max(200, Math.round(cw / 2)), rh = Math.max(200, Math.round(ch / 2));
+    d.rt = new THREE.WebGLRenderTarget(rw, rh, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
     d.rt.texture.colorSpace = THREE.SRGBColorSpace;
     d.cam = makePortalCam();
-    d.plane.material.map = d.rt.texture;
-    d.plane.material.color.setHex(0xffffff);
-    d.plane.material.toneMapped = false;
-    d.plane.material.needsUpdate = true;
+    d.plane.material.dispose();
+    d.plane.material = new THREE.ShaderMaterial({
+      uniforms: { uMap: { value: d.rt.texture }, uRes: { value: new THREE.Vector2(cw, ch) } },
+      vertexShader: PORTAL_VS, fragmentShader: PORTAL_FS,
+      depthWrite: false, side: THREE.FrontSide
+    });
   }
 }
 
-/* ---------------- 每帧：焦点、开合、跨门传送 ---------------- */
+/* ---------------- 每帧：焦点、开合、跨门 ---------------- */
 function updatePortals(dt) {
   if (portalCool > 0) portalCool = Math.max(0, portalCool - dt);
   var best = null, bestZ = 99;
   var wp = new THREE.Vector3();
+  var cw = renderer.domElement.width || 800, ch = renderer.domElement.height || 600;
   for (var i = 0; i < portalDoors.length; i++) {
     var d = portalDoors[i];
     d.group.updateMatrixWorld(true);
-    d.angle += (d.target - d.angle) * Math.min(1, dt * 11);
+    d.angle += (d.target - d.angle) * Math.min(1, dt * 9);
     d.hinge.rotation.y = d.angle;
-    d.plane.visible = d.open && d.angle > 0.45;
+    d.plane.visible = d.open && Math.abs(d.angle) > 0.5;
+    if (d.plane.visible && d.plane.material.uniforms) d.plane.material.uniforms.uRes.value.set(cw, ch);
     if (d.world !== curWorld) { d.focus = false; continue; }
     wp.copy(P.pos);
     d.group.worldToLocal(wp);
     var near = wp.z > -0.6 && wp.z < 2.4 && Math.abs(wp.x) < 0.8 && wp.y < 2.5;
     d.focus = near;
     if (near && Math.abs(wp.z) < bestZ) { bestZ = Math.abs(wp.z); best = d; }
-    /* 跨门：从正面走进门洞（局部 z 由正变负） */
     var px = wp.x, pz = wp.z;
     if (d.open && portalCool <= 0 && px > -DOOR_W / 2 + 0.06 && px < DOOR_W / 2 - 0.06 && wp.y < DOOR_H) {
       if (d.prevZ > 0.02 && pz <= 0.02) enterPortal(d);
@@ -6399,44 +6406,56 @@ function updatePortals(dt) {
 }
 
 function enterPortal(d) {
-  if (portalCool > 0 || !d) return;
+  if (portalCool > 0 || !d || !d.toDest) return;
   portalCool = 0.25;
+  var m = d.toDest;
+  var p = new THREE.Vector3().copy(P.pos).applyMatrix4(m);
+  if (d.arrive && d.arrive.front) p.addScaledVector(d.arrive.front, 0.45);
+  var yawDelta = new THREE.Euler().setFromRotationMatrix(m, 'YXZ').y;
+  P.pos.set(p.x, p.y, p.z);
+  P.vy = 0; P.onGround = false;
+  P.face = P.faceTarget = P.face + yawDelta;
+  camYaw += yawDelta;
+  P.phase = 0; P.squash = 0; P.land = 0; P.lead = 0; P.landLock = 0;
+  P.inX = 0; P.inZ = 0; P.idleT = 0;
   curWorld = d.dest;
   setWorldVisible(curWorld);
   applyWorldLighting(curWorld);
-  P.pos.set(d.spawnPos.x, d.spawnPos.y, d.spawnPos.z);
-  P.vy = 0; P.onGround = false;
-  P.face = P.faceTarget = d.spawnFace;
-  P.phase = 0; P.squash = 0; P.land = 0; P.lead = 0; P.landLock = 0;
-  P.inX = 0; P.inZ = 0; P.idleT = 0;
-  for (var i = 0; i < portalDoors.length; i++) { portalDoors[i].prevZ = 99; }
+  for (var i = 0; i < portalDoors.length; i++) portalDoors[i].prevZ = 99;
   hideTip();
+  markInput();
 }
 
-/* ---------------- 门后画面：每个开着的门渲染一次小 RT ---------------- */
+/* ---------------- 门后画面：每个开着的门渲染一次 ---------------- */
 function renderPortals() {
   var here = curWorld;
   var gx = ground.position.x, gz = ground.position.z;
+  var cw = renderer.domElement.width || 800, ch = renderer.domElement.height || 600;
+  var mtmp = new THREE.Matrix4();
   for (var i = 0; i < portalDoors.length; i++) {
     var d = portalDoors[i];
     if (!d.open || d.world !== here || !d.rt) continue;
+    var rw = Math.max(200, Math.round(cw / 2)), rh = Math.max(200, Math.round(ch / 2));
+    if (d.rt.width !== rw || d.rt.height !== rh) { d.rt.setSize(rw, rh); d.plane.material.uniforms.uMap.value = d.rt.texture; }
     setWorldVisible(d.dest);
     applyWorldLighting(d.dest);
-    var a = d.arrive;
-    a.group.updateMatrixWorld(true);
-    var q = new THREE.Quaternion(); a.group.getWorldQuaternion(q);
-    var f = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
-    var wp = a.group.getWorldPosition(new THREE.Vector3());
-    var cp = wp.clone().addScaledVector(f, 1.35); cp.y += 1.55;
-    var look = cp.clone().addScaledVector(f, 10); look.y -= 2.0;
-    ground.position.x = Math.round(wp.x); ground.position.z = Math.round(wp.z);
-    d.cam.position.copy(cp); d.cam.up.set(0, 1, 0); d.cam.lookAt(look);
-    d.cam.updateMatrixWorld(true);
+    if (d.arrive) d.arrive.group.visible = false;
+    var cam = d.cam;
+    mtmp.multiplyMatrices(d.toDest, activeCam.matrixWorld);
+    cam.matrixWorld.copy(mtmp);
+    cam.matrixWorldInverse.copy(cam.matrixWorld).invert();
+    cam.projectionMatrix.copy(activeCam.projectionMatrix);
+    cam.projectionMatrixInverse.copy(activeCam.projectionMatrixInverse);
+    var vc = new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld);
+    ground.position.x = Math.round(vc.x); ground.position.z = Math.round(vc.z);
+    pawn.visible = false;
     renderer.setRenderTarget(d.rt);
     renderer.setClearColor(scene.fog.color, 1);
     renderer.clear();
-    renderer.render(scene, d.cam);
+    renderer.render(scene, cam);
     renderer.setRenderTarget(null);
+    pawn.visible = true;
+    if (d.arrive) d.arrive.group.visible = true;
     setWorldVisible(here);
     applyWorldLighting(here);
     ground.position.x = gx; ground.position.z = gz;
@@ -6713,7 +6732,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.24.0';
+window.__worldVersion = 'v0.25.0';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
