@@ -228,7 +228,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.28.1</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.29.0</div>
 <script>
 /**
  * @license
@@ -553,10 +553,17 @@ function addMeshCollider(localBox, matrix, mesh, res) {
   else if (mat && mat === HOUSE_MATS.leaf) kind = 'leaf';
   else if (_mb.max.y <= 0.12) kind = 'flat';
   else if (h <= 0.50 && w <= 0.70 && d <= 0.70) kind = 'pebble';
+  var world = worldOfMesh(mesh);
+  var yaw = 0, e = matrix.elements;
+  if (world === 'garden' && Math.abs(e[1]) + Math.abs(e[9]) + Math.abs(e[4]) + Math.abs(e[6]) < 0.00001) {
+    yaw = Math.atan2(-e[2], e[0]);
+    w = Math.max(0.04, (localBox.max.x - localBox.min.x) * Math.hypot(e[0], e[2]));
+    d = Math.max(0.04, (localBox.max.z - localBox.min.z) * Math.hypot(e[8], e[10]));
+  }
   addCollider({ position: { x: (_mb.max.x + _mb.min.x) / 2, y: (_mb.max.y + _mb.min.y) / 2, z: (_mb.max.z + _mb.min.z) / 2 },
-              rotation: { y: 0 } }, w, d, h);
+              rotation: { y: yaw } }, w, d, h);
   var c = colliders[colliders.length - 1];
-  c.kind = kind; c.auto = true; c.world = worldOfMesh(mesh);
+  c.kind = kind; c.auto = true; c.world = world;
   c.sourceMesh = mesh; c.doorOwner = storeLeafOf(mesh);
   res.auto++;
   res.autoNames[kind] = (res.autoNames[kind] || 0) + 1;
@@ -569,6 +576,7 @@ function worldOfMesh(m) {
   var p = m;
   while (p) {
     if (p === spawnRoot) return 'spawn';
+    if (sunnyGarden && p === sunnyGarden.host) return 'garden';
     if (p === fieldRoot) return 'field';
     if (duskLevel && p === duskLevel.host) return 'konbini';
     p = p.parent;
@@ -2332,11 +2340,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.28.1';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.29.0';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.28.1';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.29.0';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -6030,6 +6038,1050 @@ duskLevel.lights.sun.castShadow = false;
    可见性；门后不是贴图，是另一个世界实时渲染到 RenderTarget 上的画面。
    走进开着的门（人跨过门面）就传送到对面世界那扇门的门口；PC 按 E、手机点按钮。
    ============================================================================ */
+function buildSunnyGarden(worldScene) {
+  var root = new THREE.Group(); root.name = 'sunnyGarden'; worldScene.add(root);
+  var seed = 14251;
+  function random() { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }
+  var gradMap = (function () {
+    var data = new Uint8Array([122, 182, 228, 255]);
+    var t = new THREE.DataTexture(data, 4, 1, THREE.RedFormat);
+    t.minFilter = THREE.NearestFilter;
+    t.magFilter = THREE.NearestFilter;
+    t.generateMipmaps = false;
+    t.needsUpdate = true;
+    return t;
+  })();
+
+  var matCache = new Map();
+  function M(color, extra) {
+    var key = color + '|' + (extra ? Object.keys(extra).join(',') : '');
+    if (!extra && matCache.has(key)) return matCache.get(key);
+    var m = new THREE.MeshToonMaterial(Object.assign({ color: color, gradientMap: gradMap }, extra || {}));
+    if (!extra) matCache.set(key, m);
+    return m;
+  }
+  function L(color, extra) { return new THREE.MeshLambertMaterial(Object.assign({ color: color }, extra || {})); }
+  function MB(color, extra) { return new THREE.MeshBasicMaterial(Object.assign({ color: color }, extra || {})); }
+
+  function tex(w, h, draw, rx, ry) {
+    var cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    var c = cv.getContext('2d');
+    draw(c, w, h);
+    var t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    if (rx || ry) t.repeat.set(rx || 1, ry || 1);
+    t.anisotropy = 8;
+    return t;
+  }
+
+  /* 草坪 */
+  var grassMap = tex(256, 256, function (c, w, h) {
+    c.fillStyle = '#7aae58'; c.fillRect(0, 0, w, h);
+    for (var i = 0; i < 2600; i++) {
+      var v = random();
+      c.fillStyle = v > 0.6 ? 'rgba(206,232,150,0.30)' : 'rgba(74,116,52,0.24)';
+      c.fillRect(random() * w, random() * h, 1 + random() * 2, 1 + random() * 3);
+    }
+    for (var i = 0; i < 190; i++) {
+      c.strokeStyle = 'rgba(96,140,64,0.4)';
+      c.lineWidth = 1;
+      var x = random() * w, y = random() * h;
+      c.beginPath(); c.moveTo(x, y); c.lineTo(x + random() * 3 - 1.5, y - 4 - random() * 4); c.stroke();
+    }
+    for (var i = 0; i < 26; i++) {
+      c.fillStyle = 'rgba(250,250,235,0.55)';
+      c.beginPath(); c.arc(random() * w, random() * h, 1.6, 0, 7); c.fill();
+    }
+  }, 10, 10);
+
+  /* 砾石小径 */
+  var gravelMap = tex(256, 256, function (c, w, h) {
+    c.fillStyle = '#ded3b8'; c.fillRect(0, 0, w, h);
+    for (var i = 0; i < 2400; i++) {
+      var s = 1 + random() * 3;
+      c.fillStyle = random() > 0.5 ? 'rgba(255,252,238,0.5)' : 'rgba(168,152,120,0.4)';
+      c.beginPath(); c.arc(random() * w, random() * h, s, 0, 7); c.fill();
+    }
+  }, 4, 4);
+
+  /* 水 */
+  var waterMap = tex(256, 256, function (c, w, h) {
+    c.fillStyle = '#8fd0dd'; c.fillRect(0, 0, w, h);
+    for (var i = 0; i < 70; i++) {
+      c.strokeStyle = 'rgba(255,255,255,' + (0.15 + random() * 0.35) + ')';
+      c.lineWidth = 1 + random() * 2;
+      c.beginPath();
+      c.moveTo(random() * w, random() * h);
+      c.lineTo(random() * w, random() * h);
+      c.stroke();
+    }
+    for (var i = 0; i < 20; i++) {
+      var x = random() * w, y = random() * h, r = 8 + random() * 22;
+      c.strokeStyle = 'rgba(255,255,255,0.3)';
+      c.lineWidth = 1.5;
+      c.beginPath(); c.ellipse(x, y, r, r * 0.5, 0, 0, Math.PI * 2); c.stroke();
+    }
+  }, 2, 2);
+
+  /* 木牌 */
+  var signMap = tex(256, 128, function (c, w, h) {
+    c.fillStyle = '#f3ead6'; c.fillRect(0, 0, w, h);
+    c.strokeStyle = '#8ba06a'; c.lineWidth = 8; c.strokeRect(8, 8, w - 16, h - 16);
+    c.fillStyle = '#3f5a3a';
+    c.font = 'bold 42px Georgia, serif';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('GARDEN', w / 2, h / 2 - 4);
+    c.font = 'italic 22px Georgia, serif';
+    c.fillStyle = '#7f9464';
+    c.fillText('est. 2026', w / 2, h / 2 + 34);
+  });
+
+
+  var hemi = new THREE.HemisphereLight(0xd6e8ff, 0x86a05c, 0.62);
+  root.add(hemi);
+  var amb = new THREE.AmbientLight(0xffffff, 0.16);
+  root.add(amb);
+
+  var sun = new THREE.DirectionalLight(0xfff3dc, 1.12);
+  sun.position.set(-17, 27, 27);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(IS_MOBILE ? 1024 : 2048, IS_MOBILE ? 1024 : 2048);
+  sun.shadow.camera.left = -26;
+  sun.shadow.camera.right = 26;
+  sun.shadow.camera.top = 26;
+  sun.shadow.camera.bottom = -26;
+  sun.shadow.camera.near = 1;
+  sun.shadow.camera.far = 160;
+  sun.shadow.bias = -0.0006;
+  sun.shadow.normalBias = 0.03;
+  sun.target.position.set(0, 0, 0);
+  root.add(sun);
+  root.add(sun.target);
+
+  var fill = new THREE.DirectionalLight(0xbcd6ff, 0.34);
+  fill.position.set(26, 12, -20);
+  root.add(fill);
+
+  var bounce = new THREE.DirectionalLight(0xd8f0b8, 0.12);
+  bounce.position.set(6, -10, 10);
+  root.add(bounce);
+
+
+  var geoCube = new THREE.BoxGeometry(1, 1, 1);
+  var outlineMat = new THREE.MeshBasicMaterial({ color: 0x35302c, side: THREE.BackSide });
+
+  function outline(mesh, k) {
+    var o = new THREE.Mesh(mesh.geometry, outlineMat);
+    o.scale.setScalar(k || 1.035);
+    o.castShadow = false;
+    o.receiveShadow = false;
+    o.renderOrder = -1;
+    mesh.add(o);
+    return o;
+  }
+  function B(w, h, d, mat, x, y, z, parent, ol) {
+    var m = new THREE.Mesh(geoCube, mat);
+    m.scale.set(w, h, d);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    (parent || root).add(m);
+    if (ol) outline(m, ol);
+    return m;
+  }
+  function CY(rt, rb, h, mat, x, y, z, seg, parent, ol) {
+    var m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg || 14), mat);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    (parent || root).add(m);
+    if (ol) outline(m, ol);
+    return m;
+  }
+  function PL(w, h, mat, x, y, z, rx, ry, parent) {
+    var m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+    m.position.set(x, y, z);
+    if (rx) m.rotation.x = rx;
+    if (ry) m.rotation.y = ry;
+    m.receiveShadow = true;
+    (parent || root).add(m);
+    return m;
+  }
+  function CO(rt, h, mat, x, y, z, seg, parent, ol) {  var m = new THREE.Mesh(new THREE.ConeGeometry(rt, h, seg || 12), mat);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    (parent || root).add(m);
+    if (ol) outline(m, ol);
+    return m;
+  }
+  function tube(a, b, r, mat, parent) {
+    var dir = new THREE.Vector3().subVectors(b, a);
+    var len = dir.length();
+    var m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 7), mat);
+    m.position.copy(a).add(b).multiplyScalar(0.5);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+    m.castShadow = true;
+    m.receiveShadow = true;
+    (parent || root).add(m);
+    return m;
+  }
+  function instanced(geo, mat, items, parent, cast) {
+    var im = new THREE.InstancedMesh(geo, mat, items.length);
+    var d = new THREE.Object3D();
+    var col = new THREE.Color();
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      d.position.set(it.x, it.y, it.z);
+      var sx = it.s === undefined ? 1 : it.s;
+      d.scale.set(sx, it.sy === undefined ? sx : it.sy, it.sz === undefined ? sx : it.sz);
+      d.rotation.set(it.rx || 0, it.ry || 0, it.rz || 0);
+      d.updateMatrix();
+      im.setMatrixAt(i, d.matrix);
+      if (it.c !== undefined) { col.setHex(it.c); im.setColorAt(i, col); }
+    }
+    im.instanceMatrix.needsUpdate = true;
+    if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    im.castShadow = cast !== false;
+    im.receiveShadow = false;
+    (parent || root).add(im);
+    return im;
+  }
+  function ribbon(pts, width, y, mat, parent) {
+    var pos = [], uv = [], idx = [];
+    var N = pts.length;
+    var dist = 0;
+    for (var i = 0; i < N; i++) {
+      var p = pts[i];
+      var prev = pts[Math.max(0, i - 1)], next = pts[Math.min(N - 1, i + 1)];
+      var dir = new THREE.Vector3(next.x - prev.x, 0, next.z - prev.z).normalize();
+      var nx = -dir.z * width / 2, nz = dir.x * width / 2;
+      if (i > 0) dist += Math.hypot(p.x - pts[i - 1].x, p.z - pts[i - 1].z);
+      pos.push(p.x + nx, y, p.z + nz, p.x - nx, y, p.z - nz);
+      uv.push(0, dist / 3, 1, dist / 3);
+      if (i < N - 1) {
+        var a = i * 2;
+        idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+      }
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    var m = new THREE.Mesh(geo, mat);
+    m.receiveShadow = true;
+    m.userData.colExempt = '花园小径：由公共地面支撑';
+    (parent || root).add(m);
+    return m;
+  }
+  function rnd(a, b) { return a + random() * (b - a); }
+  function pick(arr) { return arr[Math.floor(random() * arr.length)]; }
+
+
+  var GY = 0.4;
+  var PAL = {
+    stone: 0xded4c0,
+    stoneLight: 0xeee6d4,
+    stoneDark: 0xb9ad96,
+    soil: 0x6a5138,
+    wood: 0xf6f2e8,
+    woodShade: 0xdcd5c6,
+    roof: 0xf2eee1,
+    roofShade: 0xc9cbbf,
+    hedge: 0x4e8a3f,
+    hedgeDark: 0x3d7233,
+    leaf: 0x63a04a,
+    leafLight: 0x86bd5c,
+    leafDark: 0x44793a,
+    terracotta: 0xc4714a
+  };
+  var matStone = M(PAL.stone);
+  var matStoneLight = M(PAL.stoneLight);
+  var matStoneDark = M(PAL.stoneDark);
+  var matSoil = M(PAL.soil);
+  var matWood = M(PAL.wood);
+  var matWoodShade = M(PAL.woodShade);
+  var matRoof = L(PAL.roof);
+  var matHedge = M(PAL.hedge);
+  var matTerracotta = M(PAL.terracotta);
+
+  /* =========================================================
+     6. 底座 / 草坪 / 小径
+     ========================================================= */
+  var GATE = { x: 1.8, z: 13.9 };
+  var GAZEBO = { x: -5.0, z: -9.2, r: 3.0 };
+
+
+  function mainPathPoints() {
+    return new THREE.CatmullRomCurve3([
+      new THREE.Vector3(1.9, 0, 14.0),
+      new THREE.Vector3(1.5, 0, 10.6),
+      new THREE.Vector3(0.6, 0, 7.0),
+      new THREE.Vector3(-0.9, 0, 3.2),
+      new THREE.Vector3(-2.9, 0, -0.8),
+      new THREE.Vector3(-4.4, 0, -4.4),
+      new THREE.Vector3(-5.0, 0, -6.2)
+    ]);
+  }
+  function branchPathPoints() {
+    return new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.9, 0, 2.6),
+      new THREE.Vector3(1.6, 0, 2.5),
+      new THREE.Vector3(4.2, 0, 2.5),
+      new THREE.Vector3(5.4, 0, 2.5)
+    ]);
+  }
+
+  function buildGround() {
+    var g = new THREE.Group();
+    var grass = new THREE.Mesh(new THREE.PlaneGeometry(28.8, 28.8), L(0xffffff, { map: grassMap }));
+    grass.rotation.x = -Math.PI / 2;
+    grass.position.y = GY + 0.005;
+    grass.receiveShadow = true;
+    grass.userData.colExempt = '花园草坪：由公共地面支撑';
+    g.add(grass);
+
+    // 主径
+    var pathMat = L(0xffffff, { map: gravelMap, side: THREE.DoubleSide });
+    ribbon(mainPathPoints().getPoints(28), 2.2, GY + 0.02, pathMat, g);
+    ribbon(branchPathPoints().getPoints(10), 1.7, GY + 0.022, pathMat, g);
+
+    // 喷泉广场
+    var plaza = new THREE.Mesh(new THREE.CircleGeometry(3.6, 32), pathMat);
+    plaza.rotation.x = -Math.PI / 2;
+    plaza.position.set(6.9, GY + 0.024, 2.5);
+    plaza.receiveShadow = true;
+    plaza.userData.colExempt = '花园广场：由公共地面支撑';
+    g.add(plaza);
+
+    // 广场外圈石缘
+    var ring = new THREE.Mesh(new THREE.RingGeometry(3.56, 3.78, 32), matStoneDark);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(6.9, GY + 0.032, 2.5);
+    ring.userData.colExempt = '喷泉广场地面纹样';
+    g.add(ring);
+
+    // 花坛土壤
+    var beds = [
+      [-9.2, 8.0, 8.0, 8.4],
+      [7.0, 10.9, 11.4, 4.8],
+      [11.6, -1.2, 4.0, 4.6],
+      [-7.4, -12.8, 12.0, 2.4]
+    ];
+    beds.forEach(function (values) { var x = values[0], z = values[1], w = values[2], d = values[3];
+      B(w, 0.08, d, matSoil, x, GY + 0.01, z, g);
+      B(w + 0.3, 0.1, 0.24, matStoneDark, x, GY + 0.03, z - d / 2 - 0.1, g);
+      B(w + 0.3, 0.1, 0.24, matStoneDark, x, GY + 0.03, z + d / 2 + 0.1, g);
+      B(0.24, 0.1, d + 0.3, matStoneDark, x - w / 2 - 0.1, GY + 0.03, z, g);
+      B(0.24, 0.1, d + 0.3, matStoneDark, x + w / 2 + 0.1, GY + 0.03, z, g);
+    });
+
+    // 草坪色块（打破平整感）
+    var patchMesh = new THREE.Group();
+    [[-6.5, -2.2, 4.4], [3.4, 7.6, 3.6], [10.4, -4.2, 3.0], [-3.0, 11.2, 2.8], [7.2, -8.6, 3.2], [-10.2, -7.4, 2.6]].forEach(function (values) { var px = values[0], pz = values[1], pr = values[2];
+      var m = new THREE.Mesh(new THREE.CircleGeometry(pr, 18), new THREE.MeshBasicMaterial({ color: 0x6fa64e, transparent: true, opacity: 0.1, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2;
+      m.position.set(px, GY + 0.008, pz);
+      m.userData.colExempt = '花园草坪色块';
+      patchMesh.add(m);
+    });
+    g.add(patchMesh);
+
+    // 碎石点缀
+    var chips = [];
+    for (var i = 0; i < 70; i++) {
+      chips.push({ x: rnd(-13, 13), y: GY + 0.015, z: rnd(-13, 13), s: rnd(0.05, 0.12), c: pick([0xdcd2ba, 0xc9bfa6]) });
+    }
+    instanced(new THREE.IcosahedronGeometry(1, 0), M(0xffffff), chips, g, false);
+    return g;
+  }
+
+  /* =========================================================
+     7. 白色凉亭
+     ========================================================= */
+  function buildGazebo() {
+    var g = new THREE.Group();
+    var R = GAZEBO.r;
+    var postAngles = [30, 90, 150, 210, 270, 330].map(function (d) { return (d * Math.PI) / 180; });
+    var openEdges = [0, 5]; // 边 0:30-90, 边5:330-30（前与右前敞开）
+    var postTop = 3.05;
+
+    // 石台
+    var base = CY(R + 0.5, R + 0.6, 0.34, matStoneDark, 0, GY + 0.17, 0, 6, g, 1.02);
+    base.rotation.y = Math.PI / 6;
+    var deck = CY(R + 0.34, R + 0.34, 0.14, matStoneLight, 0, GY + 0.41, 0, 6, g);
+    deck.rotation.y = Math.PI / 6;
+    var deckTop = CY(R + 0.3, R + 0.3, 0.05, M(0xdcc9a4), 0, GY + 0.49, 0, 6, g);
+    deckTop.rotation.y = Math.PI / 6;
+
+    // 立柱
+    postAngles.forEach(function (a) {
+      var x = Math.cos(a) * R, z = Math.sin(a) * R;
+      B(0.17, postTop - GY - 0.5, 0.17, matWood, x, (GY + 0.5 + postTop) / 2, z, g, 1.06);
+      B(0.26, 0.1, 0.26, matWoodShade, x, GY + 0.56, z, g);
+      B(0.24, 0.12, 0.24, matWood, x, postTop - 0.05, z, g);
+    });
+
+    // 栏杆
+    var balusters = [];
+    for (var e = 0; e < 6; e++) {
+      if (openEdges.indexOf(e) >= 0) continue;
+      var a0 = postAngles[e], a1 = postAngles[(e + 1) % 6];
+      var p0 = new THREE.Vector3(Math.cos(a0) * R, 0, Math.sin(a0) * R);
+      var p1 = new THREE.Vector3(Math.cos(a1) * R, 0, Math.sin(a1) * R);
+      tube(new THREE.Vector3(p0.x, GY + 1.14, p0.z), new THREE.Vector3(p1.x, GY + 1.14, p1.z), 0.055, matWood, g);
+      tube(new THREE.Vector3(p0.x, GY + 0.72, p0.z), new THREE.Vector3(p1.x, GY + 0.72, p1.z), 0.04, matWoodShade, g);
+      var n = 7;
+      for (var i = 1; i < n; i++) {
+        var t = i / n;
+        balusters.push({
+          x: p0.x + (p1.x - p0.x) * t,
+          y: GY + 0.93,
+          z: p0.z + (p1.z - p0.z) * t,
+          s: 1, sy: 0.44
+        });
+      }
+    }
+    instanced(new THREE.CylinderGeometry(0.028, 0.028, 1, 5), matWood, balusters, g);
+
+    // 顶梁环
+    var beam = new THREE.Mesh(new THREE.TorusGeometry(R, 0.075, 5, 6), matWood);
+    beam.rotation.x = Math.PI / 2;
+    beam.rotation.z = Math.PI / 6;
+    beam.position.y = postTop;
+    beam.castShadow = true;
+    g.add(beam);
+
+    // 屋顶
+    var roof = new THREE.Mesh(new THREE.ConeGeometry(R + 0.85, 2.05, 6), matRoof);
+    roof.position.y = postTop + 1.0;
+    roof.rotation.y = Math.PI / 6;
+    roof.castShadow = true;
+    roof.receiveShadow = true;
+    g.add(roof);
+    outline(roof, 1.012);
+    // 檐口
+    var fascia = CY(R + 0.9, R + 0.95, 0.14, matWood, 0, postTop + 0.05, 0, 6, g);
+    fascia.rotation.y = Math.PI / 6;
+    // 顶饰
+    CY(0.05, 0.05, 0.5, matWood, 0, postTop + 2.1, 0, 8, g);
+    var fin = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), matWood);
+    fin.position.y = postTop + 2.38;
+    fin.castShadow = true;
+    g.add(fin);
+    // 天花
+    var ceil = CY(R + 0.28, R + 0.28, 0.07, M(0xe8e1cf), 0, postTop - 0.02, 0, 6, g);
+    ceil.rotation.y = Math.PI / 6;
+    // 放射梁
+    postAngles.forEach(function (a) {
+      tube(new THREE.Vector3(0, postTop - 0.08, 0), new THREE.Vector3(Math.cos(a) * (R + 0.1), postTop - 0.08, Math.sin(a) * (R + 0.1)), 0.045, matWoodShade, g);
+    });
+
+    // 亭内长凳（三边）
+    [1, 2, 3].forEach(function (bi) {
+      var ba0 = postAngles[bi], ba1 = postAngles[bi + 1];
+      var bp0 = new THREE.Vector3(Math.cos(ba0) * (R - 0.5), 0, Math.sin(ba0) * (R - 0.5));
+      var bp1 = new THREE.Vector3(Math.cos(ba1) * (R - 0.5), 0, Math.sin(ba1) * (R - 0.5));
+      var bm = new THREE.Vector3().addVectors(bp0, bp1).multiplyScalar(0.5);
+      var blen = bp0.distanceTo(bp1);
+      var bang = Math.atan2(bp1.z - bp0.z, bp1.x - bp0.x);
+      var bench = B(blen, 0.09, 0.42, M(0xc9a878), bm.x, GY + 0.86, bm.z, g, 1.03);
+      var cushion = B(blen * 0.42, 0.08, 0.34, M(pick([0x8fa87f, 0xc98b73, 0x8fa8c8])), bm.x, GY + 0.94, bm.z, g);
+      cushion.rotation.y = -bang;
+      bench.rotation.y = -bang;
+      [0.4, -0.4].forEach(function (k) {
+        var bx = bm.x + Math.cos(bang) * k * blen / 2;
+        var bz = bm.z + Math.sin(bang) * k * blen / 2;
+        B(0.1, 0.34, 0.36, matWoodShade, bx, GY + 0.68, bz, g);
+      });
+    });
+
+    // 中央小桌 + 花瓶
+    CY(0.06, 0.08, 0.62, matWood, 0, GY + 0.8, 0, 8, g);
+    CY(0.42, 0.42, 0.07, matWood, 0, GY + 1.14, 0, 12, g, 1.03);
+    CY(0.11, 0.14, 0.26, M(0x8fb8c8), 0, GY + 1.3, 0, 10, g);
+    for (var i = 0; i < 5; i++) {
+      var a = i * 1.26;
+      var f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09, 0), M(pick([0xf07fa8, 0xfdfaf0, 0xf5d04e])));
+      f.position.set(Math.cos(a) * 0.14, GY + 1.5 + random() * 0.1, Math.sin(a) * 0.14);
+      g.add(f);
+    }
+
+    // 吊灯
+    B(0.02, 0.42, 0.02, M(0x7a6a52), 0, postTop - 0.25, 0, g);
+    B(0.24, 0.3, 0.24, MB(0xfff0cf), 0, postTop - 0.58, 0, g);
+    B(0.3, 0.05, 0.3, matWoodShade, 0, postTop - 0.42, 0, g);
+    B(0.3, 0.05, 0.3, matWoodShade, 0, postTop - 0.74, 0, g);
+
+    // 柱上花篮
+    [0, 2].forEach(function (i) {
+      var a = postAngles[i];
+      var x = Math.cos(a) * R * 1.12, z = Math.sin(a) * R * 1.12;
+      CY(0.2, 0.16, 0.2, matTerracotta, x, GY + 1.85, z, 10, g);
+      for (var k = 0; k < 7; k++) {
+        var f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09, 0), M(pick([0xf07fa8, 0xf5d04e, 0xfdfaf0, 0x9b7fd0])));
+        f.position.set(x + rnd(-0.22, 0.22), GY + 1.95 + random() * 0.18, z + rnd(-0.22, 0.22));
+        g.add(f);
+      }
+    });
+
+    g.position.set(GAZEBO.x, 0, GAZEBO.z);
+    g.rotation.y = 0;
+    return g;
+  }
+
+  /* =========================================================
+     8. 花架拱门
+     ========================================================= */
+  function buildArches() {
+    var g = new THREE.Group();
+    var path = mainPathPoints();
+    var spots = [
+      { t: 0.42, w: 1.55, h: 2.85 },
+      { t: 0.72, w: 1.5, h: 2.75 }
+    ];
+    var roseCols = [0xf07fa8, 0xf9c2d6, 0xffffff, 0xe8607f, 0xf6a8c8];
+
+    spots.forEach(function (sp) {
+      var p = path.getPoint(sp.t);
+      var tan = path.getTangent(sp.t);
+      var ang = Math.atan2(tan.x, tan.z);
+      var sub = new THREE.Group();
+      sub.position.set(p.x, GY, p.z);
+      sub.rotation.y = ang;
+
+      [-1, 1].forEach(function (s) {
+        B(0.13, sp.h, 0.13, matWood, s * sp.w / 2, sp.h / 2, 0, sub, 1.05);
+        B(0.2, 0.08, 0.2, matWoodShade, s * sp.w / 2, 0.04, 0, sub);
+      });
+      // 拱顶
+      var pts = [];
+      for (var i = 0; i <= 10; i++) {
+        var a = Math.PI * (i / 10);
+        pts.push(new THREE.Vector3(-Math.cos(a) * sp.w / 2, sp.h + Math.sin(a) * 0.52, 0));
+      }
+      for (var i = 0; i < pts.length - 1; i++) tube(pts[i], pts[i + 1], 0.06, matWood, sub);
+      // 横向格栅
+      [-1, 1].forEach(function (s) {
+        for (var i = 1; i <= 3; i++) {
+          tube(new THREE.Vector3(s * sp.w / 2, sp.h * i / 4, 0), new THREE.Vector3(s * sp.w / 2, sp.h * 1.9 / 2.2 * 0 + sp.h * 0.55 + 0.0, 0), 0.028, matWoodShade, sub);
+        }
+      });
+
+      // 藤蔓与花
+      var leaves = [], blooms = [];
+      for (var i = 0; i <= 26; i++) {
+        var tt = i / 26;
+        var a = Math.PI * tt;
+        var bx = -Math.cos(a) * sp.w / 2;
+        var by = sp.h + Math.sin(a) * 0.52;
+        for (var k = 0; k < 3; k++) {
+          leaves.push({
+            x: bx + rnd(-0.16, 0.16), y: by + rnd(-0.14, 0.14), z: rnd(-0.16, 0.16),
+            s: rnd(0.1, 0.2), c: pick([0x5a9445, 0x6ba84f, 0x4c7f3c])
+          });
+        }
+        if (i % 2 === 0) {
+          blooms.push({
+            x: bx + rnd(-0.2, 0.2), y: by + rnd(-0.18, 0.24), z: rnd(-0.16, 0.16),
+            s: rnd(0.1, 0.17), c: pick(roseCols)
+          });
+        }
+      }
+      for (var s = -1; s <= 1; s += 2) {
+        for (var k = 0; k < 16; k++) {
+          var yy = rnd(0.35, sp.h);
+          leaves.push({ x: s * (sp.w / 2 + rnd(-0.12, 0.12)), y: yy, z: rnd(-0.12, 0.12), s: rnd(0.1, 0.19), c: pick([0x5a9445, 0x6ba84f]) });
+          if (k % 3 === 0) blooms.push({ x: s * (sp.w / 2 + rnd(-0.15, 0.15)), y: yy, z: rnd(-0.15, 0.15), s: rnd(0.1, 0.16), c: pick(roseCols) });
+        }
+      }
+      instanced(new THREE.IcosahedronGeometry(1, 0), M(0xffffff), leaves, sub, false);
+      instanced(new THREE.IcosahedronGeometry(1, 0), M(0xffffff), blooms, sub);
+      g.add(sub);
+    });
+
+    return g;
+  }
+
+  /* =========================================================
+     9. 花坛（漂移式配色）
+     ========================================================= */
+  var FLOWER_SETS = [
+    { cols: [0xf07fa8, 0xf9c2d6, 0xe8607f], h: [0.32, 0.55] },
+    { cols: [0xf5d04e, 0xfae08a, 0xf2b53f], h: [0.3, 0.5] },
+    { cols: [0x9b7fd0, 0xb59ae0, 0x7f6ac0], h: [0.42, 0.72] },
+    { cols: [0xfdfaf0, 0xf2f0e2, 0xffffff], h: [0.3, 0.52] },
+    { cols: [0x6f9ee0, 0x8fb8ee, 0x5b88cc], h: [0.35, 0.6] },
+    { cols: [0xef8352, 0xf2a06a, 0xe06a3c], h: [0.32, 0.55] }
+  ];
+
+  function buildFlowers() {
+    var g = new THREE.Group();
+    var mounds = [], stems = [], heads = [], spikes = [];
+
+    function plantBed(cx, cz, w, d, density, seed) {
+      var cols = Math.max(2, Math.ceil(w / 2.4)), rows = Math.max(2, Math.ceil(d / 2.4));
+      for (var i = 0; i < cols; i++) {
+        for (var j = 0; j < rows; j++) {
+          var bx = cx - w / 2 + (i + 0.5) * (w / cols);
+          var bz = cz - d / 2 + (j + 0.5) * (d / rows);
+          // 用位置决定色系，形成色块漂移
+          var n = Math.sin((i * 1.7 + j * 2.3 + seed) * 1.1) * 0.5 + 0.5;
+          var set = FLOWER_SETS[Math.floor(n * FLOWER_SETS.length) % FLOWER_SETS.length];
+          var cnt = Math.round(density * (0.8 + random() * 0.5));
+          for (var k = 0; k < cnt; k++) {
+            var x = bx + rnd(-w / cols * 0.5, w / cols * 0.5);
+            var z = bz + rnd(-d / rows * 0.5, d / rows * 0.5);
+            mounds.push({
+              x: x, y: GY + rnd(0.1, 0.2), z: z,
+              s: rnd(0.22, 0.4), sy: rnd(0.14, 0.22),
+              c: pick([0x4d8140, 0x5b9149, 0x44753a])
+            });
+            var h = rnd(set.h[0], set.h[1]);
+            stems.push({ x: x, y: GY + h / 2, z: z, s: 1, sy: h, c: 0x4f8038 });
+            heads.push({ x: x + rnd(-0.05, 0.05), y: GY + h, z: z + rnd(-0.05, 0.05), s: rnd(0.11, 0.18), c: pick(set.cols) });
+            if (random() < 0.16) {
+              spikes.push({ x: x + rnd(-0.1, 0.1), y: GY + h + rnd(0.15, 0.3), z: z + rnd(-0.1, 0.1), s: rnd(0.6, 1.0), c: pick(set.cols) });
+            }
+          }
+        }
+      }
+    }
+
+    plantBed(-9.2, 8.0, 7.6, 8.0, 13, 0.4);
+    plantBed(7.0, 10.9, 11.0, 4.4, 13, 2.1);
+    plantBed(11.6, -1.2, 3.6, 4.2, 13, 4.2);
+    plantBed(-7.4, -12.8, 11.4, 2.0, 12, 1.3);
+
+    instanced(new THREE.IcosahedronGeometry(1, 0), M(0xffffff), mounds, g, false);
+    instanced(new THREE.CylinderGeometry(0.012, 0.016, 1, 4), M(0xffffff), stems, g, false);
+    instanced(new THREE.IcosahedronGeometry(1, 0), M(0xffffff), heads, g, false);
+    instanced(new THREE.ConeGeometry(0.05, 0.32, 5), M(0xffffff), spikes, g, false);
+
+    return g;
+  }
+
+  /* =========================================================
+     10. 绿篱 / 树木
+     ========================================================= */
+  function buildHedges() {
+    var g = new THREE.Group();
+    var seg = function (x, z, w, d) {
+      B(w, 0.52, d, matHedge, x, GY + 0.26, z, g, 1.03);
+      B(w + 0.04, 0.1, d + 0.04, M(0x5a9a49), x, GY + 0.52, z, g);
+      // 修剪面细节
+      var dots = [];
+      var n = Math.max(2, Math.round((w + d) / 0.5));
+      for (var i = 0; i < n; i++) {
+        dots.push({ x: x + rnd(-w / 2, w / 2), y: GY + 0.55, z: z + rnd(-d / 2, d / 2), s: rnd(0.1, 0.18), c: pick([0x5f9c4c, 0x4b833d]) });
+      }
+      instanced(new THREE.IcosahedronGeometry(1, 0), M(0xffffff), dots, g, false);
+    };
+    // 主径两侧
+    seg(-3.6, 10.4, 0.5, 3.2);
+    seg(0.9, 12.6, 2.4, 0.5);
+    seg(-2.6, 5.2, 0.5, 2.6);
+    seg(-4.6, 0.4, 0.5, 2.4);
+    seg(1.4, 5.2, 0.5, 2.2);
+    // 凉亭前
+    seg(-8.6, -6.2, 2.2, 0.5);
+    seg(-1.6, -6.2, 2.2, 0.5);
+    return g;
+  }
+
+  function roundTree(x, z, s, cols, trunkH) {
+    var g = new THREE.Group();
+    var th = trunkH || 2.2;
+    var tm = M(0x7a5a40);
+    tube(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.08, th * 0.55, 0.05), 0.19 * s, tm, g);
+    tube(new THREE.Vector3(0.08, th * 0.55, 0.05), new THREE.Vector3(-0.05, th, -0.04), 0.14 * s, tm, g);
+    for (var i = 0; i < 4; i++) {
+      var a = (i / 4) * Math.PI * 2;
+      tube(
+        new THREE.Vector3(0, th * 0.6, 0),
+        new THREE.Vector3(Math.cos(a) * 1.1 * s, th * 0.85 + rnd(0, 0.7), Math.sin(a) * 1.1 * s),
+        0.07 * s, tm, g
+      );
+    }
+    var blobs = [];
+    for (var i = 0; i < 74; i++) {
+      var a = random() * Math.PI * 2;
+      var r = Math.pow(random(), 0.6) * 1.9 * s;
+      blobs.push({
+        x: Math.cos(a) * r, y: th * 0.92 + rnd(0, 1.7) * s - r * 0.15, z: Math.sin(a) * r,
+        s: rnd(0.36, 0.68) * s, c: pick(cols)
+      });
+    }
+    instanced(new THREE.IcosahedronGeometry(1, 1), M(0xffffff), blobs, g);
+    g.position.set(x, GY, z);
+    g.scale.setScalar(s);
+    return g;
+  }
+
+  function cypress(x, z, s) {
+    var g = new THREE.Group();
+    CY(0.12, 0.2, 1.0, M(0x6a5138), 0, 0.5, 0, 8, g);
+    var cols = [0x3f7238, 0x4a8140, 0x356032];
+    for (var i = 0; i < 4; i++) {
+      var r = (1.15 - i * 0.22) * s;
+      var cone = CO(r, 1.35 * s, M(cols[i % 3]), 0, (1.0 + i * 0.72) * s, 0, 8, g, 1.03);
+    }
+    g.position.set(x, GY, z);
+    g.scale.setScalar(s);
+    return g;
+  }
+
+  function buildTrees() {
+    var g = new THREE.Group();
+    var greens = [0x5c9a46, 0x6bad52, 0x4e883c, 0x78b85c];
+    g.add(roundTree(-12.2, -10.6, 1.15, greens, 2.4));
+    g.add(roundTree(11.6, -10.4, 1.0, [0xf3f0e4, 0xfaf7ec, 0xe6e6d4, 0x7fb361], 2.2));
+    g.add(roundTree(-13.0, -1.6, 0.85, [0x6bad52, 0x5c9a46, 0x86bd5c], 1.9));
+    g.add(roundTree(12.4, 9.4, 0.9, greens, 2.0));
+    g.add(cypress(-13.4, 6.4, 1.0));
+    g.add(cypress(13.0, -5.4, 0.85));
+    return g;
+  }
+
+  /* =========================================================
+     11. 白色栅栏 / 门
+     ========================================================= */
+  function buildFence() {
+    var g = new THREE.Group();
+    var pickets = [];
+    var H = 0.95;
+
+    function side(x0, z0, x1, z1) {
+      var len = Math.hypot(x1 - x0, z1 - z0);
+      var n = Math.floor(len / 0.34);
+      var ang = Math.atan2(x1 - x0, z1 - z0);
+      for (var i = 0; i <= n; i++) {
+        var t = i / n;
+        var x = x0 + (x1 - x0) * t;
+        var z = z0 + (z1 - z0) * t;
+        pickets.push({ x: x, y: GY + H / 2, z: z, s: 1, sy: H, ry: ang });
+      }
+      // 横档
+      [0.3, 0.68].forEach(function (h) {
+        var r = B(0.05, 0.1, len, matWood, (x0 + x1) / 2, GY + h, (z0 + z1) / 2, g, 1.02);
+        r.rotation.y = ang;
+      });
+      // 立柱
+      var posts = Math.round(len / 3.4);
+      for (var i = 0; i <= posts; i++) {
+        var t = i / posts;
+        var x = x0 + (x1 - x0) * t;
+        var z = z0 + (z1 - z0) * t;
+        B(0.16, 1.15, 0.16, matWood, x, GY + 0.58, z, g, 1.04);
+        B(0.22, 0.07, 0.22, matWoodShade, x, GY + 1.18, z, g);
+      }
+    }
+
+    side(-14.0, -14.0, 14.0, -14.0);
+    side(14.0, -14.0, 14.0, 14.0);
+    side(-14.0, -14.0, -14.0, 14.0);
+    side(-14.0, 14.0, GATE.x - 1.7, 14.0);
+    side(GATE.x + 1.7, 14.0, 14.0, 14.0);
+
+    instanced(new THREE.BoxGeometry(0.075, 1, 0.05), matWood, pickets, g);
+    return g;
+  }
+
+  function buildGate() {
+    var g = new THREE.Group();
+    var x = GATE.x, z = GATE.z;
+    [-1, 1].forEach(function (s) {
+      B(0.2, 1.9, 0.2, matWood, x + s * 1.75, GY + 0.95, z, g, 1.05);
+      var urn = CY(0.2, 0.14, 0.26, matStoneLight, x + s * 1.75, GY + 2.0, z, 10, g, 1.04);
+      for (var i = 0; i < 5; i++) {
+        var f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09, 0), M(pick([0xf07fa8, 0xf5d04e, 0xfdfaf0])));
+        f.position.set(x + s * 1.75 + rnd(-0.2, 0.2), GY + 2.16 + random() * 0.12, z + rnd(-0.2, 0.2));
+        g.add(f);
+      }
+    });
+    // 门楣（弧形）
+    var arcPts = [];
+    for (var i = 0; i <= 10; i++) {
+      var a = Math.PI * (i / 10);
+      arcPts.push(new THREE.Vector3(x - Math.cos(a) * 1.75, GY + 1.85 + Math.sin(a) * 0.42, z));
+    }
+    for (var i = 0; i < arcPts.length - 1; i++) tube(arcPts[i], arcPts[i + 1], 0.06, matWood, g);
+    tube(new THREE.Vector3(x - 1.75, GY + 1.45, z), new THREE.Vector3(x + 1.75, GY + 1.45, z), 0.05, matWoodShade, g);
+    // 木牌
+    PL(1.1, 0.55, MB(0xffffff, { map: signMap }), x, GY + 1.5, z + 0.13, 0, 0, g);
+    B(1.2, 0.64, 0.06, matWoodShade, x, GY + 1.5, z + 0.09, g);
+    // 门前石阶
+    B(2.6, 0.1, 1.0, matStoneDark, x, GY + 0.05, z + 0.85, g);
+    return g;
+  }
+
+  /* =========================================================
+     12. 喷泉 / 家具 / 杂项
+     ========================================================= */
+  function buildFountain() {
+    var g = new THREE.Group();
+    var cx = 6.9, cz = 2.5;
+    CY(2.0, 2.06, 0.46, matStoneLight, cx, GY + 0.23, cz, 24, g, 1.02);
+    CY(1.86, 1.86, 0.06, M(0x8fd0dd), cx, GY + 0.44, cz, 24, g);
+    CY(1.98, 1.98, 0.08, matStone, cx, GY + 0.47, cz, 24, g);
+    CY(1.9, 1.9, 0.03, M(0x6fa8b4), cx, GY + 0.48, cz, 24, g);
+    // 内壁
+    CY(1.84, 1.84, 0.28, matStone, cx, GY + 0.3, cz, 24, g);
+    // 中柱
+    CY(0.34, 0.44, 0.9, matStoneLight, cx, GY + 0.9, cz, 12, g, 1.03);
+    CY(1.0, 0.55, 0.3, matStoneLight, cx, GY + 1.45, cz, 18, g, 1.02);
+    CY(0.86, 0.86, 0.05, M(0x8fd0dd), cx, GY + 1.6, cz, 18, g);
+    // 水柱
+    CY(0.07, 0.07, 0.75, MB(0xdff4fb, { transparent: true, opacity: 0.85 }), cx, GY + 2.0, cz, 8, g);
+    var jet = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), MB(0xe6f8ff, { transparent: true, opacity: 0.9 }));
+    jet.position.set(cx, GY + 2.38, cz);
+    g.add(jet);
+    // 落水
+    for (var i = 0; i < 6; i++) {
+      var a = (i / 6) * Math.PI * 2;
+      var s = CY(0.045, 0.05, 0.95, MB(0xdff4fb, { transparent: true, opacity: 0.6 }), cx + Math.cos(a) * 0.94, GY + 1.06, cz + Math.sin(a) * 0.94, 6, g);
+      s.rotation.x = Math.cos(a) * 0.12;
+      s.rotation.z = -Math.sin(a) * 0.12;
+    }
+    // 水面波纹
+    var rings = [];
+    for (var i = 0; i < 4; i++) {
+      rings.push({ x: cx, y: GY + 0.455, z: cz, s: 0.9 + i * 0.26, rx: -Math.PI / 2, rz: random() * 3 });
+    }
+    g.scale.setScalar(0.86);
+    // 池边小柱
+    for (var i = 0; i < 8; i++) {
+      var a = (i / 8) * Math.PI * 2 + 0.2;
+      B(0.22, 0.3, 0.22, matStoneLight, cx + Math.cos(a) * 2.16, GY + 0.15, cz + Math.sin(a) * 2.16, g, 1.05);
+    }
+    return g;
+  }
+
+  function bench(x, z, ry) {
+    var g = new THREE.Group();
+    for (var i = 0; i < 4; i++) {
+      B(1.7, 0.07, 0.11, matWood, 0, 0.45, -0.18 + i * 0.12, g, 1.04);
+    }
+    [-0.72, 0.72].forEach(function (dx) {
+      B(0.1, 0.45, 0.5, matWoodShade, dx, 0.22, 0, g);
+    });
+    for (var i = 0; i < 3; i++) {
+      B(1.7, 0.09, 0.09, matWood, 0, 0.62 + i * 0.14, 0.24, g);
+    }
+    [-0.72, 0.72].forEach(function (dx) {
+      B(0.08, 0.45, 0.08, matWoodShade, dx, 0.68, 0.26, g);
+    });
+    g.position.set(x, GY, z);
+    g.rotation.y = ry;
+    root.add(g);
+    return g;
+  }
+
+  function birdbath(x, z) {
+    var g = new THREE.Group();
+    CY(0.32, 0.4, 0.16, matStoneDark, 0, 0.08, 0, 12, g);
+    CY(0.14, 0.18, 0.72, matStoneLight, 0, 0.5, 0, 12, g, 1.03);
+    CY(0.46, 0.32, 0.2, matStoneLight, 0, 0.94, 0, 16, g, 1.02);
+    CY(0.4, 0.4, 0.04, M(0x9fd8e2), 0, 1.03, 0, 16, g);
+    g.position.set(x, GY, z);
+    root.add(g);
+    return g;
+  }
+
+  function pots(x, z) {
+    var g = new THREE.Group();
+    var spots = [[0, 0, 1], [0.75, 0.35, 0.8], [-0.6, 0.5, 0.9]];
+    spots.forEach(function (values) { var dx = values[0], dz = values[1], s = values[2];
+      CY(0.26 * s, 0.2 * s, 0.36 * s, matTerracotta, dx, 0.18 * s, dz, 12, g, 1.04);
+      CY(0.28 * s, 0.28 * s, 0.06 * s, matTerracotta, dx, 0.36 * s, dz, 12, g);
+      for (var i = 0; i < 8; i++) {
+        var a = random() * Math.PI * 2, r = random() * 0.24 * s;
+        var f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.1 * s, 0), M(pick([0xf07fa8, 0xf5d04e, 0xfdfaf0, 0x9b7fd0])));
+        f.position.set(dx + Math.cos(a) * r, 0.44 * s + random() * 0.2 * s, dz + Math.sin(a) * r);
+        f.castShadow = true;
+        g.add(f);
+      }
+      for (var i = 0; i < 3; i++) {
+        var a = random() * Math.PI * 2;
+        var leaf = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16 * s, 0), M(pick([0x5c9a46, 0x4e883c])));
+        leaf.position.set(dx + Math.cos(a) * 0.2 * s, 0.4 * s, dz + Math.sin(a) * 0.2 * s);
+        leaf.scale.y = 0.6;
+        g.add(leaf);
+      }
+    });
+    g.position.set(x, GY, z);
+    root.add(g);
+    return g;
+  }
+
+  function flowerIsland(x, z, r) {
+    var g = new THREE.Group();
+    CY(r, r + 0.06, 0.16, matStoneDark, x, GY + 0.08, z, 26, g);
+    CY(r - 0.12, r - 0.12, 0.08, matSoil, x, GY + 0.19, z, 24, g);
+    var heads = [], stems = [], mounds = [];
+    var cols = [0xf07fa8, 0xfdfaf0, 0xf5d04e, 0x9b7fd0, 0xef8352];
+    for (var i = 0; i < 46; i++) {
+      var a = random() * Math.PI * 2, rr = Math.sqrt(random()) * (r - 0.2);
+      var px = x + Math.cos(a) * rr, pz = z + Math.sin(a) * rr;
+      var h = rnd(0.24, 0.5);
+      mounds.push({ x: px, y: GY + 0.24, z: pz, s: rnd(0.2, 0.32), sy: 0.16, c: pick([0x4d8140, 0x5b9149]) });
+      stems.push({ x: px, y: GY + 0.22 + h / 2, z: pz, s: 1, sy: h, c: 0x4f8038 });
+      heads.push({ x: px, y: GY + 0.22 + h, z: pz, s: rnd(0.1, 0.16), c: pick(cols) });
+    }
+    instanced(new THREE.IcosahedronGeometry(1, 0), M(0xffffff), mounds, g, false);
+    instanced(new THREE.CylinderGeometry(0.012, 0.016, 1, 4), M(0xffffff), stems, g, false);
+    instanced(new THREE.IcosahedronGeometry(1, 0), M(0xffffff), heads, g);
+    return g;
+  }
+
+  function roseObelisk(x, z) {
+    var g = new THREE.Group();
+    var H = 3.0;
+    for (var i = 0; i < 4; i++) {
+      var a = (i / 4) * Math.PI * 2 + 0.4;
+      tube(new THREE.Vector3(Math.cos(a) * 0.62, 0, Math.sin(a) * 0.62), new THREE.Vector3(Math.cos(a) * 0.1, H, Math.sin(a) * 0.1), 0.035, matWood, g);
+    }
+    [0.5, 1.4, 2.2].forEach(function (y) {
+      var rr = 0.62 - (y / H) * 0.5;
+      var ring = new THREE.Mesh(new THREE.TorusGeometry(rr, 0.03, 4, 12), matWood);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = y;
+      g.add(ring);
+    });
+    var blooms = [], leaves = [];
+    for (var i = 0; i < 78; i++) {
+      var y = rnd(0.35, 2.95);
+      var rr = (0.62 - (y / H) * 0.5) + rnd(-0.1, 0.12);
+      var a = random() * Math.PI * 2;
+      leaves.push({ x: Math.cos(a) * rr, y: y, z: Math.sin(a) * rr, s: rnd(0.12, 0.22), c: pick([0x5a9445, 0x6ba84f]) });
+      blooms.push({ x: Math.cos(a) * rr, y: y + rnd(-0.1, 0.1), z: Math.sin(a) * rr, s: rnd(0.1, 0.17), c: pick([0xf07fa8, 0xf9c2d6, 0xffffff]) });
+    }
+    instanced(new THREE.IcosahedronGeometry(1, 0), M(0xffffff), leaves, g, false);
+    instanced(new THREE.IcosahedronGeometry(1, 0), M(0xffffff), blooms, g);
+    g.position.set(x, GY, z);
+    return g;
+  }
+
+  function buildProps() {
+    var g = new THREE.Group();
+    g.add(buildFountain());
+    g.add(flowerIsland(9.9, 7.6, 1.65));
+    g.add(roseObelisk(-8.8, -3.2));
+    g.add(flowerIsland(11.6, -6.6, 1.25));
+    var b1 = bench(2.3, 5.4, Math.PI * 0.5);
+    g.add(b1);
+    var b2 = bench(-10.6, 2.2, Math.PI * 0.15);
+    g.add(b2);
+    g.add(birdbath(-2.2, -1.4));
+    g.add(pots(-8.4, -5.6));
+    g.add(pots(1.2, -7.4));
+    g.add(pots(9.6, 6.4));
+
+    // 浇水壶
+    var can = new THREE.Group();
+    CY(0.16, 0.19, 0.32, M(0x9fb3ad), 0, 0.16, 0, 10, can);
+    var sp = CY(0.028, 0.032, 0.4, M(0x9fb3ad), 0.17, 0.3, 0, 6, can);
+    sp.rotation.z = -0.75;
+    B(0.14, 0.05, 0.04, M(0x9fb3ad), -0.12, 0.34, 0, can);
+    can.position.set(-6.6, GY, -5.2);
+    can.rotation.y = 0.5;
+    g.add(can);
+
+    // 园艺小推车（木箱）
+    B(0.8, 0.36, 0.5, matWoodShade, 11.2, GY + 0.18, 12.2, g, 1.04);
+    B(0.86, 0.06, 0.54, matWood, 11.2, GY + 0.38, 12.2, g);
+    [-0.3, 0.3].forEach(function (dx) {
+      CY(0.16, 0.16, 0.06, M(0x7a7a72), 11.2 + dx, GY + 0.1, 12.48, 10, g);
+    });
+
+    // 园灯柱
+    [[-11.2, 11.6], [9.8, -7.6]].forEach(function (values) { var x = values[0], z = values[1];
+      CY(0.07, 0.09, 1.9, matWood, x, GY + 0.95, z, 8, g);
+      B(0.3, 0.34, 0.3, MB(0xfff6de), x, GY + 2.0, z, g);
+      B(0.36, 0.06, 0.36, matWoodShade, x, GY + 2.19, z, g);
+      B(0.3, 0.06, 0.3, matWoodShade, x, GY + 1.82, z, g);
+    });
+
+    return g;
+  }
+
+
+  var turf = buildGround(), fence = buildFence(), arches = buildArches();
+  var flowers = buildFlowers();
+  var outerGate = buildGate(); outerGate.scale.y = 1.7; outerGate.position.y = -GY * 0.7;
+  root.add(turf, fence, outerGate, buildHedges(), buildGazebo(), arches, buildTrees(), flowers, buildProps());
+  function exemptGroup(group, why) {
+    group.traverse(function (mesh) { if (mesh.isMesh) mesh.userData.colExempt = why; });
+  }
+  exemptGroup(flowers, '花坛花朵：可穿行植被');
+  exemptGroup(fence, '花园外栅栏：使用连续分段碰撞');
+  root.traverse(function (mesh) {
+    if (mesh.isInstancedMesh) mesh.userData.colExempt = mesh.userData.colExempt || '花园植被与表面点缀';
+    if (mesh.isMesh && mesh.material === outlineMat) mesh.userData.colExempt = '花园物体描边';
+  });
+
+  var butterflies = [];
+  function buildButterflies() {
+    var g = new THREE.Group();
+    var cols = [0xf5d04e, 0xfdfaf0, 0x8fb8ee, 0xf2913f, 0xf07fa8];
+    for (var i = 0; i < 7; i++) {
+      var b = new THREE.Group();
+      var col = cols[i % cols.length];
+      var wingGeo = new THREE.CircleGeometry(0.16, 7);
+      [-1, 1].forEach(function (s) {
+        var w = new THREE.Mesh(wingGeo, MB(col, { side: THREE.DoubleSide }));
+        w.position.x = s * 0.15;
+        w.rotation.y = s * 0.5;
+        w.scale.set(1, 0.7, 1);
+        b.add(w);
+        b.userData[s > 0 ? 'r' : 'l'] = w;
+      });
+      B(0.03, 0.03, 0.14, M(0x4a4040), 0, 0, 0, b);
+      var a = random() * Math.PI * 2, r = rnd(2, 8);
+      b.position.set(Math.cos(a) * r, GY + rnd(0.7, 1.6), Math.sin(a) * r);
+      b.userData.ph = random() * 6.28;
+      b.userData.sp = rnd(0.5, 1.0);
+      b.userData.base = b.position.clone();
+      g.add(b);
+      butterflies.push(b);
+    }
+    return g;
+  }
+  var butterflyGroup = buildButterflies();
+  root.add(butterflyGroup);
+  exemptGroup(butterflyGroup, '花园蝴蝶：环境动画');
+  var butterflyTime = 0;
+  function updateButterflies(dt) {
+    butterflyTime += dt;
+    var t = butterflyTime;
+      for (var i = 0; i < butterflies.length; i++) {
+        var b = butterflies[i], u = b.userData;
+        b.position.set(
+          u.base.x + Math.sin(t * u.sp * 0.7 + u.ph) * 1.6,
+          u.base.y + Math.sin(t * u.sp * 1.5 + u.ph) * 0.45,
+          u.base.z + Math.cos(t * u.sp * 0.55 + u.ph) * 1.6
+        );
+        var flap = Math.sin(t * 9 + u.ph) * 0.9;
+        if (u.l) u.l.rotation.y = -0.4 - flap;
+        if (u.r) u.r.rotation.y = 0.4 + flap;
+        b.rotation.y = Math.sin(t * 0.5 + u.ph) * 1.2;
+      }
+  }
+  var birdLight = new THREE.PointLight(0xfff4e2, 9, 7, 2);
+  birdLight.position.set(GAZEBO.x, GY + 2.3, GAZEBO.z);
+  root.add(birdLight);
+  var sky = new THREE.Mesh(new THREE.SphereGeometry(180, 20, 12),
+    new THREE.MeshBasicMaterial({ color: 0xb4d7e9, side: THREE.BackSide, depthWrite: false, fog: false }));
+  sky.userData.colExempt = '花园天空';
+  root.add(sky);
+  return { host: root, lights: { hemi: hemi, sun: sun, fill: fill, bounce: bounce },
+    sky: sky, arch: arches.children[0], groundY: GY, gateX: GATE.x, updateButterflies: updateButterflies };
+}
+
+var sunnyGarden = buildSunnyGarden(scene);
 var spawnRoot = new THREE.Group(); spawnRoot.name = 'spawnWorld';
 /* v0.26.0 重叠层：出生世界不再偏移，与便利店/场地共用世界坐标 */
 spawnRoot.position.set(0, 0, 0);
@@ -6054,7 +7106,7 @@ var portalTip = null, portalBtn = null;
 /* 把世界一分为三：保留地面/角色/世界灯/便利店关，其余（房子、树、靶板、散布、
    旧广场道具）整体搬进 fieldRoot。 */
 function splitWorlds() {
-  var keep = [ground, pawn, hemi, sun, sun.target, duskLevel.host, duskLevel.sky, spawnRoot, fieldRoot];
+  var keep = [ground, pawn, hemi, sun, sun.target, duskLevel.host, duskLevel.sky, sunnyGarden.host, spawnRoot, fieldRoot];
   var kids = scene.children.slice();
   for (var i = 0; i < kids.length; i++) {
     var o = kids[i];
@@ -6067,11 +7119,18 @@ function setWorldVisible(w) {
   spawnRoot.visible = (w === 'spawn');
   fieldRoot.visible = (w === 'field');
   duskLevel.host.visible = (w === 'konbini');
+  sunnyGarden.host.visible = (w === 'garden');
 }
 
 /* 每个世界自己的天光：便利店关用关卡自带的黄昏灯 + 橙雾，另外两个世界用主题灯。 */
 function applyWorldLighting(w) {
   var th = THEMES[themeName];
+  if (w === 'garden') {
+    hemi.intensity = 0; sun.intensity = 0; sun.castShadow = false;
+    duskLevel.sky.visible = false;
+    scene.fog.color.setHex(0xb4d7e9); scene.fog.near = 34; scene.fog.far = 115;
+    return;
+  }
   if (w === 'konbini') {
     hemi.intensity = 0; sun.intensity = 0; sun.castShadow = false;
     var L = duskLevel.lights;
@@ -6104,6 +7163,7 @@ var DOOR_OPEN_ANGLE = -2.00, DOOR_PASS_ANGLE = 1.55;
 var DOOR_A = { x: 1.65, z: -2.7 };
 var DOOR_B = { x: 4.15, z: -2.7 };
 var DOOR_FACE = Math.PI;
+var GARDEN_ARCH = { x: 6.95, z: -2.7, halfWidth: 0.68, shoulder: 2.81, crown: 3.30 };
 function makeStandaloneDoor(parent, x, z, ry, name) {
   var g = new THREE.Group(); g.name = name;
   g.position.set(x, 0, z); g.rotation.y = ry;
@@ -6164,7 +7224,59 @@ function buildSpawnWorld() {
 }
 
 /* ---------------- 建三组世界的门并互相链接 ---------------- */
-var doorK, doorF, doorRK, doorRF;
+var doorK, doorF, doorRK, doorRF, doorG, doorRG;
+function gardenArchPortal(group, name, world, dest) {
+  var a = GARDEN_ARCH;
+  var opening = new THREE.Shape();
+  opening.moveTo(-a.halfWidth, 0.01);
+  opening.lineTo(a.halfWidth, 0.01);
+  opening.lineTo(a.halfWidth, a.shoulder);
+  for (var i = 1; i <= 12; i++) {
+    var phi = i * Math.PI / 12;
+    opening.lineTo(a.halfWidth * Math.cos(phi), a.shoulder + (a.crown - a.shoulder) * Math.sin(phi));
+  }
+  opening.closePath();
+  var plane = new THREE.Mesh(new THREE.ShapeGeometry(opening),
+    new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, toneMapped: false }));
+  return { group: group, name: name, world: world, dest: dest, plane: plane,
+    open: true, focus: false, apertureWidth: a.halfWidth, apertureHeight: a.shoulder };
+}
+
+function connectGardenArch() {
+  var a = GARDEN_ARCH, host = sunnyGarden.host;
+  var entry = sunnyGarden.arch;
+  host.rotation.y = DOOR_FACE - entry.rotation.y;
+  var anchor = entry.getWorldPosition(new THREE.Vector3());
+  host.position.set(a.x - anchor.x, -sunnyGarden.groundY, a.z - anchor.z);
+  host.updateMatrixWorld(true);
+  var twin = entry.clone(true);
+  twin.position.set(a.x, 0, a.z);
+  twin.rotation.y = DOOR_FACE;
+  twin.name = 'gardenArchSpawn';
+  spawnRoot.add(twin);
+  doorG = gardenArchPortal(twin, 'doorGarden', 'spawn', 'garden');
+  doorRG = gardenArchPortal(entry, 'returnGarden', 'garden', 'spawn');
+  doorG.arrive = doorRG;
+  doorRG.arrive = doorG;
+}
+
+function registerGardenFence() {
+  var g = sunnyGarden, edge = 14;
+  var segments = [
+    [-edge, -edge, edge, -edge], [edge, -edge, edge, edge],
+    [-edge, -edge, -edge, edge],
+    [-edge, edge, g.gateX - 1.7, edge], [g.gateX + 1.7, edge, edge, edge]
+  ];
+  for (var i = 0; i < segments.length; i++) {
+    var s = segments[i], dx = s[2] - s[0], dz = s[3] - s[1];
+    var mid = g.host.localToWorld(new THREE.Vector3((s[0] + s[2]) / 2, g.groundY + 0.61, (s[1] + s[3]) / 2));
+    addCollider({ position: mid, rotation: { y: g.host.rotation.y + Math.atan2(dx, dz) } },
+      0.18, Math.hypot(dx, dz), 1.22);
+    var col = colliders[colliders.length - 1];
+    col.world = 'garden'; col.kind = 'fence';
+  }
+}
+
 function buildPortalDoors() {
   /* v0.27.8：两扇门并排立在房子车道口前，门面朝房子（-z）。
      世界锚在门上：跨门只换层，人不动、镜头不转，变的是世界。 */
@@ -6180,7 +7292,8 @@ function buildPortalDoors() {
   doorF.dest = 'field';   doorF.world = 'spawn'; doorF.arrive = doorRF;
   doorRK.dest = 'spawn';  doorRK.world = 'konbini'; doorRK.arrive = doorK;
   doorRF.dest = 'spawn';  doorRF.world = 'field';  doorRF.arrive = doorF;
-  portalDoors = [doorK, doorF, doorRK, doorRF];
+  connectGardenArch();
+  portalDoors = [doorK, doorF, doorRK, doorRF, doorG, doorRG];
 }
 
 /* ---------------- 门的提示 / 手机按钮 ---------------- */
@@ -6220,6 +7333,7 @@ function togglePortal(d) {
 }
 
 function portalPassable(d) {
+  if (!d.hinge) return true;
   return Math.abs(d.angle) >= DOOR_PASS_ANGLE;
 }
 
@@ -6243,6 +7357,7 @@ function initPortals() {
     d.mask.material.stencilFunc = THREE.AlwaysStencilFunc;
     d.mask.material.stencilZPass = THREE.ReplaceStencilOp;
     d.mask.material.depthWrite = false;
+    if (!d.hinge) continue;
     var yaw = new THREE.Euler().setFromQuaternion(q, 'YXZ').y;
     var blk = { x: wp.x, z: wp.z, x0: wp.x, z0: wp.z,
       hw: (DOOR_W / 2 + 0.06) * DOOR_SCALE, hd: 0.16 * DOOR_SCALE,
@@ -6280,6 +7395,7 @@ function updatePortals(dt) {
   var best = null, bestDistance = Infinity;
   for (var i = 0; i < portalDoors.length; i++) {
     var d = portalDoors[i];
+    if (!d.hinge) continue;
     if (d.angle !== d.target) {
       d.angle += (d.target - d.angle) * Math.min(1, dt * 9);
       if (Math.abs(d.target - d.angle) < 0.001) d.angle = d.target;
@@ -6316,8 +7432,11 @@ function crossPortal(previousPosition) {
     portalEnd.copy(P.pos).applyMatrix4(d.worldToDoor);
     if ((portalStart.z >= 0) === (portalEnd.z >= 0)) continue;
     portalStart.lerp(portalEnd, portalStart.z / (portalStart.z - portalEnd.z));
-    if (Math.abs(portalStart.x) + rBody / DOOR_SCALE >= DOOR_W / 2 ||
-        portalStart.y < -0.1 || portalStart.y + 1.8 / DOOR_SCALE > DOOR_H) continue;
+    var scale = d.hinge ? DOOR_SCALE : 1;
+    var halfWidth = d.hinge ? DOOR_W / 2 : d.apertureWidth;
+    var height = d.hinge ? DOOR_H : d.apertureHeight;
+    if (Math.abs(portalStart.x) + rBody / scale >= halfWidth ||
+        portalStart.y < -0.1 || portalStart.y + 1.8 / scale > height) continue;
     beginPortalBlend(curWorld, d.dest);
     curWorld = d.dest;
     setWorldVisible(curWorld);
@@ -6339,7 +7458,7 @@ function renderPortals(world) {
   var background = scene.background;
   for (var i = 0; i < portalDoors.length; i++) {
     var d = portalDoors[i];
-    d.mask.visible = d.world === world && Math.abs(d.angle) > 0.08 && portalFrustum.intersectsObject(d.mask);
+    d.mask.visible = d.world === world && (!d.hinge || Math.abs(d.angle) > 0.08) && portalFrustum.intersectsObject(d.mask);
     if (!d.mask.visible) continue;
     d.mask.material.color.copy(background);
     portalViews.push(d);
@@ -6461,6 +7580,7 @@ function initPortalWorlds() {
 buildSpawnWorld();
 BUILD_WORLD = _bwS;
   buildPortalDoors();
+  registerGardenFence();
   setWorldVisible('spawn');
   applyWorldLighting('spawn');
 }
@@ -6714,6 +7834,7 @@ function loop(t) {
   updateStoreDoor(dt);
   updatePortals(dt);
   if (portalVizDirty) { refreshColViz(); portalVizDirty = false; }
+  if (curWorld === 'garden' || curWorld === 'spawn' || portalBlendWorld === 'garden') sunnyGarden.updateButterflies(dt);
   drawPortalWorld(dt);
   adaptResolution(dt);
   /* 音效在渲染之后播：手机上 <audio> / WebAudio 的调度是同步开销，
@@ -6729,7 +7850,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.28.1';
+window.__worldVersion = 'v0.29.0';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
@@ -6784,7 +7905,7 @@ targets: targets,
   get portals() {
     var out = [];
     for (var i = 0; i < portalDoors.length; i++) { var d = portalDoors[i];
-      out.push({ name: d.name, open: d.open, focus: d.focus, world: d.world, dest: d.dest }); }
+      out.push({ name: d.name, open: d.open, focus: d.focus, world: d.world, dest: d.dest, arch: !d.hinge }); }
     return { cur: curWorld, focus: portalFocusDoor ? portalFocusDoor.name : null, doors: out };
   },
   gotoWorld: function (w) { portalBlendWorld = null; curWorld = w; setWorldVisible(w); applyWorldLighting(w); refreshColViz(); return curWorld; },

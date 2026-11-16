@@ -4,7 +4,7 @@
    ③ 穿过门面：切到便利店世界，落在回程门前
    ④ 便利店侧开门、穿回出生世界
    ⑤ 场地门同理：穿到场地世界再穿回来
-   ⑥ 碰撞体 629、全程无 JS 异常
+   ⑥ 碰撞体 820、全程无 JS 异常
    软件渲染帧率低，状态都用轮询等。 */
 const list = await (await fetch('http://127.0.0.1:9230/json/list')).json();
 const page = list.filter(t => t.type === 'page').pop();
@@ -52,8 +52,8 @@ await until(async () => (await ev('typeof __world')) === 'object', 12000);
 console.log('\n【1】出生世界');
 const p0 = await portals();
 ok(p0.cur === 'spawn', '出生在空场世界', p0.cur);
-ok(p0.doors.length === 4, '四扇门（各世界一进一出，回程门跟着世界隐藏）', p0.doors.length);
-ok(p0.doors.every(d => d.open === false), '门一开始都关着');
+ok(p0.doors.length === 6, '两组木门和一组花藤拱门', p0.doors.length);
+ok(p0.doors.every(d => d.open === d.arch), '木门默认关闭，花藤拱门始终连通');
 ok(p0.focus === 'doorKonbini', '出生点就能看到开门提示');
 const pos0 = JSON.parse(await ev('JSON.stringify([+__world.P.pos.x.toFixed(1), +__world.P.pos.z.toFixed(1)])'));
 ok(Math.abs(pos0[0] - 2.9) < 2 && Math.abs(pos0[1] + 0.5) < 2, '出生在两扇门正南的空地', pos0);
@@ -79,9 +79,15 @@ ok(await until(async () => (await state()).doorField.open === true), '打开场�
 ok(await walkThrough(4.15, -3.5, 's', 'field'), '走进旧测试场', (await portals()).cur);
 ok(await walkThrough(4.15, -2.1, 'w', 'spawn'), '从场地走回空场世界', (await portals()).cur);
 
-console.log('\n【6】收尾');
+console.log('\n【6】晴日花园：通过第一座花藤拱门往返');
+ok(await walkThrough(6.95, -1.9, 'w', 'garden'), '走过拱门进入晴日花园', (await portals()).cur);
+ok(await walkThrough(6.95, -3.45, 's', 'spawn'), '从原场景的花藤拱门走回出生区', (await portals()).cur);
+const gardenAudit = await ev('__world.collisionAudit().missing');
+ok(gardenAudit === 0, '分世界碰撞覆盖自检无遗漏', gardenAudit);
+
+console.log('\n【7】收尾');
 const n = await ev('window.__colliders.length');
-ok(n === 629, '碰撞体 629 个', n);
+ok(n === 820, '碰撞体 820 个', n);
 const errs = await ev('window.__errors ? window.__errors.length : 0');
 ok(errs === 0, '全程无 JS 异常', errs);
 console.log('\n' + (fail === 0 ? '全部通过' : '有 ' + fail + ' 项失败') + '（' + pass + '/' + (pass + fail) + '）');
