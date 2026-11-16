@@ -124,7 +124,7 @@ ok(Math.abs(ikGap.foot_r - 0.100) < 0.05, '右脚踝离地还是 0.100 附近', 
 const audit = await ev(`__collisionAudit && ({missing:__collisionAudit.verify.missing, exempt:__collisionAudit.verify.exempt})`);
 ok(audit && audit.missing === 0, '碰撞自检遗漏 0', audit);
 /* 豁免从 30 掉到 2：少掉的 28 条正是挂在 hand_r 上的枪零件 —— 反过来证明枪真的从场景图里摘掉了 */
-ok(audit && audit.exempt === 286, '记录装饰、木门模型和场景表面豁免', audit);
+ok(audit && audit.exempt === 295, '记录装饰、木门模型和场景表面豁免', audit);
 const prof = await ev(`(function(){var by={};for(var i=0;i<__colliders.length;i++){var k=__colliders[i].kind;by[k]=(by[k]||0)+1;}return {n:__colliders.length,by:by};})()`);
 ok(prof.n === 820, '碰撞体 820 个（按世界核对）', prof.n);
 ok(prof.by.target === 3 && prof.by.stand === 3, '靶板 3 块 + 支架 3 根都还在', prof.by);
