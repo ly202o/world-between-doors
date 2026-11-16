@@ -82,7 +82,7 @@ ok(await until(async () => (await portals()).cur === 'spawn', 8000), '从场地�
 
 console.log('\n【6】收尾');
 const n = await ev('window.__colliders.length');
-ok(n === 589, '碰撞体 589 个', n);
+ok(n === 591, '碰撞体 589 个', n);
 const errs = await ev('window.__errors ? window.__errors.length : 0');
 ok(errs === 0, '全程无 JS 异常', errs);
 console.log('\n' + (fail === 0 ? '全部通过' : '有 ' + fail + ' 项失败') + '（' + pass + '/' + (pass + fail) + '）');

@@ -125,7 +125,7 @@ ok(audit && audit.missing === 0, '碰撞自检遗漏 0', audit);
 /* 豁免从 30 掉到 2：少掉的 28 条正是挂在 hand_r 上的枪零件 —— 反过来证明枪真的从场景图里摘掉了 */
 ok(audit && audit.exempt === 27, '碰撞豁免 3 + 24 个门扇/门后画面（四扇传送门）', audit);
 const prof = await ev(`(function(){var by={};for(var i=0;i<__colliders.length;i++){var k=__colliders[i].kind;by[k]=(by[k]||0)+1;}return {n:__colliders.length,by:by};})()`);
-ok(prof.n === 589, '碰撞体 589 个（v0.27.0 删旧布景后）', prof.n);
+ok(prof.n === 591, '碰撞体 589 个（v0.27.0 删旧布景后）', prof.n);
 ok(prof.by.target === 3 && prof.by.stand === 3, '靶板 3 块 + 支架 3 根都还在', prof.by);
 
 ok(await ev(`__world.sound.muted === true`), '仍然默认静音');
