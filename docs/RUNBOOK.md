@@ -9,7 +9,7 @@
 
 ```
 world01/
-├── world01.html          ← 全部游戏代码，单文件自包含（313 万字节 / 5 个 script 块）
+├── world01.html          ← 全部游戏代码，单文件自包含（316 万字节 / 5 个 script 块）
 ├── HANDOFF.md            ← 交接入口（先读）
 ├── AGENTS.md             ← 协作契约
 ├── README.md             ← 给玩家看的简介
