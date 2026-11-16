@@ -228,7 +228,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.29.4</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.29.5</div>
 <script>
 /**
  * @license
@@ -2340,11 +2340,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.29.4';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.29.5';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.29.4';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.29.5';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -3023,7 +3023,9 @@ function collideXZ(dt, tx, tz) {
 
 /* 脚下支撑高度：地面 0 与"覆盖当前位置、且顶面在可迈高度内的盒子"取最高 */
 function supportAt(px, pz, feet) {
-  var best = curWorld === 'garden' ? gardenBaseSupport(px, pz) : 0;
+  var best = 0;
+  if (curWorld === 'garden') best = platformSupport(gardenInverse, 14.5, px, pz);
+  if (curWorld === 'konbini') best = platformSupport(duskGroundInverse, 10, px, pz);
   var limit = feet + STEP_UP + 0.02;
   for (var i = 0; i < colliders.length; i++) {
     var col = colliders[i];
@@ -3047,8 +3049,9 @@ function supportAt(px, pz, feet) {
 }
 
 function update(dt) {
-  if (curWorld === 'garden' && P.pos.y < -8) {
-    P.pos.set(GARDEN_ARCH.x - 1.2, 0, GARDEN_ARCH.z);
+  if ((curWorld === 'garden' || curWorld === 'konbini') && P.pos.y < -8) {
+    var entry = curWorld === 'garden' ? GARDEN_ARCH : DOOR_A;
+    P.pos.set(entry.x - 1.2, 0, entry.z);
     portalPreviousPosition.copy(P.pos);
     P.vy = 0; P.onGround = true;
     motionDebug.stepTarget = 0;
@@ -4060,6 +4063,7 @@ function buildDuskLevel(worldScene) {
     });
     var sky = new THREE.Mesh(new THREE.SphereGeometry(280, 40, 24), skyMat);
     sky.frustumCulled = false;
+    sky.renderOrder = -100;
     scene.add(sky);
     /* ============================================================================
        01 · TEXTURES — every graphic is painted procedurally on a canvas
@@ -4736,9 +4740,18 @@ function buildDuskLevel(worldScene) {
     var BX0 = -4.6, BX1 = 10.0, BZ0 = -10.0, BZ1 = 5.2; // raised block bounds
     var BLOCK_Y = 0.22;
     var W = 20;
-    /* 台座已去掉：模型原本坐在一块 20.5m 的收藏品底座上，
-       搬进世界后底座会压进地面并在边缘 z-fighting 出一圈亮边（像浮岛）。
-       路面 y=0.005、人行道 y=0.22 本身贴地，去掉底座后街角直接长在地上。 */
+    /* 原版街角台座。可行走范围由平台支撑处理。 */
+    {
+        var plinth = piece('plinth', 0, 0);
+        boxAt(plinth, 21.3, 0.22, 21.3, toon(PAL.creamDark), 0, -1.30, 0);
+        var body = boxAt(plinth, 20.5, 1.08, 20.5, toon(PAL.cream), 0, -1.08, 0);
+        outline(body, 0.03);
+        boxAt(plinth, 20.58, 0.09, 20.58, toon(0xb09b78), 0, -0.16, 0);
+        boxAt(plinth, 20.02, 0.10, 20.02, toon(PAL.creamLight), 0, -0.125, 0);
+        plinth.traverse(function (mesh) {
+            if (mesh.isMesh) mesh.userData.colExempt = '便利店台座：按平台范围提供支撑';
+        });
+    }
     /* --------------------------------------------------------------- asphalt -- */
     {
         var p = piece('asphalt', 0.42, 8);
@@ -6044,6 +6057,8 @@ BUILD_WORLD = _bwD;
 duskLevel.host.position.set(DUSK_SPOT.x, 0, DUSK_SPOT.z);
 duskLevel.host.rotation.y = DUSK_YAW;
 scene.add(duskLevel.host);
+duskLevel.host.updateMatrixWorld(true);
+var duskGroundInverse = duskLevel.host.matrixWorld.clone().invert();
 duskLevel.sky.material.transparent = true;
 duskLevel.sky.material.opacity = 0;
 duskLevel.sky.visible = false;
@@ -7164,7 +7179,7 @@ function setWorldVisible(w) {
   fieldRoot.visible = (w === 'field');
   duskLevel.host.visible = (w === 'konbini');
   sunnyGarden.host.visible = (w === 'garden');
-  ground.visible = (w !== 'garden');
+  ground.visible = (w !== 'garden' && w !== 'konbini');
 }
 
 /* 每个世界自己的天光：便利店关用关卡自带的黄昏灯 + 橙雾，另外两个世界用主题灯。 */
@@ -7184,7 +7199,7 @@ function applyWorldLighting(w) {
     L.fill.intensity = IS_MOBILE ? 0 : 0.55; L.bounce.intensity = IS_MOBILE ? 0 : 0.18;
     L.sun.castShadow = true;
     duskLevel.sky.visible = true; duskLevel.sky.material.opacity = 1;
-    scene.fog.color.setHex(0x7d5449); scene.fog.near = 45; scene.fog.far = 130;
+    scene.fog.color.setHex(0x7d5449); scene.fog.near = 140; scene.fog.far = 230;
   } else {
     /* v0.27.8：这两个世界各只有一套光——主题的天光，不再靠摆灯笼照亮。
        出生世界是空场，环境光抬一档，否则删掉布景后就是一片黑。 */
@@ -7289,10 +7304,10 @@ function gardenArchPortal(group, name, world, dest) {
 }
 
 var gardenInverse = new THREE.Matrix4();
-var gardenSupportPoint = new THREE.Vector3();
-function gardenBaseSupport(x, z) {
-  gardenSupportPoint.set(x, 0, z).applyMatrix4(gardenInverse);
-  if (Math.max(Math.abs(gardenSupportPoint.x), Math.abs(gardenSupportPoint.z)) <= 14.5) return 0;
+var platformPoint = new THREE.Vector3();
+function platformSupport(inverse, halfSize, x, z) {
+  platformPoint.set(x, 0, z).applyMatrix4(inverse);
+  if (Math.max(Math.abs(platformPoint.x), Math.abs(platformPoint.z)) <= halfSize) return 0;
   return -100;
 }
 
@@ -7926,7 +7941,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.29.4';
+window.__worldVersion = 'v0.29.5';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
