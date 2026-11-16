@@ -71,7 +71,7 @@ const tr = JSON.parse(await ev(`(() => {
 ok('采样器收到帧（软件渲染慢，够覆盖进场那半秒就行）', tr.n >= 12, tr.n + ' 帧');
 ok('方位全程都在 45°（没有从 0° 转过来）', tr.yMax - tr.yMin < 0.3 && near(tr.yMin, 45, 0.3),
    tr.yMin.toFixed(2) + '° ~ ' + tr.yMax.toFixed(2) + '°');
-ok('仰角全程都在 28°（没有从 0.30rad 爬上来）', tr.pMax - tr.pMin < 0.3 && near(tr.pMin, deg(s0.pitchTarget), 0.3),
+ok('仰角全程都在 30°（没有从 0.30rad 爬上来）', tr.pMax - tr.pMin < 0.3 && near(tr.pMin, deg(s0.pitchTarget), 0.3),
    tr.pMin.toFixed(2) + '° ~ ' + tr.pMax.toFixed(2) + '°');
 ok('机距全程贴着目标（没有从别的距离飘过来）', tr.distMaxDev < 0.05, '最大偏差 ' + tr.distMaxDev.toFixed(4) + 'm');
 
