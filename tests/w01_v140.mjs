@@ -107,7 +107,8 @@ await key('v', 'KeyV', 86); await sleep(400);
 ok(await ev(`__world.viewMode`) === vm0, '四档转一圈回到原档', vm0);
 
 console.log('\n[7] 脚 IK / 碰撞自检 / 音效 / 侧栏 都还在');
-await sleep(400);
+await ev('__world.P.pos.set(25, 0, 25)');
+await sleep(650);
 /* 踝高要减去脚下支撑面高度：刚才可能已经走到土坡上，绝对高度会整体抬高 */
 const ikGap = await ev(`(function(){
   var b=__world.bones, o={sup:+__world.supportAt(__world.P.pos.x,__world.P.pos.z).toFixed(3)};
@@ -125,7 +126,7 @@ ok(audit && audit.missing === 0, '碰撞自检遗漏 0', audit);
 /* 豁免从 30 掉到 2：少掉的 28 条正是挂在 hand_r 上的枪零件 —— 反过来证明枪真的从场景图里摘掉了 */
 ok(audit && audit.exempt === 27, '碰撞豁免 3 + 24 个门扇/门后画面（四扇传送门）', audit);
 const prof = await ev(`(function(){var by={};for(var i=0;i<__colliders.length;i++){var k=__colliders[i].kind;by[k]=(by[k]||0)+1;}return {n:__colliders.length,by:by};})()`);
-ok(prof.n === 595, '碰撞体 589 个（v0.27.0 删旧布景后）', prof.n);
+ok(prof.n === 629, '碰撞体 629 个（按世界核对）', prof.n);
 ok(prof.by.target === 3 && prof.by.stand === 3, '靶板 3 块 + 支架 3 根都还在', prof.by);
 
 ok(await ev(`__world.sound.muted === true`), '仍然默认静音');

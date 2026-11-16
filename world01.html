@@ -228,7 +228,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.28.0</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.28.1</div>
 <script>
 /**
  * @license
@@ -454,6 +454,7 @@ var occluded = [];
    水平当"圆 vs 旋转矩形"解算，垂直只查脚下支撑高度。
    reach 是粗筛半径（半对角线 + 角色半径），逐帧先用它挡掉远处的盒子。 */
 var colliders = [];
+function activeCollider(c) { return !c.disabled && (!c.world || c.world === curWorld); }
 var PLAYER_R = 0.36;      /* 角色碰撞半径的基准值（也是各种安全边距的来源） */
 /* v0.12.5：真正的移动半径由骨骼实际体宽推出来（见 updateBodyRadius）。
    用户说"碰撞不够细"——0.36 是肩宽有余、实际肩半宽约 0.26，贴墙会停出 10cm 空隙。
@@ -515,7 +516,7 @@ function colHoldsPoint(col, x, y, z, tol) {
 }
 
 /* 8 个角点全被某个碰撞体包住 = 这个网格的碰撞已存在 */
-function meshCovered(localBox, matrix, tol) {
+function meshCovered(localBox, matrix, tol, world, owner) {
   for (var k = 0; k < 8; k++) {
     _cnr.set(k & 1 ? localBox.max.x : localBox.min.x,
              k & 2 ? localBox.max.y : localBox.min.y,
@@ -523,7 +524,9 @@ function meshCovered(localBox, matrix, tol) {
     _cnr.applyMatrix4(matrix);
     var hit = false;
     for (var i = 0; i < colliders.length; i++) {
-      if (colHoldsPoint(colliders[i], _cnr.x, _cnr.y, _cnr.z, tol)) { hit = true; break; }
+      var col = colliders[i];
+      if (col.world !== world || col.disabled || ((col.doorOwner || null) !== owner)) continue;
+      if (colHoldsPoint(col, _cnr.x, _cnr.y, _cnr.z, tol)) { hit = true; break; }
     }
     if (!hit) return false;
   }
@@ -554,6 +557,7 @@ function addMeshCollider(localBox, matrix, mesh, res) {
               rotation: { y: 0 } }, w, d, h);
   var c = colliders[colliders.length - 1];
   c.kind = kind; c.auto = true; c.world = worldOfMesh(mesh);
+  c.sourceMesh = mesh; c.doorOwner = storeLeafOf(mesh);
   res.auto++;
   res.autoNames[kind] = (res.autoNames[kind] || 0) + 1;
   return kind;
@@ -572,6 +576,13 @@ function worldOfMesh(m) {
   return 'field';
 }
 
+function storeLeafOf(mesh) {
+  for (var o = mesh; o; o = o.parent) {
+    if (o.name === 'storeDoorL' || o.name === 'storeDoorR') return o;
+  }
+  return null;
+}
+
 function collisionAudit(fill) {
   var res = { meshes: 0, instances: 0, covered: 0, ownMeshes: 0, auto: 0, exempt: 0, missing: 0,
               byKind: {}, exemptions: {}, autoNames: {}, missingNames: [] };
@@ -586,13 +597,14 @@ function collisionAudit(fill) {
     if (!geo.boundingBox && geo.computeBoundingBox) geo.computeBoundingBox();
     if (!geo.boundingBox) return;
     res.meshes++;
+    var world = worldOfMesh(mesh), owner = storeLeafOf(mesh);
 
     if (mesh.isInstancedMesh) {
       for (var ii = 0; ii < mesh.count; ii++) {
         mesh.getMatrixAt(ii, _instM);
         _worldM.multiplyMatrices(mesh.matrixWorld, _instM);
         res.instances++;
-        if (meshCovered(geo.boundingBox, _worldM, TOL)) { res.covered++; continue; }
+        if (meshCovered(geo.boundingBox, _worldM, TOL, world, owner)) { res.covered++; continue; }
         if (fill) addMeshCollider(geo.boundingBox, _worldM, mesh, res);
         else { res.missing++; if (res.missingNames.length < 12) res.missingNames.push(mesh.name || 'instanced#' + ii); }
       }
@@ -601,7 +613,7 @@ function collisionAudit(fill) {
 
     var own = false;
     for (var ci = 0; ci < colliders.length; ci++) if (colliders[ci].mesh === mesh) { own = true; break; }
-    if (meshCovered(geo.boundingBox, mesh.matrixWorld, TOL)) {
+    if (meshCovered(geo.boundingBox, mesh.matrixWorld, TOL, world, owner)) {
       if (own) res.ownMeshes++; else res.covered++;
       return;
     }
@@ -2320,11 +2332,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.28.0';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.28.1';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.28.0';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.28.1';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -2631,7 +2643,7 @@ function insideCol(col, x, z, margin) {
 function bodyClear(x, y, z) {
   for (var i = 0; i < colliders.length; i++) {
     var c = colliders[i];
-    if (NON_BLOCKING_KIND[c.kind]) continue;
+    if (!activeCollider(c) || NON_BLOCKING_KIND[c.kind]) continue;
     if (y >= colHeight(c, x, z) - 0.015 || y + 1.86 <= c.bottom + 0.01) continue;
     var dx = x - c.x, dz = z - c.z;
     if (Math.abs(dx) > c.reach || Math.abs(dz) > c.reach) continue;
@@ -2657,8 +2669,9 @@ function tryClimb(autoOnly) {
   for (var s = 0.30; s <= (P.onGround ? 0.50 : 0.55); s += 0.025) {
     var px = P.pos.x + dirX * s, pz = P.pos.z + dirZ * s;
     for (var i = 0; i < colliders.length; i++) {
-      var col = colliders[i], top = colHeight(col, px, pz), h = top - P.pos.y;
-      if (NON_BLOCKING_KIND[col.kind] || NON_CLIMB_KIND[col.kind]) continue;   /* 树冠/碎石/灌木/靶子不能当攀爬沿 */
+      var col = colliders[i];
+      if (!activeCollider(col) || NON_BLOCKING_KIND[col.kind] || NON_CLIMB_KIND[col.kind]) continue;
+      var top = colHeight(col, px, pz), h = top - P.pos.y;   /* 树冠/碎石/灌木/靶子不能当攀爬沿 */
       if (h < (P.onGround ? CLIMB_MIN_H : 0.20) || h > CLIMB_MAX_H) continue;
       if (!P.onGround && top - motionDebug.launchY > CLIMB_MAX_H + 0.05) continue;
       if (col.kind === 'roof') continue;
@@ -2685,6 +2698,7 @@ function tryClimb(autoOnly) {
   if (isVault) {
     for (var fi = 0; fi < colliders.length; fi++) {
       var fc = colliders[fi];
+      if (!activeCollider(fc)) continue;
       if (fc.kind === 'fence' && insideCol(fc, x1, z1, -PLAYER_R - 0.04)) {
         motionDebug.ledge = '翻越落点受阻'; return false;
       }
@@ -2887,7 +2901,7 @@ function collideXZ(dt, tx, tz) {
   var stepAllow = P.onGround ? STEP_UP : 0.08;
   for (var i = 0; i < colliders.length; i++) {
     var col = colliders[i];
-    if (col.world && col.world !== curWorld) continue;   /* v0.26.0：隐藏世界的碰撞不参与 */
+    if (!activeCollider(col)) continue;   /* v0.26.0：隐藏世界的碰撞不参与 */
     if (NON_BLOCKING_KIND[col.kind]) continue;   /* 碎屑/树叶/薄地砖：不挡移动 */
     var surface = colHeight(col, P.pos.x, P.pos.z);
     if (surface - feet <= stepAllow || P.pos.y + 1.86 <= col.bottom) continue;
@@ -3004,7 +3018,7 @@ function supportAt(px, pz, feet) {
   var best = 0, limit = feet + STEP_UP + 0.02;
   for (var i = 0; i < colliders.length; i++) {
     var col = colliders[i];
-    if (col.world && col.world !== curWorld) continue;   /* v0.26.0：隐藏世界的碰撞不参与支撑 */
+    if (!activeCollider(col)) continue;   /* v0.26.0：隐藏世界的碰撞不参与支撑 */
     if (NON_BLOCKING_KIND[col.kind]) continue;   /* 小石子不把人颠起来 */
     var height = colHeight(col, px, pz);
     if (height <= best || height > limit) continue;
@@ -3433,7 +3447,9 @@ function update(dt) {
     _rayD.set(Math.sin(camYaw) * cP, sP, Math.cos(camYaw) * cP);
     camRay.set(_rayO, _rayD);
     camRay.far = effDist + 0.2;
-    var hits = camRay.intersectObjects(blockers, false);
+    var hits = camRay.intersectObjects(blockers, false).filter(function (hit) {
+      return worldOfMesh(hit.object) === curWorld;
+    });
 
     if ((freeMode || isoMode) && wF < 0.05) {
       /* 自由 / 等距：不拉近，把挡在中间的东西变半透明。
@@ -3666,7 +3682,7 @@ function capSegContact(ax, ay, az, bx, by, bz, r, name) {
     var px = ax + (bx - ax) * t, py = ay + (by - ay) * t, pz = az + (bz - az) * t;
     for (var i = 0; i < colliders.length; i++) {
       var c = colliders[i];
-      if (NON_BLOCKING_KIND[c.kind]) continue;
+      if (!activeCollider(c) || NON_BLOCKING_KIND[c.kind]) continue;
       if (py >= c.top - 0.02 || py <= c.bottom + 0.02) continue;   /* 在顶面之上/底面之下：不算埋进去 */
       var dx = px - c.x, dz = pz - c.z;
       if (Math.abs(dx) > c.reach + r || Math.abs(dz) > c.reach + r) continue;
@@ -3737,7 +3753,7 @@ function buildColViz() {
     var c = colliders[i];
     /* v0.27.8：只画当前世界的碰撞体。三个世界共用一套坐标，
        不过滤就会在空场上凭空画出一栋房子的骨架（用户按 C 时看到的）。 */
-    if (c.world && c.world !== curWorld) continue;
+    if (!activeCollider(c)) continue;
     if (c.kind === 'pebble' || c.kind === 'flat') continue;   /* 碎屑/薄地砖不画：会糊成一片 */
     var w = c.hw * 2, d = c.hd * 2, h = c.top - c.bottom;
     var v = [];
@@ -6031,6 +6047,8 @@ var portalClipPlanes = [portalClip];
 var portalStart = new THREE.Vector3(), portalEnd = new THREE.Vector3();
 var portalViews = [];
 var portalPreviousPosition = new THREE.Vector3();
+var portalVizDirty = false;
+var doorCollisionPoint = new THREE.Vector3();
 var portalTip = null, portalBtn = null;
 
 /* 把世界一分为三：保留地面/角色/世界灯/便利店关，其余（房子、树、靶板、散布、
@@ -6128,7 +6146,7 @@ function makeStandaloneDoor(parent, x, z, ry, name) {
   plane.userData.colExempt = true; g.add(plane);
   parent.add(g);
   return {
-    group: g, hinge: hinge, plane: plane, name: name,
+    group: g, hinge: hinge, leaf: leaf, plane: plane, name: name,
     open: false, angle: 0, target: 0, focus: false,
     dest: null, arrive: null, world: null, blocker: null
   };
@@ -6202,7 +6220,7 @@ function togglePortal(d) {
 }
 
 function portalPassable(d) {
-  return d.open && Math.abs(d.angle) >= DOOR_PASS_ANGLE;
+  return Math.abs(d.angle) >= DOOR_PASS_ANGLE;
 }
 
 function initPortals() {
@@ -6234,42 +6252,43 @@ function initPortals() {
     colliders.push(blk);
     blk.world = d.world;   /* v0.26.0：门挡板只在本世界生效 */
     d.blocker = blk;
-    /* v0.27.8：开着的门板也要挡人。门板本身是 colExempt（开门时要把门洞让开），
-       所以按「开到位」的姿态单独登记一块薄板，开门时生效、关门时挪到界外。
-       姿态推导：铰链本地 (DOOR_W/2, -0.09)，门板中心在铰链的 −x 方向半个门宽处，
-       绕 Y 转 DOOR_OPEN_ANGLE 后落到 (lx, lz)。 */
-    var _a = DOOR_OPEN_ANGLE;
-    var _lx = (DOOR_W / 2) * (1 - Math.cos(_a));
-    var _lz = -0.09 + (DOOR_W / 2) * Math.sin(_a);
-    var _cs = Math.cos(yaw), _sn = Math.sin(yaw);
-    var _wx = wp.x + (_lx * _cs + _lz * _sn) * DOOR_SCALE;
-    var _wz = wp.z + (-_lx * _sn + _lz * _cs) * DOOR_SCALE;
-    var _ly = yaw + _a;
-    var leafCol = { x: _wx, z: _wz, x0: _wx, z0: _wz,
-      hw: (DOOR_W / 2) * DOOR_SCALE, hd: 0.04 * DOOR_SCALE,
-      h: DOOR_H * DOOR_SCALE, bottom: 0, top: DOOR_H * DOOR_SCALE,
-      kind: 'solid', c: Math.cos(_ly), s: Math.sin(_ly),
-      reach: DOOR_W * DOOR_SCALE, mesh: null };
-    colliders.push(leafCol);
-    leafCol.world = d.world;
-    /* 门一开始是关着的：门板碰撞体先挪到界外，等开门再复位。
-       （漏了这一步就会在关着的门前飘一块看不见的挡板，按 C 才看得见） */
-    leafCol.x = 9999; leafCol.z = 9999;
+    var leafCol = {
+      hw: DOOR_W * DOOR_SCALE / 2, hd: 0.03 * DOOR_SCALE,
+      bottom: 0.02 * DOOR_SCALE, top: (DOOR_H + 0.02) * DOOR_SCALE,
+      kind: 'solid', world: d.world, reach: DOOR_W * DOOR_SCALE / 2 + PLAYER_R + 0.6
+    };
     d.leafCol = leafCol;
+    d.leafPivot = new THREE.Vector3();
+    d.leafRotation = new THREE.Quaternion();
+    colliders.push(leafCol);
+    updatePortalLeaf(d);
   }
+}
+
+function updatePortalLeaf(d) {
+  d.leaf.getWorldPosition(d.leafPivot);
+  d.leaf.getWorldQuaternion(d.leafRotation);
+  var col = d.leafCol;
+  col.x = d.leafPivot.x;
+  col.z = d.leafPivot.z;
+  col.c = 1 - 2 * d.leafRotation.y * d.leafRotation.y;
+  col.s = 2 * d.leafRotation.w * d.leafRotation.y;
+  d.blocker.disabled = portalPassable(d);
 }
 
 function updatePortals(dt) {
   var best = null, bestDistance = Infinity;
   for (var i = 0; i < portalDoors.length; i++) {
     var d = portalDoors[i];
-    d.angle += (d.target - d.angle) * Math.min(1, dt * 9);
-    d.hinge.rotation.y = d.angle;
-    var passable = portalPassable(d);
-    d.blocker.x = passable ? 9999 : d.blocker.x0;
-    d.blocker.z = passable ? 9999 : d.blocker.z0;
-    d.leafCol.x = passable ? d.leafCol.x0 : 9999;
-    d.leafCol.z = passable ? d.leafCol.z0 : 9999;
+    if (d.angle !== d.target) {
+      d.angle += (d.target - d.angle) * Math.min(1, dt * 9);
+      if (Math.abs(d.target - d.angle) < 0.001) d.angle = d.target;
+      d.hinge.rotation.y = d.angle;
+      updatePortalLeaf(d);
+      if (colVizOn && d.world === curWorld) portalVizDirty = true;
+    } else {
+      d.blocker.disabled = portalPassable(d);
+    }
 
     d.focus = false;
     if (d.world !== curWorld) continue;
@@ -6299,6 +6318,7 @@ function crossPortal(previousPosition) {
     portalStart.lerp(portalEnd, portalStart.z / (portalStart.z - portalEnd.z));
     if (Math.abs(portalStart.x) + rBody / DOOR_SCALE >= DOOR_W / 2 ||
         portalStart.y < -0.1 || portalStart.y + 1.8 / DOOR_SCALE > DOOR_H) continue;
+    beginPortalBlend(curWorld, d.dest);
     curWorld = d.dest;
     setWorldVisible(curWorld);
     applyWorldLighting(curWorld);
@@ -6309,7 +6329,7 @@ function crossPortal(previousPosition) {
 }
 
 /* 主世界先写颜色和深度；门洞用深度测试标记可见像素，再在其中直接画另一层。 */
-function renderPortals() {
+function renderPortals(world) {
   activeCam.updateMatrixWorld();
   portalCameraPosition.setFromMatrixPosition(activeCam.matrixWorld);
   portalProjection.multiplyMatrices(activeCam.projectionMatrix, activeCam.matrixWorldInverse);
@@ -6319,7 +6339,7 @@ function renderPortals() {
   var background = scene.background;
   for (var i = 0; i < portalDoors.length; i++) {
     var d = portalDoors[i];
-    d.mask.visible = d.world === curWorld && Math.abs(d.angle) > 0.08 && portalFrustum.intersectsObject(d.mask);
+    d.mask.visible = d.world === world && Math.abs(d.angle) > 0.08 && portalFrustum.intersectsObject(d.mask);
     if (!d.mask.visible) continue;
     d.mask.material.color.copy(background);
     portalViews.push(d);
@@ -6359,9 +6379,79 @@ function renderPortals() {
     scene.background = background;
     pawn.visible = pawnVisible;
     for (var k = 0; k < portalViews.length; k++) portalViews[k].arrive.group.visible = true;
-    setWorldVisible(curWorld);
-    applyWorldLighting(curWorld);
+    setWorldVisible(world);
+    applyWorldLighting(world);
   }
+}
+
+/* 两个世界用同一机位实时画。换层后的余光在很短时间内退去，避免整屏亮度跳变。 */
+var PORTAL_BLEND_TIME = 0.24;
+var portalBlendWorld = null, portalBlendAge = 0, portalBlendFresh = false;
+var portalBlendTarget = null, portalBlendScene = null;
+var portalBlendCamera = new THREE.Camera();
+var portalBlendMaterial = null;
+
+function beginPortalBlend(from, to) {
+  if (portalBlendWorld === to) {
+    portalBlendAge = PORTAL_BLEND_TIME - portalBlendAge;
+  } else {
+    portalBlendAge = 0;
+  }
+  portalBlendWorld = from;
+  portalBlendFresh = true;
+}
+
+function drawPortalWorld(dt) {
+  if (portalBlendWorld && !portalBlendFresh) portalBlendAge += Math.min(dt, 0.05);
+  portalBlendFresh = false;
+  if (portalBlendAge >= PORTAL_BLEND_TIME) portalBlendWorld = null;
+  if (portalBlendWorld && portalBlendAge === 0) {
+    setWorldVisible(portalBlendWorld);
+    applyWorldLighting(portalBlendWorld);
+    try {
+      renderer.render(scene, activeCam);
+      renderPortals(portalBlendWorld);
+    } finally {
+      setWorldVisible(curWorld);
+      applyWorldLighting(curWorld);
+    }
+    return;
+  }
+  if (portalBlendWorld) {
+    var width = renderer.domElement.width, height = renderer.domElement.height;
+    if (!portalBlendTarget) {
+      portalBlendTarget = new THREE.WebGLRenderTarget(width, height, { stencilBuffer: true });
+      portalBlendMaterial = new THREE.MeshBasicMaterial({
+        map: portalBlendTarget.texture, transparent: true, depthTest: false, depthWrite: false, toneMapped: false
+      });
+      portalBlendScene = new THREE.Scene();
+      var screen = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), portalBlendMaterial);
+      screen.frustumCulled = false;
+      portalBlendScene.add(screen);
+    }
+    portalBlendTarget.setSize(width, height);
+    renderer.setRenderTarget(portalBlendTarget);
+    try {
+      setWorldVisible(portalBlendWorld);
+      applyWorldLighting(portalBlendWorld);
+      renderer.render(scene, activeCam);
+      renderPortals(portalBlendWorld);
+    } finally {
+      renderer.setRenderTarget(null);
+      setWorldVisible(curWorld);
+      applyWorldLighting(curWorld);
+    }
+  }
+
+  renderer.render(scene, activeCam);
+  renderPortals(curWorld);
+  if (!portalBlendWorld) return;
+  var t = portalBlendAge / PORTAL_BLEND_TIME;
+  portalBlendMaterial.opacity = 1 - t * t * (3 - 2 * t);
+  var autoClear = renderer.autoClear;
+  renderer.autoClear = false;
+  try { renderer.render(portalBlendScene, portalBlendCamera); }
+  finally { renderer.autoClear = autoClear; }
 }
 
 /* 初始化（放在 fillCollisionGaps 之后，门的碰撞体和落点要用世界矩阵） */
@@ -6399,29 +6489,21 @@ function initStoreDoor() {
         (rb.max.x - rb.min.x) < 0.6 && (rb.max.z - rb.min.z) > 1.5) rk.push(o);
   });
   for (var ri = 0; ri < rk.length; ri++) if (rk[ri].parent) rk[ri].parent.remove(rk[ri]);
-  var rackGone = rk.length;
   for (var ci = 0; ci < colliders.length; ci++) {
     var cc = colliders[ci];
-    if (Math.abs(cc.x + 7.06) < 0.25 && Math.abs(cc.z + 4.35) < 1.45 && cc.top < 1.5) {
-      cc.x = -9999; cc.z = -9999;
-    }
+    if (rk.indexOf(cc.sourceMesh || cc.mesh) >= 0) cc.disabled = true;
   }
 
   /* 门中心：两扇门铰链的中点（本地 -0.65 / z1-0.03） */
   var c = new THREE.Vector3((duskLevel.doors[0].position.x + duskLevel.doors[1].position.x) / 2, 0,
                             duskLevel.doors[0].position.z);
   host.localToWorld(c);
-  /* 门洞足迹内的碰撞体：门扇玻璃、上下横档、白横杆都归门，开门时整体让开。
-     审计给 auto 碰撞体只留位置、不指向 mesh，所以按世界坐标的矩形足迹反查。 */
   var cols = [];
-  var oz0 = c.z - 0.92, oz1 = c.z + 0.92;
   for (var i = 0; i < colliders.length; i++) {
-    var col = colliders[i];
-    if (col.kind === 'fence' || col.kind === 'flat' || col.kind === 'pebble' || col.kind === 'leaf') continue;
-    if (Math.abs(col.x - c.x) > 0.45) continue;
-    if (col.z < oz0 || col.z > oz1) continue;
-    if (col.bottom > 2.45 || col.top < 0.3) continue;
-    cols.push({ col: col, x0: col.x, z0: col.z });
+    var col = colliders[i], owner = col.doorOwner;
+    if (!owner) continue;
+    cols.push({ col: col, owner: owner, side: owner === duskLevel.doors[0] ? 1 : -1,
+      local: owner.worldToLocal(new THREE.Vector3(col.x, 0, col.z)), c0: col.c, s0: col.s });
   }
   var tip = document.createElement('div');
   tip.id = 'doorTip';
@@ -6460,24 +6542,34 @@ function toggleStoreDoor() {
   if (!storeDoor) return;
   storeDoor.open = !storeDoor.open;
   storeDoor.target = storeDoor.open ? 1.62 : 0;
-  for (var i = 0; i < storeDoor.cols.length; i++) {
-    var e = storeDoor.cols[i];
-    if (storeDoor.open) { e.col.x = -9999; e.col.z = -9999; }
-    else { e.col.x = e.x0; e.col.z = e.z0; }
-  }
   storeDoor.tip.textContent = storeDoor.open ? '按 E 关门' : '按 E 开门';
   storeDoor.btn.textContent = storeDoor.open ? '关门' : '开门';
 }
 function updateStoreDoor(dt) {
   if (!storeDoor) return;
+  var previousAngle = storeDoor.angle;
   var k = Math.min(1, dt * 12);
   storeDoor.angle += (storeDoor.target - storeDoor.angle) * k;
   if (Math.abs(storeDoor.target - storeDoor.angle) < 0.001) storeDoor.angle = storeDoor.target;
   storeDoor.left.rotation.y = storeDoor.angle;
   storeDoor.right.rotation.y = -storeDoor.angle;
+  if (previousAngle !== storeDoor.angle) {
+    for (var i = 0; i < storeDoor.cols.length; i++) {
+      var entry = storeDoor.cols[i];
+      var angle = entry.side * storeDoor.angle;
+      var c = Math.cos(angle), s = Math.sin(angle);
+      doorCollisionPoint.copy(entry.local);
+      entry.owner.localToWorld(doorCollisionPoint);
+      entry.col.x = doorCollisionPoint.x;
+      entry.col.z = doorCollisionPoint.z;
+      entry.col.c = entry.c0 * c - entry.s0 * s;
+      entry.col.s = entry.s0 * c + entry.c0 * s;
+    }
+    if (colVizOn && curWorld === 'konbini') portalVizDirty = true;
+  }
   var p = P.pos;
   var ddx = p.x - storeDoor.center.x, ddz = p.z - storeDoor.center.z;
-  var focus = (ddx * ddx + ddz * ddz < 6.76) && p.y < 1.2;
+  var focus = curWorld === 'konbini' && (ddx * ddx + ddz * ddz < 6.76) && p.y < 1.2;
   if (focus !== storeDoor.focus) {
     storeDoor.focus = focus;
     storeDoor.tip.style.opacity = focus ? '1' : '0';
@@ -6487,7 +6579,7 @@ function updateStoreDoor(dt) {
   var st = duskLevel.store;
   var wx0 = DUSK_SPOT.x + st.z0 + 0.25, wx1 = DUSK_SPOT.x + st.z1 - 0.25;
   var wz0 = DUSK_SPOT.z - st.x1 + 0.25, wz1 = DUSK_SPOT.z - st.x0 - 0.25;
-  var inside = p.x > wx0 && p.x < wx1 && p.z > wz0 && p.z < wz1 && p.y < 2.0;
+  var inside = curWorld === 'konbini' && p.x > wx0 && p.x < wx1 && p.z > wz0 && p.z < wz1 && p.y < 2.0;
   if (inside !== storeDoor.inside) {
     storeDoor.inside = inside;
     if (storeDoor.roof) storeDoor.roof.visible = !inside;
@@ -6621,8 +6713,8 @@ function loop(t) {
 
   updateStoreDoor(dt);
   updatePortals(dt);
-  renderer.render(scene, activeCam);
-  renderPortals();
+  if (portalVizDirty) { refreshColViz(); portalVizDirty = false; }
+  drawPortalWorld(dt);
   adaptResolution(dt);
   /* 音效在渲染之后播：手机上 <audio> / WebAudio 的调度是同步开销，
      放在起跳那一帧的渲染前会抢主线程（用户感觉「起跳时掉帧」）。 */
@@ -6637,7 +6729,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.28.0';
+window.__worldVersion = 'v0.28.1';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
@@ -6695,7 +6787,7 @@ targets: targets,
       out.push({ name: d.name, open: d.open, focus: d.focus, world: d.world, dest: d.dest }); }
     return { cur: curWorld, focus: portalFocusDoor ? portalFocusDoor.name : null, doors: out };
   },
-  gotoWorld: function (w) { curWorld = w; setWorldVisible(w); applyWorldLighting(w); refreshColViz(); return curWorld; },
+  gotoWorld: function (w) { portalBlendWorld = null; curWorld = w; setWorldVisible(w); applyWorldLighting(w); refreshColViz(); return curWorld; },
   /* 诊断（v0.15.0）：等距视角。renderer 到底在用哪台相机、投影是不是正交、
      视锥半高是否等于机距×tan(FOV/2)（这条不等就说明投影和机位脱节了）。 */
   get activeCamObj() { return activeCam; },
