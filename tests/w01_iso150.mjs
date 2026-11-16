@@ -40,6 +40,9 @@ ok('开局就是正交相机', (await iso()).isOrtho === true);
 
 console.log('\n【1】投影真的换成正交了');
 await sleep(400);
+/* v0.27.0：两扇门挪到出生点旁，站在门前按 E 会被「开门」吃掉，
+   测 Q/E 转角前先把人挪到空地。 */
+await ev('__world.P.pos.set(-6, 0, 10); 1'); await sleep(500);
 let s = await iso();
 ok('viewMode = 3（等距）', (await num('window.__world.viewMode')) === 3);
 ok('iso.on', s.on === true);

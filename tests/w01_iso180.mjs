@@ -37,6 +37,9 @@ await sleep(7000);
 
 console.log('\n【1】常量与默认状态');
 ok('无未捕获异常', errs.length === 0, errs.join(' | ') || 'none');
+/* v0.27.0：两扇门挪到出生点旁，站在门前按 E 会被「开门」吃掉，
+   测 Q/E 转角前先把人挪到空地。 */
+await ev('__world.P.pos.set(-6, 0, 10); 1'); await sleep(500);
 let s = await iso();
 ok('细档 = 15°', near(s.stepDeg, 15, 0.001), s.stepDeg + '°');
 ok('粗档 = 6 个细档', s.coarse === 6, s.coarse);

@@ -228,7 +228,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.26.1</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.27.0</div>
 <script>
 /**
  * @license
@@ -640,16 +640,10 @@ function inDrive(x, z, m) {           /* 车道在院墙外还延伸一截 */
 /* ---------------- v0.23.0 两关的落点：出生点 / 两扇门 / 黄昏那一关 ----------------
    先在这里定义，散石和碎石撒点时要避开。 */
 var DUSK_YAW = Math.PI / 2;            /* 黄昏那一关整体转 90°，街角正对出生点 */
-var DUSK_SPOT = { x: -23, z: 22 };     /* 那一关落在地图上的中心 */
-var DUSK_GATE = { x: -13.5, z: 22 };   /* 通往黄昏街角的门：朝东 */
-var FIELD_GATE = { x: -3, z: 16 };     /* 通往原测试场地的门：朝南 */
+var DUSK_SPOT = { x: -5.6, z: -5.2 };   /* v0.27.0：锚在门上——回程门的本地位置正好落回 DOOR_A */
 var PLAZA = { x0: -42, x1: 14, z0: 6, z1: 40 };
-var DUSK_ZONE = { x0: -46, x1: -13, z0: 2, z1: 42 };
 function inPlaza(x, z, m) {
   return x > PLAZA.x0 - m && x < PLAZA.x1 + m && z > PLAZA.z0 - m && z < PLAZA.z1 + m;
-}
-function inDuskZone(x, z) {
-  return x > DUSK_ZONE.x0 && x < DUSK_ZONE.x1 && z > DUSK_ZONE.z0 && z < DUSK_ZONE.z1;
 }
 
 (function scatter() {
@@ -1864,7 +1858,7 @@ function fireSteps(d, t0, t1) {
 
 /* ---------------- 角色状态 ---------------- */
 var P = {
-  pos: new THREE.Vector3(-17.4, 0.03, 24.5),   /* v0.26.0 出生点：便利店石门的正面（门内 1.9m，直接看到开门提示） */
+  pos: new THREE.Vector3(2.90, 0.03, -0.50),  /* v0.27.0 出生点：两扇门正南 2.2m，开局就在门的交互范围里 */
   vy: 0,
   onGround: true,
   face: Math.PI / 2,    /* 当前朝向角（弧度）；出生在门前，面朝东（正对门） */
@@ -2326,11 +2320,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.26.1';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.27.0';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.26.1';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.27.0';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -5980,150 +5974,9 @@ function makeGate(parent, x, z, ry, name) {
   return g;
 }
 
-/* 一条会踩出一段路的石板：不用图片，纯几何。 */
-function layPath(parent, x0, z0, x1, z1, n, mat) {
-  var i, k, px, pz, ang = Math.atan2(x1 - x0, z1 - z0);
-  for (i = 0; i < n; i++) {
-    k = (i + 0.5) / n;
-    px = x0 + (x1 - x0) * k + (hash(i, 41) - 0.5) * 0.16;
-    pz = z0 + (z1 - z0) * k + (hash(i, 42) - 0.5) * 0.16;
-    var m = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.05, 0.6), mat);
-    m.position.set(px, 0.025, pz);
-    m.rotation.y = ang + (hash(i, 43) - 0.5) * 0.12;
-    m.receiveShadow = true;
-    parent.add(m);
-  }
-}
-
-function stoneLantern(parent, x, z) {
-  var M = gateMaterialSet();
-  var g = new THREE.Group();
-  g.position.set(x, 0, z);
-  parent.add(g);
-  gateBox(g, 0.62, 0.12, 0.62, M.stone, 0, 0, 0);
-  var shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.15, 0.92, 8), M.stone);
-  shaft.position.set(0, 0.58, 0);
-  shaft.castShadow = true; shaft.receiveShadow = true;
-  g.add(shaft);
-  gateBox(g, 0.5, 0.36, 0.5, M.stone, 0, 1.02, 0);
-  gateBox(g, 0.3, 0.18, 0.3, M.dark, 0, 1.11, 0);
-  var cap = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.26, 4), M.stone);
-  cap.position.set(0, 1.54, 0);
-  cap.rotation.y = Math.PI / 4;
-  cap.castShadow = true;
-  g.add(cap);
-}
-
-function bareTree(parent, x, z) {
-  var M = gateMaterialSet();
-  var g = new THREE.Group();
-  g.position.set(x, 0, z);
-  parent.add(g);
-  var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.17, 2.7, 7), M.wood);
-  trunk.position.y = 1.35;
-  trunk.castShadow = true;
-  g.add(trunk);
-  var branches = [
-    [0.32, 2.62, 0.06, 1.5, -0.62, 0.24],
-    [-0.3, 2.86, -0.02, 1.3, 0.66, -0.2],
-    [0.06, 3.0, 0.26, 1.15, -0.2, 0.72],
-    [-0.04, 2.34, -0.24, 1.0, 0.5, -0.5]
-  ];
-  for (var i = 0; i < branches.length; i++) {
-    var b = branches[i];
-    var br = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.07, b[3], 6), M.wood);
-    br.position.set(b[0], b[1], b[2]);
-    br.rotation.set(b[5], 0, b[4]);
-    br.castShadow = true;
-    g.add(br);
-  }
-}
-
-function standingStone(parent, x, z, w, h, ry) {
-  var M = gateMaterialSet();
-  var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.34), M.stone);
-  m.position.set(x, h / 2, z);
-  m.rotation.y = ry || 0;
-  m.rotation.z = (hash(x * 13 + z * 7, 77) - 0.5) * 0.08;
-  m.castShadow = true;
-  m.receiveShadow = true;
-  parent.add(m);
-}
-
-/* 出生点这一小片：两扇门、两块石板路、一盏石灯、一棵枯树、几块立石。
-   刻意留白——地平线是空的，东西只有这几件。 */
-function buildPlaza() {
-  var M = gateMaterialSet();
-  /* v0.24.0：实体门改成独立世界里的传送门，这里不再摆门 */
-
-  var pathMat = new THREE.MeshStandardMaterial({ color: 0xd7d0c0, roughness: 0.95 });
-  layPath(scene, -0.55, 26.2, -12.7, 22.15, 13, pathMat);
-  layPath(scene, 0.5, 25.6, -2.7, 16.6, 8, pathMat);
-
-  stoneLantern(scene, 5.2, 24.2);
-  bareTree(scene, -7.4, 29.0);
-  standingStone(scene, 7.2, 30.4, 0.5, 1.15, 0.35);
-  standingStone(scene, -4.1, 31.9, 0.42, 0.85, -0.5);
-  standingStone(scene, 9.1, 21.2, 0.36, 0.7, 0.9);
-
-  /* 石头脚下的苔：3 块扁片 */
-  var i, moss = M.moss;
-  var spots = [[6.9, 30.2], [7.6, 30.6], [-7.2, 28.8], [-7.7, 29.2], [5.0, 24.0]];
-  for (i = 0; i < spots.length; i++) {
-    var m = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.03, 0.3), moss);
-    m.position.set(spots[i][0], 0.015, spots[i][1]);
-    m.rotation.y = hash(i, 61) * 3.14;
-    m.receiveShadow = true;
-    scene.add(m);
-  }
-}
-
-/* ---------------- 黄昏天气：只在这一关的范围里生效 ---------------- */
+/* v0.27.0：天光不再按位置混算，改由 applyWorldLighting 按当前世界一次性切换——
+   跨门是「世界变了」，不是「走进另一个光照区」。 */
 var duskLevel = null;
-var duskBlend = 0;
-var duskShadowOn = false;
-var DUSK_FOG = new THREE.Color(0x7d5449);
-
-function updateDuskWeather(dt) {
-  if (!duskLevel) return;
-  var want = inDuskZone(P.pos.x, P.pos.z) ? 1 : 0;
-  duskBlend += (want - duskBlend) * Math.min(1, dt * 3.4);
-  if (duskBlend < 0.002 && !want) duskBlend = 0;
-  if (duskBlend > 0.998) duskBlend = 1;
-  var b = duskBlend;
-  var th = THEMES[themeName];
-
-  /* 距离温度：7m 内全亮，29m 外不亮。门外也能看到街角是暖的，
-     进门后 b 接管，天空/雾/世界灯才整体切换。 */
-  var _dx = P.pos.x - DUSK_SPOT.x, _dz = P.pos.z - DUSK_SPOT.z;
-  var _near = 1 - Math.max(0, Math.min(1, (Math.sqrt(_dx * _dx + _dz * _dz) - 7) / 22));
-  var lg = Math.max(b, 0.6 * _near);
-  hemi.intensity = th.hemiI * (1 - b);
-  sun.intensity = th.sunI * (1 - b);
-  duskLevel.lights.hemi.intensity = 0.58 * lg;
-  duskLevel.lights.sun.intensity = 1.78 * lg;
-  duskLevel.lights.fill.intensity = (IS_MOBILE ? 0 : 0.55) * lg;
-  duskLevel.lights.bounce.intensity = (IS_MOBILE ? 0 : 0.18) * lg;
-
-  duskLevel.sky.visible = b > 0.002;
-  duskLevel.sky.material.opacity = b;
-  if (duskLevel.sky.visible) duskLevel.sky.position.copy(activeCam.position);
-
-  scene.fog.color.setHex(th.fog).lerp(DUSK_FOG, b);
-  scene.fog.near = 20 + 25 * b;
-  scene.fog.far = 145 - 15 * b;
-
-  /* 阴影切换带滞回：进出关卡时两套太阳的 castShadow 不能在 0.55 附近来回翻，
-     否则站在门口会看到地面阴影一闪一闪。0.9 以上才关世界太阳，0.2 以下才关关卡太阳。 */
-  var shadowOn = duskShadowOn;
-  if (b > 0.9) shadowOn = true;
-  else if (b < 0.2) shadowOn = false;
-  if (shadowOn !== duskShadowOn) {
-    duskShadowOn = shadowOn;
-    sun.castShadow = !shadowOn;
-    duskLevel.lights.sun.castShadow = shadowOn;
-  }
-}
 
 /* ---------------- 把这一关放进世界 ---------------- */
 var _bwD = BUILD_WORLD; BUILD_WORLD = 'konbini';
@@ -6136,7 +5989,6 @@ duskLevel.sky.material.transparent = true;
 duskLevel.sky.material.opacity = 0;
 duskLevel.sky.visible = false;
 duskLevel.lights.sun.castShadow = false;
-buildPlaza();
 
 
 /* ============================================================================
@@ -6147,7 +5999,6 @@ buildPlaza();
    可见性；门后不是贴图，是另一个世界实时渲染到 RenderTarget 上的画面。
    走进开着的门（人跨过门面）就传送到对面世界那扇门的门口；PC 按 E、手机点按钮。
    ============================================================================ */
-var SPAWN_Z = 200;
 var spawnRoot = new THREE.Group(); spawnRoot.name = 'spawnWorld';
 /* v0.26.0 重叠层：出生世界不再偏移，与便利店/场地共用世界坐标 */
 spawnRoot.position.set(0, 0, 0);
@@ -6189,7 +6040,10 @@ function applyWorldLighting(w) {
     duskLevel.sky.visible = true; duskLevel.sky.material.opacity = 1;
     scene.fog.color.setHex(0x7d5449); scene.fog.near = 45; scene.fog.far = 130;
   } else {
-    hemi.intensity = th.hemiI; sun.intensity = th.sunI; sun.castShadow = true;
+    /* v0.27.0：这两个世界各只有一套光——主题的天光，不再靠摆灯笼照亮。
+       出生世界是空场，环境光抬一档，否则删掉布景后就是一片黑。 */
+    hemi.intensity = th.hemiI * (w === 'spawn' ? 1.9 : 1.0);
+    sun.intensity = th.sunI * (w === 'spawn' ? 1.05 : 1.0); sun.castShadow = true;
     var L2 = duskLevel.lights;
     L2.hemi.intensity = 0; L2.sun.intensity = 0; L2.fill.intensity = 0; L2.bounce.intensity = 0;
     L2.sun.castShadow = false;
@@ -6200,6 +6054,10 @@ function applyWorldLighting(w) {
 
 /* ---------------- 一扇独立的旧木门（天气之子那种） ---------------- */
 var DOOR_W = 0.96, DOOR_H = 2.30;
+/* v0.27.0：两扇门并排立在房子车道口前，门面朝房子（-z）。这两个点是唯一事实源。 */
+var DOOR_A = { x: 1.9, z: -2.7 };
+var DOOR_B = { x: 3.9, z: -2.7 };
+var DOOR_FACE = Math.PI;
 function makeStandaloneDoor(parent, x, z, ry, name) {
   var g = new THREE.Group(); g.name = name;
   g.position.set(x, 0, z); g.rotation.y = ry;
@@ -6243,79 +6101,28 @@ function makeStandaloneDoor(parent, x, z, ry, name) {
 
 /* ---------------- 出生世界的陈设（极简：两扇门、几条石阶、灯、立石、枯树） ---------------- */
 function buildSpawnWorld() {
-  var wood = new THREE.MeshStandardMaterial({ color: 0x4a3a2c, roughness: 0.95 });
-  var stone = new THREE.MeshStandardMaterial({ color: 0x8a857f, roughness: 1 });
-  var moss = new THREE.MeshStandardMaterial({ color: 0x45553a, roughness: 1 });
-  function slab(x, z, ry) {
-    var m = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.05, 0.42), stone);
-    m.position.set(x, 0.025, z); m.rotation.y = ry || 0;
-    m.receiveShadow = true; spawnRoot.add(m);
-  }
-  var i;
-  for (i = 0; i < 5; i++) slab(-0.9 - i * 0.55, -0.4 - i * 0.75, 0.32);
-  for (i = 0; i < 5; i++) slab(0.9 + i * 0.55, -0.4 - i * 0.75, -0.32);
-  /* 石灯笼 */
-  var lx = -4.6, lz = 0.4;
-  var b1 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.16, 0.5), stone); b1.position.set(lx, 0.08, lz); spawnRoot.add(b1);
-  var b2 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.62, 8), stone); b2.position.set(lx, 0.47, lz); spawnRoot.add(b2);
-  var b3 = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.24, 0.34), stone); b3.position.set(lx, 0.9, lz); spawnRoot.add(b3);
-  var b4 = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.2, 4), stone); b4.position.set(lx, 1.12, lz); b4.rotation.y = Math.PI / 4; spawnRoot.add(b4);
-  /* 枯树 */
-  var tx = -6.2, tz = -3.2;
-  var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.12, 2.4, 7), wood);
-  trunk.position.set(tx, 1.2, tz); trunk.castShadow = true; spawnRoot.add(trunk);
-  for (i = 0; i < 4; i++) {
-    var br = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.04, 0.9, 5), wood);
-    br.position.set(tx + Math.cos(i * 1.7) * 0.3, 1.9 + (i % 2) * 0.3, tz + Math.sin(i * 1.7) * 0.3);
-    br.rotation.set(0.6, i * 1.3, 0.5); spawnRoot.add(br);
-  }
-  /* 立石 + 苔 */
-  var s1 = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.9, 0.34), stone); s1.position.set(4.9, 0.45, -1.7); s1.rotation.y = 0.4; s1.castShadow = true; spawnRoot.add(s1);
-  var s2 = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.62, 0.3), stone); s2.position.set(6.2, 0.31, 0.9); s2.rotation.y = -0.2; spawnRoot.add(s2);
-  var mo = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.03, 10), moss); mo.position.set(-5.9, 0.015, 1.1); spawnRoot.add(mo);
-  var mo2 = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.03, 9), moss); mo2.position.set(5.6, 0.015, -2.6); spawnRoot.add(mo2);
-  /* 石灯笼的一点暖光：空场不至于死黑 */
-  var lamp = new THREE.PointLight(0xffb066, 9, 10, 2);
-  lamp.position.set(lx, 1.02, lz); spawnRoot.add(lamp);
-  /* 便利店门旁：第二盏石灯笼 + 枯树 + 石阶路（门在 -15.5, 24.5） */
-  var lx2 = -18.2, lz2 = 27.0;
-  var c1 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.16, 0.5), stone); c1.position.set(lx2, 0.08, lz2); spawnRoot.add(c1);
-  var c2 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.62, 8), stone); c2.position.set(lx2, 0.47, lz2); spawnRoot.add(c2);
-  var c3 = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.24, 0.34), stone); c3.position.set(lx2, 0.9, lz2); spawnRoot.add(c3);
-  var c4 = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.2, 4), stone); c4.position.set(lx2, 1.12, lz2); c4.rotation.y = Math.PI / 4; spawnRoot.add(c4);
-  var lamp2 = new THREE.PointLight(0xffb066, 9, 10, 2);
-  lamp2.position.set(lx2, 1.02, lz2); spawnRoot.add(lamp2);
-  /* 门前一点暖光，把门和门框从黑场里托出来 */
-  var doorLamp = new THREE.PointLight(0xffb066, 5, 7, 2);
-  doorLamp.position.set(-16.9, 1.9, 24.5); spawnRoot.add(doorLamp);
-  var trunk2 = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.13, 2.6, 7), wood);
-  trunk2.position.set(-20.6, 1.3, 21.4); trunk2.castShadow = true; spawnRoot.add(trunk2);
-  for (i = 0; i < 4; i++) {
-    var br2 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.04, 0.95, 5), wood);
-    br2.position.set(-20.6 + Math.cos(i * 1.6) * 0.32, 2.0 + (i % 2) * 0.32, 21.4 + Math.sin(i * 1.6) * 0.32);
-    br2.rotation.set(0.6, i * 1.3, 0.5); spawnRoot.add(br2);
-  }
-  for (i = 0; i < 5; i++) slab(-16.4 - i * 0.62, 24.5, 0);
-  var st1 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.82, 0.34), stone);
-  st1.position.set(-16.9, 0.41, 27.3); st1.rotation.y = 0.5; st1.castShadow = true; spawnRoot.add(st1);
-  var mo3 = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.03, 10), moss);
-  mo3.position.set(-17.9, 0.015, 21.2); spawnRoot.add(mo3);
+  /* v0.27.0：出生世界只留两扇门和门前的两点暖光。
+     原来那批石板路 / 石灯笼 / 枯树 / 立石 / 苔整块删掉——
+     这个世界要空，跨门时才是「世界变了」，而不是「走到另一个布景里」。 */
+  var l1 = new THREE.PointLight(0xffb066, 6, 9, 2);
+  l1.position.set(DOOR_A.x - 1.0, 1.9, DOOR_A.z + 0.8); spawnRoot.add(l1);
+  var l2 = new THREE.PointLight(0xffb066, 6, 9, 2);
+  l2.position.set(DOOR_B.x + 1.0, 1.9, DOOR_B.z + 0.8); spawnRoot.add(l2);
 }
 
 /* ---------------- 建三组世界的门并互相链接 ---------------- */
 var doorK, doorF, doorRK, doorRF;
 function buildPortalDoors() {
-  var dz = -4;
-  /* 与便利店侧的回程门同坐标、同朝向（世界 -15.5, 24.5，正面朝西） */
-  doorK = makeStandaloneDoor(spawnRoot, -15.5, 24.5, -Math.PI / 2, 'doorKonbini');
-  /* 与场地侧的回程门同坐标、同朝向（世界 2, -4，正面朝南） */
-  doorF = makeStandaloneDoor(spawnRoot, 2, -4, Math.PI, 'doorField');
-  /* 便利店世界：宿主在 (-23,22) 转 90°，门的本地 (x,z) 映射到世界 (-23+z, 22-x)。
-     放在店前场空地的北侧（世界 -19.0, 25.5），离店面 4m 多、四周留空，正面对西。 */
-  doorRK = makeStandaloneDoor(duskLevel.host, -2.5, 7.5, -Math.PI, 'returnKonbini');
+  /* v0.27.0：两扇门并排立在房子车道口前，门面朝房子（-z）。
+     世界锚在门上：跨门只换层，人不动、镜头不转，变的是世界。 */
+  doorK = makeStandaloneDoor(spawnRoot, DOOR_A.x, DOOR_A.z, DOOR_FACE, 'doorKonbini');
+  doorF = makeStandaloneDoor(spawnRoot, DOOR_B.x, DOOR_B.z, DOOR_FACE, 'doorField');
+  /* 便利店世界的回程门：宿主在 DUSK_SPOT 转 90°，本地 (x,z) 映射到世界
+     (host.x+z, host.z-x)。本地 (-2.5,7.5) 正好落回 DOOR_A；localRy 让世界朝向 = DOOR_FACE。 */
+  doorRK = makeStandaloneDoor(duskLevel.host, -2.5, 7.5, DOOR_FACE - DUSK_YAW, 'returnKonbini');
   doorRK.group.position.y = 0.02;
-  /* 场地世界：在 (2,-4)，正面朝北（对着院子）。 */
-  doorRF = makeStandaloneDoor(fieldRoot, 2, -4, Math.PI, 'returnField');
+  /* 场地世界的回程门：与 doorF 同坐标、同朝向。 */
+  doorRF = makeStandaloneDoor(fieldRoot, DOOR_B.x, DOOR_B.z, DOOR_FACE, 'returnField');
 
   doorK.dest = 'konbini'; doorK.world = 'spawn'; doorK.arrive = doorRK;
   doorF.dest = 'field';   doorF.world = 'spawn'; doorF.arrive = doorRF;
@@ -6427,7 +6234,7 @@ function updatePortals(dt) {
     if (d.world !== curWorld) { d.focus = false; continue; }
     wp.copy(P.pos);
     d.group.worldToLocal(wp);
-    var near = Math.abs(wp.z) < 2.4 && Math.abs(wp.x) < 0.8 && wp.y < 2.5;   /* v0.26.0 重叠层：门两侧都能交互 */
+    var near = Math.abs(wp.z) < 2.4 && Math.abs(wp.x) < 1.15 && wp.y < 2.5;   /* v0.27.0 门并排后放宽横向范围，站在两门之间也能开门 */
     d.focus = near;
     if (near && Math.abs(wp.z) < bestZ) { bestZ = Math.abs(wp.z); best = d; }
     var px = wp.x, pz = wp.z;
@@ -6530,7 +6337,7 @@ buildSpawnWorld();
 BUILD_WORLD = _bwS;
   buildPortalDoors();
   /* 门后画面看向对面世界里有东西的地方；不设就看门的正前方 */
-  if (doorK) doorK.look = new THREE.Vector3(-23.0, 1.4, 20.6);
+  if (doorK) doorK.look = new THREE.Vector3(-6.0, 1.4, -6.2);
   if (doorF) doorF.look = new THREE.Vector3(0, 1.4, -16.0);
   setWorldVisible('spawn');
   applyWorldLighting('spawn');
@@ -6555,7 +6362,7 @@ function initStoreDoor() {
   host.traverse(function (o) {
     if (!o.isMesh || !o.geometry) return;
     rb.setFromObject(o);
-    if (rb.min.x > -24.3 && rb.max.x < -23.8 && rb.min.z > 21.4 && rb.max.z < 24.1 &&
+    if (rb.min.x > -7.3 && rb.max.x < -6.8 && rb.min.z > -5.7 && rb.max.z < -3.0 &&
         rb.min.y > 0.3 && rb.max.y < 1.45 &&
         (rb.max.x - rb.min.x) < 0.6 && (rb.max.z - rb.min.z) > 1.5) rk.push(o);
   });
@@ -6563,7 +6370,7 @@ function initStoreDoor() {
   var rackGone = rk.length;
   for (var ci = 0; ci < colliders.length; ci++) {
     var cc = colliders[ci];
-    if (Math.abs(cc.x + 24.06) < 0.25 && Math.abs(cc.z - 22.75) < 1.45 && cc.top < 1.5) {
+    if (Math.abs(cc.x + 7.06) < 0.25 && Math.abs(cc.z + 4.35) < 1.45 && cc.top < 1.5) {
       cc.x = -9999; cc.z = -9999;
     }
   }
@@ -6778,7 +6585,6 @@ function loop(t) {
   drawStick();
   if (colVizOn && playerViz) playerViz.position.set(P.pos.x, P.pos.y + 0.93, P.pos.z);
 
-  updateDuskWeather(dt);
   updateStoreDoor(dt);
   updatePortals(dt);
   /* renderPortals(); —— v0.27 再做透视正确的门后画面，现在门洞里只透光 */
@@ -6797,7 +6603,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.26.1';
+window.__worldVersion = 'v0.27.0';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
