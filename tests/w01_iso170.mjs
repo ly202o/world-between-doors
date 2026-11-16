@@ -122,7 +122,7 @@ console.log('\n【6】转屏后仍然对齐（isoSnap 只在开局用，转屏�
 await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
 await sleep(900);
 const sp = await iso();
-ok('竖屏也是纵向覆盖 28m', near(sp.viewH, 28, 0.01), sp.viewH.toFixed(2) + 'm');
+ok('竖屏也是纵向覆盖 20m', near(sp.viewH, 20, 0.01), sp.viewH.toFixed(2) + 'm');
 ok('竖屏视锥仍与机位对齐', near(sp.halfH, sp.expectHalfH, 0.02), sp.halfH.toFixed(3) + ' vs ' + sp.expectHalfH.toFixed(3));
 ok('竖屏仍是正交', sp.isOrtho === true);
 ok('竖屏没有未捕获异常', errs.length === 0, errs.join(' | ') || 'none');
