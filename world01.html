@@ -228,7 +228,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.29.1</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.29.2</div>
 <script>
 /**
  * @license
@@ -1878,7 +1878,7 @@ function fireSteps(d, t0, t1) {
 
 /* ---------------- 角色状态 ---------------- */
 var P = {
-  pos: new THREE.Vector3(2.90, 0.03, -0.50),  /* v0.27.8 出生点：两扇门正南 2.2m，开局就在门的交互范围里 */
+  pos: new THREE.Vector3(3.85, 0.03, -3.70),  /* 出生在门列正面，开局在第一扇门的交互范围 */
   vy: 0,
   onGround: true,
   face: Math.PI / 2,    /* 当前朝向角（弧度）；出生在门前，面朝东（正对门） */
@@ -1946,7 +1946,7 @@ var lockYaw = 0;
       水平角两级档（v0.18.0 引入，v0.21.0 起只在自由模式生效）：Q/E 轻按走 15° 细档，Shift+Q/E 走 90° 粗档；固定模式下 Q/E 与拖动都不旋转。
     45°+k·90° 那四个方位是**唯一**三条轴等长的角度，其余细档是正交斜视（方块会拉长），
     这是用户明确要的取舍：微调优先于几何纯度。 */
-var ISO_PITCH = Math.atan(1 / Math.SQRT2);      /* 35.264°：真等距仰角 */
+var ISO_PITCH = 28 * Math.PI / 180;             /* 较低的正交俯角 */
 var ISO_YAW_BASE = Math.PI / 4;                 /* 45°：等距的经典方位 */
 var ISO_YAW_FINE = Math.PI / 12;                /* 细档 15°：Q/E 轻按走一格 */
 var ISO_YAW_TICKS = 24;                         /* 一圈 24 格 */
@@ -2340,11 +2340,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.29.1';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.29.2';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.29.1';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.29.2';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -3048,7 +3048,7 @@ function supportAt(px, pz, feet) {
 
 function update(dt) {
   if (curWorld === 'garden' && P.pos.y < -8) {
-    P.pos.set(GARDEN_ARCH.x, 0, GARDEN_ARCH.z - 1.2);
+    P.pos.set(GARDEN_ARCH.x - 1.2, 0, GARDEN_ARCH.z);
     portalPreviousPosition.copy(P.pos);
     P.vy = 0; P.onGround = true;
     motionDebug.stepTarget = 0;
@@ -3422,7 +3422,7 @@ function update(dt) {
     camYaw += dyaw * lk;
   }
 
-  /* ---- 等距视角：仰角焊死 35.264°、方位吸附 90° 档、机距由取景跨度反算 ----
+  /* ---- 等距视角：俯角固定 28°、方位吸附 90° 档、机距由取景跨度反算 ----
      每帧小步逼近（和上面 45° 锁定同一套做法）：切进来是缓动、拖一档是转过去、
      滚轮改跨度也是缩过去，中途被打断也总能回到位，不会卡在半路。 */
   if (isoMode && wF < 0.5) {
@@ -7193,11 +7193,11 @@ var DOOR_W = 0.96, DOOR_H = 2.30;
 var DOOR_SCALE = 1.25;
 /* 开到位的角度（弧度）。门板碰撞体按这个姿态摆，改角度这里也要改。 */
 var DOOR_OPEN_ANGLE = -2.00, DOOR_PASS_ANGLE = 1.55;
-/* v0.27.8：两扇门并排立在房子车道口前，门面朝房子（-z）。这两个点是唯一事实源。 */
+/* 三座入口沿 Z 轴并排，门槛面沿 X 轴穿过。 */
 var DOOR_A = { x: 1.65, z: -2.7 };
-var DOOR_B = { x: 4.15, z: -2.7 };
-var DOOR_FACE = Math.PI;
-var GARDEN_ARCH = { x: 6.95, z: -2.7, halfWidth: 0.68, shoulder: 2.81, crown: 3.30 };
+var DOOR_B = { x: 1.65, z: -5.2 };
+var DOOR_FACE = 3 * Math.PI / 2;
+var GARDEN_ARCH = { x: 1.65, z: -8.0, halfWidth: 0.68, shoulder: 2.81, crown: 3.30 };
 function makeStandaloneDoor(parent, x, z, ry, name) {
   var g = new THREE.Group(); g.name = name;
   g.position.set(x, 0, z); g.rotation.y = ry;
@@ -7321,7 +7321,7 @@ function registerGardenFence() {
 }
 
 function buildPortalDoors() {
-  /* v0.27.8：两扇门并排立在房子车道口前，门面朝房子（-z）。
+  /* 木门与花藤拱门沿 Z 轴并排。
      世界锚在门上：跨门只换层，人不动、镜头不转，变的是世界。 */
   doorK = makeStandaloneDoor(spawnRoot, DOOR_A.x, DOOR_A.z, DOOR_FACE, 'doorKonbini');
   doorF = makeStandaloneDoor(spawnRoot, DOOR_B.x, DOOR_B.z, DOOR_FACE, 'doorField');
@@ -7893,7 +7893,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.29.1';
+window.__worldVersion = 'v0.29.2';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },

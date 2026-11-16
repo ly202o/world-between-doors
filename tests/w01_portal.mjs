@@ -35,8 +35,8 @@ const key = async k => {
   await sleep(300);
 };
 
-const walkThrough = async (x, startZ, k, world) => {
-  await ev(`__world.P.pos.set(${x}, 0, ${startZ}); __world.setIso(21); __world.setYaw(2 * Math.PI)`);
+const walkThrough = async (startX, z, k, world) => {
+  await ev(`__world.P.pos.set(${startX}, 0, ${z}); __world.setIso(3); __world.setYaw(Math.PI / 2)`);
   if ((await portals()).cur === world) return false;
   const code = 'Key' + k.toUpperCase();
   const keyCode = k.toUpperCase().charCodeAt(0);
@@ -56,10 +56,10 @@ ok(p0.doors.length === 6, '两组木门和一组花藤拱门', p0.doors.length);
 ok(p0.doors.every(d => d.open === d.arch), '木门默认关闭，花藤拱门始终连通');
 ok(p0.focus === 'doorKonbini', '出生点就能看到开门提示');
 const pos0 = JSON.parse(await ev('JSON.stringify([+__world.P.pos.x.toFixed(1), +__world.P.pos.z.toFixed(1)])'));
-ok(Math.abs(pos0[0] - 2.9) < 2 && Math.abs(pos0[1] + 0.5) < 2, '出生在两扇门正南的空地', pos0);
+ok(Math.abs(pos0[0] - 3.85) < 0.5 && Math.abs(pos0[1] + 3.7) < 0.5, '出生在门列正面', pos0);
 
 console.log('\n【2】便利店门：提示 + E 开门');
-await ev('__world.P.pos.set(1.9, 0, -4.2)'); await sleep(300);
+await ev('__world.P.pos.set(3.15, 0, -2.7)'); await sleep(300);
 ok(await until(async () => (await portals()).focus === 'doorKonbini'), '走到门前进入交互范围');
 ok(await until(async () => (await tipText()) === '按 E 开门', 4000), '提示「按 E 开门」', await tipText());
 await key('e');
@@ -67,21 +67,21 @@ ok(await until(async () => (await state()).doorKonbini.open === true), 'E 开门
 ok(await until(async () => (await tipText()) === '按 E 关门', 4000), '提示变「按 E 关门」', await tipText());
 
 console.log('\n【3】穿过门面：进入便利店世界');
-ok(await walkThrough(1.65, -3.5, 's', 'konbini'), '正常走过门面进入便利店世界', (await portals()).cur);
+ok(await walkThrough(2.45, -2.7, 'w', 'konbini'), '正常走过门面进入便利店世界', (await portals()).cur);
 ok(await until(async () => (await state()).returnKonbini.open === true), '对侧门同步保持打开');
-ok(await walkThrough(1.65, -2.1, 'w', 'spawn'), '原路走回空场世界', (await portals()).cur);
+ok(await walkThrough(0.95, -2.7, 's', 'spawn'), '原路走回空场世界', (await portals()).cur);
 
 console.log('\n【5】场地门：穿过去再穿回来');
-await ev('__world.P.pos.set(4.15, 0, -4.2)');
+await ev('__world.P.pos.set(3.15, 0, -5.2)');
 ok(await until(async () => (await portals()).focus === 'doorField'), '走到场地门前');
 await key('e');
 ok(await until(async () => (await state()).doorField.open === true), '打开场地门');
-ok(await walkThrough(4.15, -3.5, 's', 'field'), '走进旧测试场', (await portals()).cur);
-ok(await walkThrough(4.15, -2.1, 'w', 'spawn'), '从场地走回空场世界', (await portals()).cur);
+ok(await walkThrough(2.45, -5.2, 'w', 'field'), '走进旧测试场', (await portals()).cur);
+ok(await walkThrough(0.95, -5.2, 's', 'spawn'), '从场地走回空场世界', (await portals()).cur);
 
 console.log('\n【6】晴日花园：通过第一座花藤拱门往返');
-ok(await walkThrough(6.95, -1.9, 'w', 'garden'), '走过拱门进入晴日花园', (await portals()).cur);
-ok(await walkThrough(6.95, -3.45, 's', 'spawn'), '从原场景的花藤拱门走回出生区', (await portals()).cur);
+ok(await walkThrough(2.45, -8, 'w', 'garden'), '走过拱门进入晴日花园', (await portals()).cur);
+ok(await walkThrough(0.95, -8, 's', 'spawn'), '从原场景的花藤拱门走回出生区', (await portals()).cur);
 const gardenAudit = await ev('__world.collisionAudit().missing');
 ok(gardenAudit === 0, '分世界碰撞覆盖自检无遗漏', gardenAudit);
 

@@ -132,7 +132,7 @@ const proof = JSON.parse(await ev(`(() => {
 ok('60m 外的 1m = 身边的 1m', near(proof.near1m, proof.far1m, 0.6), proof.near1m.toFixed(2) + ' vs ' + proof.far1m.toFixed(2) + ' px');
 ok('自由角度下视锥仍与机位对齐', near((await iso()).halfH, (await iso()).expectHalfH, 0.03),
    (await iso()).halfH.toFixed(3) + ' vs ' + (await iso()).expectHalfH.toFixed(3));
-ok('俯角全程仍焊在 35.264°', near((await iso()).pitchNow, Math.atan(1 / Math.SQRT2), 0.01));
+ok('俯角全程仍焊在 28°', near((await iso()).pitchNow, 28 * Math.PI / 180, 0.01));
 
 console.log('\n【7】切走再回来：仍然是等距默认档 + 落在格上');
 await V('v'); await sleep(800);
