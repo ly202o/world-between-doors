@@ -228,7 +228,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.29.0</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.29.1</div>
 <script>
 /**
  * @license
@@ -2340,11 +2340,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.29.0';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.29.1';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.29.0';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.29.1';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -3023,7 +3023,8 @@ function collideXZ(dt, tx, tz) {
 
 /* 脚下支撑高度：地面 0 与"覆盖当前位置、且顶面在可迈高度内的盒子"取最高 */
 function supportAt(px, pz, feet) {
-  var best = 0, limit = feet + STEP_UP + 0.02;
+  var best = curWorld === 'garden' ? gardenBaseSupport(px, pz) : 0;
+  var limit = feet + STEP_UP + 0.02;
   for (var i = 0; i < colliders.length; i++) {
     var col = colliders[i];
     if (!activeCollider(col)) continue;   /* v0.26.0：隐藏世界的碰撞不参与支撑 */
@@ -3046,6 +3047,13 @@ function supportAt(px, pz, feet) {
 }
 
 function update(dt) {
+  if (curWorld === 'garden' && P.pos.y < -8) {
+    P.pos.set(GARDEN_ARCH.x, 0, GARDEN_ARCH.z - 1.2);
+    portalPreviousPosition.copy(P.pos);
+    P.vy = 0; P.onGround = true;
+    motionDebug.stepTarget = 0;
+    vel.set(0, 0, 0);
+  }
   motionDebug.cooldown = Math.max(0, motionDebug.cooldown - dt);
   motionDebug.stumble = Math.max(0, motionDebug.stumble - dt);
   if (Math.abs(motionDebug.stepTarget - P.pos.y) > 0.45) motionDebug.stepTarget = P.pos.y;
@@ -3154,7 +3162,7 @@ function update(dt) {
     if (P.vy > 0) {
       for (var ceilingIndex = 0; ceilingIndex < colliders.length; ceilingIndex++) {
         var ceiling = colliders[ceilingIndex];
-        if (NON_BLOCKING_KIND[ceiling.kind]) continue;
+        if (!activeCollider(ceiling) || NON_BLOCKING_KIND[ceiling.kind]) continue;
         if (ceiling.bottom > 0.1 && oldHead <= ceiling.bottom + 0.01 && P.pos.y + 1.86 >= ceiling.bottom && insideCol(ceiling, P.pos.x, P.pos.z, -PLAYER_R * 0.7)) {
           P.pos.y = ceiling.bottom - 1.86; P.vy = 0;
         }
@@ -7009,13 +7017,19 @@ function buildSunnyGarden(worldScene) {
   }
 
 
+  var base = new THREE.Group();
+  B(30, 2.0, 30, matStone, 0, -1.0, 0, base, 1.008);
+  B(30.4, 0.44, 30.4, matStoneDark, 0, -1.72, 0, base);
+  B(30.08, 0.12, 30.08, M(0xcabfa8), 0, -0.05, 0, base);
+  B(29, 0.42, 29, M(0x6f583e), 0, 0.19, 0, base);
   var turf = buildGround(), fence = buildFence(), arches = buildArches();
   var flowers = buildFlowers();
   var outerGate = buildGate(); outerGate.scale.y = 1.7; outerGate.position.y = -GY * 0.7;
-  root.add(turf, fence, outerGate, buildHedges(), buildGazebo(), arches, buildTrees(), flowers, buildProps());
+  root.add(base, turf, fence, outerGate, buildHedges(), buildGazebo(), arches, buildTrees(), flowers, buildProps());
   function exemptGroup(group, why) {
     group.traverse(function (mesh) { if (mesh.isMesh) mesh.userData.colExempt = why; });
   }
+  exemptGroup(base, '花园底座：按平台范围提供支撑');
   exemptGroup(flowers, '花坛花朵：可穿行植被');
   exemptGroup(fence, '花园外栅栏：使用连续分段碰撞');
   root.traverse(function (mesh) {
@@ -7073,8 +7087,26 @@ function buildSunnyGarden(worldScene) {
   var birdLight = new THREE.PointLight(0xfff4e2, 9, 7, 2);
   birdLight.position.set(GAZEBO.x, GY + 2.3, GAZEBO.z);
   root.add(birdLight);
-  var sky = new THREE.Mesh(new THREE.SphereGeometry(180, 20, 12),
-    new THREE.MeshBasicMaterial({ color: 0xb4d7e9, side: THREE.BackSide, depthWrite: false, fog: false }));
+  var sky = new THREE.Mesh(new THREE.SphereGeometry(180, 20, 12), new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, toneMapped: false,
+    uniforms: { uSize: { value: new THREE.Vector2() }, uSky: { value: new THREE.Color(0x9ecdf0) },
+      uMid: { value: new THREE.Color(0xd9ecf7) }, uCream: { value: new THREE.Color(0xf8efd6) },
+      uSun: { value: new THREE.Color(0xfffbe6) } },
+    vertexShader: 'void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position.z = gl_Position.w; }',
+    fragmentShader: [
+      'uniform vec2 uSize; uniform vec3 uSky, uMid, uCream, uSun;',
+      'void main() {',
+      '  vec2 uv = gl_FragCoord.xy / uSize;',
+      '  vec3 color = mix(mix(uCream, uMid, smoothstep(0.0, 0.50, uv.y)), uSky, smoothstep(0.47, 1.0, uv.y));',
+      '  float sunGlow = 1.0 - smoothstep(0.0, 1.0, length((uv - vec2(0.14, 0.96)) / vec2(0.35, 0.52)));',
+      '  color = mix(color, uSun, sunGlow * 0.85);',
+      '  float edge = smoothstep(0.35, 0.72, length(uv - 0.5));',
+      '  gl_FragColor = vec4(color * (1.0 - 0.13 * edge), 1.0);',
+      '  #include <colorspace_fragment>',
+      '}'
+    ].join('\n')
+  }));
+  sky.renderOrder = -100;
   sky.userData.colExempt = '花园天空';
   root.add(sky);
   return { host: root, lights: { hemi: hemi, sun: sun, fill: fill, bounce: bounce },
@@ -7120,6 +7152,7 @@ function setWorldVisible(w) {
   fieldRoot.visible = (w === 'field');
   duskLevel.host.visible = (w === 'konbini');
   sunnyGarden.host.visible = (w === 'garden');
+  ground.visible = (w !== 'garden');
 }
 
 /* 每个世界自己的天光：便利店关用关卡自带的黄昏灯 + 橙雾，另外两个世界用主题灯。 */
@@ -7128,7 +7161,8 @@ function applyWorldLighting(w) {
   if (w === 'garden') {
     hemi.intensity = 0; sun.intensity = 0; sun.castShadow = false;
     duskLevel.sky.visible = false;
-    scene.fog.color.setHex(0xb4d7e9); scene.fog.near = 34; scene.fog.far = 115;
+    sunnyGarden.sky.material.uniforms.uSize.value.set(renderer.domElement.width, renderer.domElement.height);
+    scene.fog.color.setHex(0xb4d7e9); scene.fog.near = 140; scene.fog.far = 230;
     return;
   }
   if (w === 'konbini') {
@@ -7242,6 +7276,14 @@ function gardenArchPortal(group, name, world, dest) {
     open: true, focus: false, apertureWidth: a.halfWidth, apertureHeight: a.shoulder };
 }
 
+var gardenInverse = new THREE.Matrix4();
+var gardenSupportPoint = new THREE.Vector3();
+function gardenBaseSupport(x, z) {
+  gardenSupportPoint.set(x, 0, z).applyMatrix4(gardenInverse);
+  if (Math.max(Math.abs(gardenSupportPoint.x), Math.abs(gardenSupportPoint.z)) <= 14.5) return 0;
+  return -100;
+}
+
 function connectGardenArch() {
   var a = GARDEN_ARCH, host = sunnyGarden.host;
   var entry = sunnyGarden.arch;
@@ -7249,6 +7291,7 @@ function connectGardenArch() {
   var anchor = entry.getWorldPosition(new THREE.Vector3());
   host.position.set(a.x - anchor.x, -sunnyGarden.groundY, a.z - anchor.z);
   host.updateMatrixWorld(true);
+  gardenInverse.copy(host.matrixWorld).invert();
   var twin = entry.clone(true);
   twin.position.set(a.x, 0, a.z);
   twin.rotation.y = DOOR_FACE;
@@ -7850,7 +7893,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.29.0';
+window.__worldVersion = 'v0.29.1';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
