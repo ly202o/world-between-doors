@@ -230,7 +230,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.29.10</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.29.11</div>
 <script>
 /**
  * @license
@@ -2347,11 +2347,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.29.10';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.29.11';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.29.10';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.29.11';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -6470,20 +6470,18 @@ function buildSunnyGarden(worldScene) {
     var openEdges = [0, 1, 5]; // 小径前的两个入口与右侧入口
     var postTop = 3.05;
 
+    // 六角台面和屋顶沿柱脚的六个角定向，台阶朝相邻两柱的中点。
     // 石台
-    var base = CY(R + 0.5, R + 0.6, 0.34, matStoneDark, 0, GY + 0.17, 0, 6, g, 1.02);
-    base.rotation.y = Math.PI / 6;
-    var deck = CY(R + 0.34, R + 0.34, 0.14, matStoneLight, 0, GY + 0.41, 0, 6, g);
-    deck.rotation.y = Math.PI / 6;
-    var deckTop = CY(R + 0.3, R + 0.3, 0.05, M(0xdcc9a4), 0, GY + 0.49, 0, 6, g);
-    deckTop.rotation.y = Math.PI / 6;
+    CY(R + 0.5, R + 0.6, 0.34, matStoneDark, 0, GY + 0.17, 0, 6, g, 1.02);
+    CY(R + 0.34, R + 0.34, 0.14, matStoneLight, 0, GY + 0.41, 0, 6, g);
+    CY(R + 0.3, R + 0.3, 0.05, M(0xdcc9a4), 0, GY + 0.49, 0, 6, g);
 
     // 每个栏杆开口都用低台阶接上亭台。
     [0, Math.PI / 3, 2 * Math.PI / 3].forEach(function (angle) {
       var x = Math.cos(angle), z = Math.sin(angle);
       var yaw = Math.atan2(x, z);
-      var lower = B(1.46, 0.17, 0.86, matStoneDark, x * 3.92, GY + 0.085, z * 3.92, g);
-      var upper = B(1.40, 0.34, 1.0, matStone, x * 3.43, GY + 0.17, z * 3.43, g);
+      var lower = B(1.46, 0.17, 0.86, matStoneDark, x * 3.70, GY + 0.085, z * 3.70, g);
+      var upper = B(1.40, 0.34, 1.0, matStone, x * 3.20, GY + 0.17, z * 3.20, g);
       lower.rotation.y = upper.rotation.y = yaw;
     });
 
@@ -6528,14 +6526,12 @@ function buildSunnyGarden(worldScene) {
     // 屋顶
     var roof = new THREE.Mesh(new THREE.ConeGeometry(R + 0.85, 2.05, 6), matRoof);
     roof.position.y = postTop + 1.0;
-    roof.rotation.y = Math.PI / 6;
     roof.castShadow = true;
     roof.receiveShadow = true;
     g.add(roof);
     outline(roof, 1.012);
     // 檐口
-    var fascia = CY(R + 0.9, R + 0.95, 0.14, matWood, 0, postTop + 0.05, 0, 6, g);
-    fascia.rotation.y = Math.PI / 6;
+    CY(R + 0.9, R + 0.95, 0.14, matWood, 0, postTop + 0.05, 0, 6, g);
     // 顶饰
     CY(0.05, 0.05, 0.5, matWood, 0, postTop + 2.1, 0, 8, g);
     var fin = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), matWood);
@@ -6543,8 +6539,7 @@ function buildSunnyGarden(worldScene) {
     fin.castShadow = true;
     g.add(fin);
     // 天花
-    var ceil = CY(R + 0.28, R + 0.28, 0.07, M(0xe8e1cf), 0, postTop - 0.02, 0, 6, g);
-    ceil.rotation.y = Math.PI / 6;
+    CY(R + 0.28, R + 0.28, 0.07, M(0xe8e1cf), 0, postTop - 0.02, 0, 6, g);
     // 放射梁
     postAngles.forEach(function (a) {
       tube(new THREE.Vector3(0, postTop - 0.08, 0), new THREE.Vector3(Math.cos(a) * (R + 0.1), postTop - 0.08, Math.sin(a) * (R + 0.1)), 0.045, matWoodShade, g);
@@ -8116,7 +8111,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.29.10';
+window.__worldVersion = 'v0.29.11';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
