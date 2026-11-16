@@ -228,7 +228,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.26.0</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.26.1</div>
 <script>
 /**
  * @license
@@ -2326,11 +2326,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.26.0';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.26.1';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.26.0';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.26.1';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -6370,7 +6370,7 @@ function togglePortal(d) {
    所以镜头不切、人不跳，走进去就像走进另一个空间。 */
 var PORTAL_R180 = new THREE.Matrix4().makeRotationY(Math.PI);
 var PORTAL_VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }';
-var PORTAL_FS = 'uniform sampler2D uMap; varying vec2 vUv; void main(){ gl_FragColor = texture2D(uMap, vUv); }';
+var PORTAL_FS = 'uniform vec3 uTint; varying vec2 vUv; void main(){ float g = 0.18 + 0.82 * pow(1.0 - vUv.y, 1.7); gl_FragColor = vec4(uTint * g, 1.0); }';
 
 function makePortalCam() {
   var cam = new THREE.PerspectiveCamera(48, 1, 0.05, 320);
@@ -6404,7 +6404,7 @@ function initPortals() {
     d.cam = makePortalCam();
     d.plane.material.dispose();
     d.plane.material = new THREE.ShaderMaterial({
-      uniforms: { uMap: { value: d.rt.texture }, uRes: { value: new THREE.Vector2(cw, ch) } },
+      uniforms: { uTint: { value: new THREE.Color(d.dest === 'konbini' ? 0xff9a5a : 0x9fb2c8) }, uRes: { value: new THREE.Vector2(cw, ch) } },
       vertexShader: PORTAL_VS, fragmentShader: PORTAL_FS,
       depthWrite: false, side: THREE.DoubleSide
     });
@@ -6493,7 +6493,7 @@ function renderPortals() {
     if (d.arrive) d.arrive.group.visible = false;
     var cam = d.cam;
     /* 门后画面：沿用玩家相机（同一视角看另一层），UV 取样显示在门板上。
-       TODO(v0.27)：等距正交下做屏幕空间取样会得到极窄条带，等换成按门面投影的透视相机再改。 */
+       TODO(v0.27)：等距正交下屏幕空间取样会退化成窄条，透视正确的门后取样留到下一版。 */
     var cam = d.cam;
     cam.matrixWorld.copy(activeCam.matrixWorld);
     cam.matrixWorldInverse.copy(cam.matrixWorld).invert();
@@ -6781,7 +6781,7 @@ function loop(t) {
   updateDuskWeather(dt);
   updateStoreDoor(dt);
   updatePortals(dt);
-  renderPortals();
+  /* renderPortals(); —— v0.27 再做透视正确的门后画面，现在门洞里只透光 */
   renderer.render(scene, activeCam);
   adaptResolution(dt);
   /* 音效在渲染之后播：手机上 <audio> / WebAudio 的调度是同步开销，
@@ -6797,7 +6797,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.26.0';
+window.__worldVersion = 'v0.26.1';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
