@@ -228,7 +228,7 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.27.6</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.27.7</div>
 <script>
 /**
  * @license
@@ -1858,7 +1858,7 @@ function fireSteps(d, t0, t1) {
 
 /* ---------------- 角色状态 ---------------- */
 var P = {
-  pos: new THREE.Vector3(2.90, 0.03, -0.50),  /* v0.27.6 出生点：两扇门正南 2.2m，开局就在门的交互范围里 */
+  pos: new THREE.Vector3(2.90, 0.03, -0.50),  /* v0.27.7 出生点：两扇门正南 2.2m，开局就在门的交互范围里 */
   vy: 0,
   onGround: true,
   face: Math.PI / 2,    /* 当前朝向角（弧度）；出生在门前，面朝东（正对门） */
@@ -1943,7 +1943,7 @@ var isoDistCur = 0;                             /* 等距的当前机距（每�
    28m 是量出来的：v0.11.39 删正交的理由之一是"出生点的房子跑出画面上边"，
    24m 时房子顶部仍被顶出去（等距把前方的东西推到画面上方），30m 完整、28m 刚好压住边。
    横屏竖屏都用 28 —— 角色在两种握法下都是屏幕高度的 6% 上下，看着一样大。 */
-var ISO_VIEW_H_L = 20, ISO_VIEW_H_P = 20;      /* v0.27.6：默认取景 28 → 20m（用户指定「大概这么高就行」） */
+var ISO_VIEW_H_L = 20, ISO_VIEW_H_P = 20;      /* v0.27.7：默认取景 28 → 20m（用户指定「大概这么高就行」） */
 var ISO_VIEW_H_MIN = 6, ISO_VIEW_H_MAX = 90;
 var isoViewH = ISO_VIEW_H_L;                    /* 画面纵向覆盖的世界高度：滚轮/捏合改它 */
 var isoUserZoom = false;                        /* 用户自己缩过没有：没缩过就让默认高度跟着横竖屏走 */
@@ -2320,11 +2320,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.27.6';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.27.7';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.27.6';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.27.7';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -3735,7 +3735,7 @@ function buildColViz() {
   var out = [], colors = [];
   for (var i = 0; i < colliders.length; i++) {
     var c = colliders[i];
-    /* v0.27.6：只画当前世界的碰撞体。三个世界共用一套坐标，
+    /* v0.27.7：只画当前世界的碰撞体。三个世界共用一套坐标，
        不过滤就会在空场上凭空画出一栋房子的骨架（用户按 C 时看到的）。 */
     if (c.world && c.world !== curWorld) continue;
     if (c.kind === 'pebble' || c.kind === 'flat') continue;   /* 碎屑/薄地砖不画：会糊成一片 */
@@ -3780,7 +3780,7 @@ function buildColViz() {
   playerViz.visible = false;
   scene.add(playerViz);
 }
-/* v0.27.6：跨门后碰撞线框要按新世界重建，否则看到的还是上一层的盒子 */
+/* v0.27.7：跨门后碰撞线框要按新世界重建，否则看到的还是上一层的盒子 */
 function refreshColViz() {
   if (!colViz) return;
   scene.remove(colViz);
@@ -5989,7 +5989,7 @@ function makeGate(parent, x, z, ry, name) {
   return g;
 }
 
-/* v0.27.6：天光不再按位置混算，改由 applyWorldLighting 按当前世界一次性切换——
+/* v0.27.7：天光不再按位置混算，改由 applyWorldLighting 按当前世界一次性切换——
    跨门是「世界变了」，不是「走进另一个光照区」。 */
 var duskLevel = null;
 
@@ -6055,7 +6055,7 @@ function applyWorldLighting(w) {
     duskLevel.sky.visible = true; duskLevel.sky.material.opacity = 1;
     scene.fog.color.setHex(0x7d5449); scene.fog.near = 45; scene.fog.far = 130;
   } else {
-    /* v0.27.6：这两个世界各只有一套光——主题的天光，不再靠摆灯笼照亮。
+    /* v0.27.7：这两个世界各只有一套光——主题的天光，不再靠摆灯笼照亮。
        出生世界是空场，环境光抬一档，否则删掉布景后就是一片黑。 */
     hemi.intensity = th.hemiI * (w === 'spawn' ? 1.9 : 1.0);
     sun.intensity = th.sunI * (w === 'spawn' ? 1.05 : 1.0); sun.castShadow = true;
@@ -6069,10 +6069,12 @@ function applyWorldLighting(w) {
 
 /* ---------------- 一扇独立的旧木门（天气之子那种） ---------------- */
 var DOOR_W = 0.96, DOOR_H = 2.30;
-/* v0.27.6：整扇门等比放大。门洞 0.96×2.30 → 1.20×2.88，门框外沿 1.34×2.54 → 1.68×3.18。
+/* v0.27.7：整扇门等比放大。门洞 0.96×2.30 → 1.20×2.88，门框外沿 1.34×2.54 → 1.68×3.18。
    只缩放 group，门框/台阶/门板/压条/把手一起变，比例不会走形。 */
 var DOOR_SCALE = 1.25;
-/* v0.27.6：两扇门并排立在房子车道口前，门面朝房子（-z）。这两个点是唯一事实源。 */
+/* 开到位的角度（弧度）。门板碰撞体按这个姿态摆，改角度这里也要改。 */
+var DOOR_OPEN_ANGLE = -2.00;
+/* v0.27.7：两扇门并排立在房子车道口前，门面朝房子（-z）。这两个点是唯一事实源。 */
 var DOOR_A = { x: 1.65, z: -2.7 };
 var DOOR_B = { x: 4.15, z: -2.7 };
 var DOOR_FACE = Math.PI;
@@ -6094,7 +6096,7 @@ function makeStandaloneDoor(parent, x, z, ry, name) {
   bx(0.12, DOOR_H + 0.16, 0.20, dark, -(DOOR_W / 2 + 0.06), (DOOR_H + 0.16) / 2, 0);
   bx(0.12, DOOR_H + 0.16, 0.20, dark, (DOOR_W / 2 + 0.06), (DOOR_H + 0.16) / 2, 0);
   bx(DOOR_W + 0.36, 0.15, 0.20, dark, 0, DOOR_H + 0.16, 0);
-  /* 门板开合的定稿摆法（v0.27.6，参数别乱动）：
+  /* 门板开合的定稿摆法（v0.27.7，参数别乱动）：
      ① 铰链挂在**门柱的 −z 外表面**（z=-0.09）——门柱 20cm 厚、门板 6cm 厚，
         同在中轴上时开到 90° 会整块嵌进柱子，必须错开一层面。
      ② 铰链放在 **+x 那根柱子**、门板朝 −x 伸展（压条与把手一起镜像）。
@@ -6127,7 +6129,7 @@ function makeStandaloneDoor(parent, x, z, ry, name) {
 
 /* ---------------- 出生世界的陈设（极简：两扇门、几条石阶、灯、立石、枯树） ---------------- */
 function buildSpawnWorld() {
-  /* v0.27.6：出生世界只留两扇门和门前的两点暖光。
+  /* v0.27.7：出生世界只留两扇门和门前的两点暖光。
      原来那批石板路 / 石灯笼 / 枯树 / 立石 / 苔整块删掉——
      这个世界要空，跨门时才是「世界变了」，而不是「走到另一个布景里」。 */
   var l1 = new THREE.PointLight(0xffb066, 6, 9, 2);
@@ -6139,7 +6141,7 @@ function buildSpawnWorld() {
 /* ---------------- 建三组世界的门并互相链接 ---------------- */
 var doorK, doorF, doorRK, doorRF;
 function buildPortalDoors() {
-  /* v0.27.6：两扇门并排立在房子车道口前，门面朝房子（-z）。
+  /* v0.27.7：两扇门并排立在房子车道口前，门面朝房子（-z）。
      世界锚在门上：跨门只换层，人不动、镜头不转，变的是世界。 */
   doorK = makeStandaloneDoor(spawnRoot, DOOR_A.x, DOOR_A.z, DOOR_FACE, 'doorKonbini');
   doorF = makeStandaloneDoor(spawnRoot, DOOR_B.x, DOOR_B.z, DOOR_FACE, 'doorField');
@@ -6189,10 +6191,14 @@ function makePortalUI() {
 function togglePortal(d) {
   if (!d) return;
   d.open = !d.open;
-  d.target = d.open ? -2.00 : 0;   /* v0.27.6：往观察者一侧甩 115°，门板落在门框侧前方 */
+  d.target = d.open ? DOOR_OPEN_ANGLE : 0;   /* 往观察者一侧甩 115°，门板落在门框侧前方 */
   if (d.blocker) {
     if (d.open) { d.blocker.x = 9999; d.blocker.z = 9999; }
     else { d.blocker.x = d.blocker.x0; d.blocker.z = d.blocker.z0; }
+  }
+  if (d.leafCol) {   /* v0.27.7：门板碰撞跟着开合走（和挡板相反） */
+    if (d.open) { d.leafCol.x = d.leafCol.x0; d.leafCol.z = d.leafCol.z0; }
+    else { d.leafCol.x = 9999; d.leafCol.z = 9999; }
   }
   markInput();
 }
@@ -6232,6 +6238,25 @@ function initPortals() {
     colliders.push(blk);
     blk.world = d.world;   /* v0.26.0：门挡板只在本世界生效 */
     d.blocker = blk;
+    /* v0.27.7：开着的门板也要挡人。门板本身是 colExempt（开门时要把门洞让开），
+       所以按「开到位」的姿态单独登记一块薄板，开门时生效、关门时挪到界外。
+       姿态推导：铰链本地 (DOOR_W/2, -0.09)，门板中心在铰链的 −x 方向半个门宽处，
+       绕 Y 转 DOOR_OPEN_ANGLE 后落到 (lx, lz)。 */
+    var _a = DOOR_OPEN_ANGLE;
+    var _lx = (DOOR_W / 2) * (1 - Math.cos(_a));
+    var _lz = -0.09 + (DOOR_W / 2) * Math.sin(_a);
+    var _cs = Math.cos(yaw), _sn = Math.sin(yaw);
+    var _wx = wp.x + (_lx * _cs + _lz * _sn) * DOOR_SCALE;
+    var _wz = wp.z + (-_lx * _sn + _lz * _cs) * DOOR_SCALE;
+    var _ly = yaw + _a;
+    var leafCol = { x: _wx, z: _wz, x0: _wx, z0: _wz,
+      hw: (DOOR_W / 2) * DOOR_SCALE, hd: 0.04 * DOOR_SCALE,
+      h: DOOR_H * DOOR_SCALE, bottom: 0, top: DOOR_H * DOOR_SCALE,
+      kind: 'solid', c: Math.cos(_ly), s: Math.sin(_ly),
+      reach: DOOR_W * DOOR_SCALE, mesh: null };
+    colliders.push(leafCol);
+    leafCol.world = d.world;
+    d.leafCol = leafCol;
     var cw = renderer.domElement.width || 800, ch = renderer.domElement.height || 600;
     var rw = Math.max(200, Math.round(cw / 2)), rh = Math.max(200, Math.round(ch / 2));
     d.rt = new THREE.WebGLRenderTarget(rw, rh, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
@@ -6262,7 +6287,7 @@ function updatePortals(dt) {
     if (d.world !== curWorld) { d.focus = false; continue; }
     wp.copy(P.pos);
     d.group.worldToLocal(wp);
-    var near = Math.abs(wp.z) < 2.4 * DOOR_SCALE && Math.abs(wp.x) < 1.15 * DOOR_SCALE && wp.y < 2.5 * DOOR_SCALE;   /* v0.27.6 门并排后放宽横向范围，站在两门之间也能开门 */
+    var near = Math.abs(wp.z) < 2.4 * DOOR_SCALE && Math.abs(wp.x) < 1.15 * DOOR_SCALE && wp.y < 2.5 * DOOR_SCALE;   /* v0.27.7 门并排后放宽横向范围，站在两门之间也能开门 */
     d.focus = near;
     if (near && Math.abs(wp.z) < bestZ) { bestZ = Math.abs(wp.z); best = d; }
     var px = wp.x, pz = wp.z;
@@ -6298,7 +6323,7 @@ function enterPortal(d) {
   refreshColViz();
   /* 玩家正站在落点门的门洞里：把这扇门也留着开，别让门板或碰撞把玩家推出去 */
   if (d.arrive) {
-    d.arrive.open = true; d.arrive.target = -2.00;
+    d.arrive.open = true; d.arrive.target = DOOR_OPEN_ANGLE;
     if (d.arrive.blocker) { d.arrive.blocker.x = 9999; d.arrive.blocker.z = 9999; }
   }
   /* 用当前站位重置 prevZ，避免刚落点就被判成一次新的穿越 */
@@ -6632,7 +6657,7 @@ function loop(t) {
 }
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.27.6';
+window.__worldVersion = 'v0.27.7';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
