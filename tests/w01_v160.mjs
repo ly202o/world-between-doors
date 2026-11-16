@@ -97,7 +97,7 @@ await ev(`window.dispatchEvent(new KeyboardEvent('keyup',{key:'w'}))`);
 await sleep(300);
 const p1 = await ev(`({x:+__world.P.pos.x.toFixed(2), z:+__world.P.pos.z.toFixed(2)})`);
 ok('还能走', Math.hypot(p1.x - p0.x, p1.z - p0.z) > 0.8, (Math.hypot(p1.x - p0.x, p1.z - p0.z)).toFixed(2) + 'm');
-ok('碰撞体仍是 819 个（按世界核对）', (await num('window.__colliders.length')) === 819);
+ok('碰撞体仍是 821 个（按世界核对）', (await num('window.__colliders.length')) === 821);
 ok('碰撞自检遗漏 0', (await num('window.__collisionAudit.verify.missing')) === 0);
 ok('脚部 IK 参数还在', (await num('window.__world.ikCfg.ankleH')) > 0.05,
    await num('window.__world.ikCfg.ankleH'));
