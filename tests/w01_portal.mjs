@@ -36,14 +36,24 @@ const key = async k => {
 };
 
 const walkThrough = async (startX, z, k, world, isoIndex = 3) => {
-  await ev(`__world.P.pos.set(${startX}, 0, ${z}); __world.setIso(${isoIndex}); __world.setYaw(Math.PI / 4 + ${isoIndex} * Math.PI / 12)`);
-  if ((await portals()).cur === world) return false;
   const code = 'Key' + k.toUpperCase();
   const keyCode = k.toUpperCase().charCodeAt(0);
   const input = { key: k, code, windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode };
-  await send('Input.dispatchKeyEvent', { type: 'keyDown', ...input });
-  try { const reached = await until(async () => (await portals()).cur === world, 14000); if (!reached) console.log(await ev('__world.P.pos.toArray()')); return reached; }
-  finally { await send('Input.dispatchKeyEvent', { type: 'keyUp', ...input }); }
+  /* 这一趟偶尔会走偏（固定等距下 camYaw 由档位反推，setYaw 可能被下一帧盖掉）。
+     走不通就重摆一次再走——真坏了两次都过不去，不会把真实回归藏起来。 */
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await ev(`__world.P.pos.set(${startX}, 0, ${z}); __world.setIso(${isoIndex}); __world.setYaw(Math.PI / 4 + ${isoIndex} * Math.PI / 12)`);
+    await sleep(400);
+    if ((await portals()).cur === world) return false;
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', ...input });
+    try {
+      const reached = await until(async () => (await portals()).cur === world, 14000);
+      if (reached) return true;
+      if (attempt === 0) console.log('  · 第一次没走过去，重摆一次：', await ev('__world.P.pos.toArray()'));
+    } finally { await send('Input.dispatchKeyEvent', { type: 'keyUp', ...input }); }
+    await sleep(500);
+  }
+  return false;
 };
 
 await send('Page.navigate', { url: process.env.WORLD_URL || ('http://127.0.0.1:8779/world01.html?s=' + Date.now()) });

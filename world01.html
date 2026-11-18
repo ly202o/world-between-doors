@@ -307,7 +307,7 @@
 </section>
 <div id="worldLocation" role="status" aria-atomic="true"></div>
 <div id="worldLocationHud" aria-hidden="true"></div>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.30.5</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.30.6</div>
 <script>
 /**
  * @license
@@ -1970,67 +1970,55 @@ function makeSceneMusic(world) {
 
 /* 便利店：乡村民谣气质的原创循环（不引用任何现成曲子的旋律）。
    G–D–Em–C、92 BPM、每和弦四拍；钢弦分解和弦 + 拍点低音 + 一句稀疏的口哨感旋律。
-   末音尾巴用取模写回开头，循环处没有断口。 */
+   末音尾巴用取模写回开头，循环处没有断口。
+   注：v0.30.6 曾改成 84BPM + 拨片噪声 + 揉弦，用户觉得不如这支好听——按他的耳朵为准整支还原，
+   以后不要再以「更真实」为理由重写这一支。 */
 function makeKonbiniMusic() {
-  /* 乡村民谣的骨架：I–V–vi–IV、低音级进、拇指打拍 + 食指分解。
-     84 BPM、G 大调、每和弦四拍、四和弦一轮 ≈ 11.4 秒。
-     旋律是原创的五声音阶短句，不引用任何现成歌曲。 */
   var rate = 22050;
-  var beat = 60 / 84;
+  var beat = 60 / 92;
   var chords = [
-    { bass: 43, notes: [59, 62, 67, 71] },   /* G    */
-    { bass: 42, notes: [57, 62, 66, 69] },   /* D/F# */
-    { bass: 40, notes: [55, 59, 64, 67] },   /* Em   */
-    { bass: 36, notes: [55, 60, 64, 67] }    /* C    */
+    { bass: 43, notes: [55, 59, 62, 67] },   /* G  */
+    { bass: 38, notes: [50, 54, 57, 62] },   /* D  */
+    { bass: 40, notes: [52, 55, 59, 64] },   /* Em */
+    { bass: 36, notes: [48, 52, 55, 60] }    /* C  */
   ];
   var total = beat * 4 * chords.length;
   var buffer = AC.createBuffer(1, Math.floor(rate * total), rate);
   var out = buffer.getChannelData(0);
-  var ARP = [0, 2, 1, 3, 3, 1, 2, 0];
+  var ARP = [0, 2, 1, 3];
   function hz(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
-  var noiseSeed = 2269;
-  function rnd() { noiseSeed = (Math.imul(noiseSeed, 1664525) + 1013904223) >>> 0; return noiseSeed / 4294967296; }
-
-  /* 拨弦：起音 6ms，指数衰减，附一点拨片噪声和二次谐波，听起来才像木吉他 */
-  function pluck(t0, dur, midi, gain, decay, vib) {
-    var start = Math.floor(t0 * rate), len = Math.floor(dur * rate), f0 = hz(midi);
+  function pluck(t0, dur, midi, gain, decay, rich) {
+    var start = Math.floor(t0 * rate), len = Math.floor(dur * rate), f = hz(midi);
     for (var i = 0; i < len; i++) {
       var t = i / rate;
       var env = Math.min(1, t / 0.006) * Math.exp(-t * decay) * Math.min(1, (dur - t) / 0.05);
-      var f = vib ? f0 * (1 + 0.004 * Math.sin(2 * Math.PI * 5.2 * t)) : f0;
-      var v = Math.sin(2 * Math.PI * f * t) + 0.26 * Math.sin(4 * Math.PI * f * t) + 0.09 * Math.sin(6 * Math.PI * f * t);
-      var pick = t < 0.004 ? (rnd() * 2 - 1) * (1 - t / 0.004) * 0.35 : 0;
-      out[(start + i) % out.length] += gain * env * (v + pick);
+      var v = Math.sin(2 * Math.PI * f * t);
+      if (rich) v += 0.30 * Math.sin(4 * Math.PI * f * t) + 0.10 * Math.sin(6 * Math.PI * f * t);
+      out[(start + i) % out.length] += gain * env * v;
     }
   }
-
   for (var c = 0; c < chords.length; c++) {
     var ch = chords[c], base = c * 4 * beat;
     for (var b = 0; b < 4; b++) {
-      /* 拇指：1、3 拍踩低音，第 3 拍换成五度，是乡村最常见的交替低音 */
-      var bassNote = (b === 2) ? ch.notes[0] - 5 : ch.bass;
-      pluck(base + b * beat, beat * 1.5, bassNote, 0.19, 2.2, false);
+      if (b % 2 === 0) pluck(base + b * beat, beat * 1.6, ch.bass, 0.20, 2.0, false);
       for (var e = 0; e < 2; e++) {
-        var n = ch.notes[ARP[(b * 2 + e) % 8]];
-        pluck(base + b * beat + e * beat * 0.5, beat * 0.8, n, 0.095, 3.6, false);
+        /* 固定的分解型：根-三-五-八，八个八分音符转两圈 */
+        var n = ch.notes[ARP[(b * 2 + e) % 4]];
+        pluck(base + b * beat + e * beat * 0.5, beat * 0.75, n, 0.105, 3.2, true);
       }
     }
-    /* 每小节最后一拍的后半拍补一个高音，像顺手扫的一下 */
-    pluck(base + 3.5 * beat, beat * 1.2, ch.notes[3] + 12, 0.055, 4.2, false);
   }
-
-  /* 旋律：两小节一句，收在属音上再落回主音——土，但正是这个味 */
-  var lead = [[74, 0.5, 1.2], [76, 1.5, 0.8], [79, 2.5, 1.6], [76, 4.0, 1.0],
-              [74, 5.5, 1.4], [71, 7.0, 2.2],
-              [72, 8.5, 1.0], [74, 9.5, 1.2], [76, 10.5, 1.6], [74, 12.0, 1.0],
-              [72, 13.0, 1.0], [71, 14.0, 2.4]];
+  /* 稀疏口哨感旋律：两小节一句，G 大调五声音阶 */
+  var lead = [[74, 0], [79, 1.5], [81, 3], [79, 4.5], [74, 6], [0, 7.5],
+              [76, 8], [81, 9.5], [79, 11], [76, 12.5], [74, 14], [0, 15]];
   for (var k = 0; k < lead.length; k++) {
-    pluck(lead[k][1] * beat, lead[k][2], lead[k][0], 0.07, 1.6, true);
+    if (!lead[k][0]) continue;
+    pluck(lead[k][1] * beat, beat * 2.2, lead[k][0], 0.065, 1.5, false);
   }
-
+  /* 归一：叠了这么多层，峰值压到 0.85 再交出去 */
   var peak = 0;
-  for (var i2 = 0; i2 < out.length; i2++) { var a2 = Math.abs(out[i2]); if (a2 > peak) peak = a2; }
-  if (peak > 0) { var g = 0.85 / peak; for (var j2 = 0; j2 < out.length; j2++) out[j2] *= g; }
+  for (var i = 0; i < out.length; i++) { var a = Math.abs(out[i]); if (a > peak) peak = a; }
+  if (peak > 0) { var k2 = 0.85 / peak; for (var j = 0; j < out.length; j++) out[j] *= k2; }
   return buffer;
 }
 
@@ -2566,11 +2554,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第三人称/等距视角 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.30.5';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第三人称/等距视角 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.30.6';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第三人称/等距视角） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.30.5';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第三人称/等距视角） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.30.6';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -7509,7 +7497,7 @@ function setWorldVisible(w) {
 
 /* 每个世界自己的天光：便利店关用关卡自带的黄昏灯 + 橙雾，另外两个世界用主题灯。 */
 
-/* v0.30.5 原野＝虚空：背景压到近黑、天光压到只够勾出门的轮廓，雾把远处吃掉。
+/* v0.30.6 原野＝虚空：背景压到近黑、天光压到只够勾出门的轮廓，雾把远处吃掉。
    想更黑就调小 VOID_HEMI / VOID_SUN、把 VOID_BG 往 0x000000 靠；想亮回来反之。 */
 var VOID_BG = 0x05060a;
 var VOID_HEMI = 0.30;    /* 主题环境光的倍数：原来 1.9，那是给「空场」补光的 */
@@ -8457,7 +8445,7 @@ function fitPortalFrameColliders(door) {
 }
 
 
-/* v0.30.5 的美术注入块（buildStoryWorlds：原野花海 / 初始之地浮空柱廊 / 蝶语花园树荫）
+/* v0.30.6 的美术注入块（buildStoryWorlds：原野花海 / 初始之地浮空柱廊 / 蝶语花园树荫）
    已按需求撤回——出生空地、旧测试场、晴日花园三个场景回到 v0.29.14 的原貌。
    保留的只有黄昏便利店的配色调整（用户：「黄昏便利店场景不用恢复」）。
    v0.28.x 的门洞实时渲染、玻璃门推动、门槛坐标共用等与场景无关的改进不受影响。 */
@@ -8595,27 +8583,6 @@ function buildVoidHaze() {
   mist.userData.colExempt = '虚空薄雾：不参与碰撞';
   spawnRoot.add(mist);
 
-  /* 远处有什么：几组巨大的、几乎看不见的轮廓。它们不承载玩法，只负责给虚空一个尺度——
-     近处三扇门很小，远处那些东西很大，"空"才不是平的。 */
-  var silhouette = new THREE.MeshBasicMaterial({ color: 0x020306, fog: false });
-  var farShapes = [
-    [-24, -12, 0.85], [-18, 22, 1.1], [22, -26, 0.95], [28, 12, 0.8], [-4, -30, 1.2]
-  ];
-  for (var fi = 0; fi < farShapes.length; fi++) {
-    var fx = farShapes[fi][0], fz = farShapes[fi][1], fs = farShapes[fi][2];
-    var grp = new THREE.Group();
-    for (var fk = 0; fk < 3; fk++) {
-      var fw = (6 + fk * 1.6) * fs, fh = (13 - fk * 3.2) * fs;
-      var pillar = new THREE.Mesh(new THREE.CylinderGeometry(fw * 0.62, fw, fh, 7), silhouette);
-      pillar.position.set((fk - 1) * fw * 0.55, fh / 2 - 2.5, (fk - 1) * 1.8);
-      pillar.rotation.y = fk * 0.7 + fi;
-      pillar.userData.colExempt = '远景剪影：不参与碰撞';
-      grp.add(pillar);
-    }
-    grp.position.set(fx, 0, fz);
-    grp.userData.colExempt = '远景剪影：不参与碰撞';
-    spawnRoot.add(grp);
-  }
 }
 
 function initPortalWorlds() {
@@ -8918,7 +8885,7 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.30.5';
+window.__worldVersion = 'v0.30.6';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
