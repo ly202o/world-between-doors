@@ -6,6 +6,8 @@ backups/
 release/
 
 # 调试产物
+# 美术检查产物：里面有若干份无头浏览器 profile，实测 687MB，绝不能入库
+.art-check/
 _solo/
 _*.png
 _*.mjs

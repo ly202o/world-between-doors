@@ -100,11 +100,9 @@ ok(Math.hypot(p1.x - p0.x, p1.z - p0.z) > 0.5, '还能走', { p0, p1 });
 const vm0 = await ev(`__world.viewMode`);
 await key('v', 'KeyV', 86); await sleep(400);
 const vm1 = await ev(`__world.viewMode`);
-ok(vm1 === (vm0 + 1) % 4, `V 还能切视角（${vm0} → ${vm1}）`, vm1);
+ok(vm1 === (vm0 + 1) % 2, `V 还能切视角（${vm0} → ${vm1}）`, vm1);
 await key('v', 'KeyV', 86); await sleep(400);
-await key('v', 'KeyV', 86); await sleep(400);
-await key('v', 'KeyV', 86); await sleep(400);
-ok(await ev(`__world.viewMode`) === vm0, '四档转一圈回到原档', vm0);
+ok(await ev(`__world.viewMode`) === vm0, '两档来回切回到原档', vm0);
 
 console.log('\n[7] 脚 IK / 碰撞自检 / 音效 / 侧栏 都还在');
 await ev('__world.P.pos.set(25, 0, 25)');
@@ -124,9 +122,9 @@ ok(Math.abs(ikGap.foot_r - 0.100) < 0.05, '右脚踝离地还是 0.100 附近', 
 const audit = await ev(`__collisionAudit && ({missing:__collisionAudit.verify.missing, exempt:__collisionAudit.verify.exempt})`);
 ok(audit && audit.missing === 0, '碰撞自检遗漏 0', audit);
 /* 豁免从 30 掉到 2：少掉的 28 条正是挂在 hand_r 上的枪零件 —— 反过来证明枪真的从场景图里摘掉了 */
-ok(audit && audit.exempt === 295, '记录装饰、木门模型和场景表面豁免', audit);
+ok(audit && audit.exempt === 298, '记录装饰、花园描边和场景表面豁免', audit);
 const prof = await ev(`(function(){var by={};for(var i=0;i<__colliders.length;i++){var k=__colliders[i].kind;by[k]=(by[k]||0)+1;}return {n:__colliders.length,by:by};})()`);
-ok(prof.n === 820, '碰撞体 820 个（按世界核对）', prof.n);
+ok(prof.n === 1075, '碰撞体 1075 个（场景回退后旧测试场道具回归）', prof.n);
 ok(prof.by.target === 3 && prof.by.stand === 3, '靶板 3 块 + 支架 3 根都还在', prof.by);
 
 ok(await ev(`__world.sound.muted === true`), '仍然默认静音');

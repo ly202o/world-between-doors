@@ -1,0 +1,23 @@
+const pages=await(await fetch('http://127.0.0.1:9237/json/list')).json();
+const ws=new WebSocket(pages.find(p=>p.type==='page').webSocketDebuggerUrl);
+await new Promise(r=>ws.onopen=r);let id=0;const pending=new Map();
+ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.id){pending.get(m.id)?.(m);pending.delete(m.id);}};
+const send=(method,params={})=>new Promise(r=>{pending.set(++id,r);ws.send(JSON.stringify({id,method,params}));});
+const ev=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true});if(r.result?.exceptionDetails)throw Error(JSON.stringify(r.result.exceptionDetails));return r.result?.result?.value;};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+await send('Page.navigate',{url:'file:///D:/VibeCoding/游戏开发/world01/.art-check/world01.html?physics'});await sleep(2500);
+const first=await ev('({camera:__world.activeCamObj.position.toArray(),player:__world.P.pos.toArray(),look:__world.look.on})');
+if(first.camera[1]<2)throw Error('启动机位贴地');
+await ev('__world.P.pos.set(2.6,0,-2.7);__world.setIso(3);__world.setYaw(Math.PI/2)');
+await send('Input.dispatchKeyEvent',{type:'keyDown',key:'w',code:'KeyW',windowsVirtualKeyCode:87});
+let max=0;
+for(let i=0;i<45;i++){await sleep(200);const angle=await ev("__world.portals.doors.find(function(d){return d.name==='doorKonbini';}).angle");max=Math.max(max,Math.abs(angle));if(max>1.1)break;}
+await send('Input.dispatchKeyEvent',{type:'keyUp',key:'w',code:'KeyW',windowsVirtualKeyCode:87});
+const before=await ev("__world.portals.doors.filter(function(d){return d.name==='doorKonbini'||d.name==='returnKonbini';})");
+await sleep(2200);
+const after=await ev("__world.portals.doors.filter(function(d){return d.name==='doorKonbini'||d.name==='returnKonbini';})");
+console.log(JSON.stringify({first,max,before,after}));
+if(max<.5)throw Error('身体未推动门扇');
+if(Math.abs(after[0].angle-after[1].angle)>.001)throw Error('两侧门姿态不同步');
+if(Math.abs(after[0].angularVelocity)>Math.abs(before[0].angularVelocity)+.01)throw Error('松开后阻尼不生效');
+console.log('PASS: 初始机位、身体推门、双侧同步、阻尼');ws.close();

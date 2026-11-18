@@ -189,6 +189,58 @@
     color: var(--ink-dim); opacity: .65; letter-spacing: .08em;
     pointer-events: none; z-index: 150;
   }
+#worldLocation {
+  position: fixed;
+  z-index: 5;
+  top: max(7vh, calc(env(safe-area-inset-top, 0px) + 28px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(76vw, 360px);
+  padding: 8px 12px 13px;
+  pointer-events: none;
+  text-align: center;
+  color: #fff7e6;
+  font: 500 clamp(24px, 3vw, 36px)/1.4 "Songti SC", "SimSun", serif;
+  letter-spacing: 0.22em;
+  text-shadow: 0 2px 9px #151416, 0 1px 2px #151416;
+  background: radial-gradient(ellipse, #171a228c, transparent 72%);
+  opacity: 0;
+}
+#worldLocation::after {
+  content: "";
+  display: block;
+  width: 70%;
+  height: 1px;
+  margin: 8px auto 0;
+  background: linear-gradient(90deg, transparent, #fff1cdba, transparent);
+}
+#worldLocation.is-arriving { animation: world-arrival 4.4s ease-in-out both; }
+@keyframes world-arrival {
+  0%, 8% { opacity: 0; }
+  29%, 69% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #worldLocation.is-arriving { animation-timing-function: steps(1, end); }
+}
+#worldLocationHud {
+  position: fixed;
+  z-index: 5;
+  left: max(22px, calc(env(safe-area-inset-left, 0px) + 10px));
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  pointer-events: none;
+  font: 500 10px/1.9 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  letter-spacing: .16em;
+  color: var(--ink-dim);
+  opacity: .29;
+  transition: color .8s ease;
+}
+@media (hover: none) and (pointer: coarse) {
+  #worldLocationHud {
+    top: max(30px, calc(env(safe-area-inset-top, 0px) + 24px));
+    bottom: auto;
+  }
+}
 </style>
 </head>
 <body>
@@ -199,7 +251,7 @@
 <div id="helpBadge" title="按 H 显示 / 隐藏操作说明">H</div>
 <button id="runBtn" class="pill">快跑</button>
 <button id="slowBtn" class="pill" aria-pressed="false">慢走</button>
-<button id="viewBtn" class="pill">自由</button>
+<button id="viewBtn" class="pill">等距视角</button>
 <button id="lockBtn" class="pill">俯仰</button>
 <button id="snapBtn" class="pill">自由</button>
 <button id="themeBtn" class="pill">深色</button>
@@ -230,7 +282,9 @@
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.29.14</div>
+<div id="worldLocation" role="status" aria-atomic="true"></div>
+<div id="worldLocationHud" aria-hidden="true"></div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.30.1</div>
 <script>
 /**
  * @license
@@ -623,7 +677,7 @@ function collisionAudit(fill) {
 
     var own = false;
     for (var ci = 0; ci < colliders.length; ci++) if (colliders[ci].mesh === mesh) { own = true; break; }
-    if (meshCovered(geo.boundingBox, mesh.matrixWorld, TOL, world, owner)) {
+    if (mesh.userData.fittedDoorCollision || meshCovered(geo.boundingBox, mesh.matrixWorld, TOL, world, owner)) {
       if (own) res.ownMeshes++; else res.covered++;
       return;
     }
@@ -1363,7 +1417,7 @@ function updateFootContact(dt) {
    从侧面看像上半身被人扳了一下。所以上限就是脖子。
    另外站定时身体本来就会转向视线（朝向 lerp），这一项主要在「边走边转头看」时看得出来。
    第一人称要关掉：相机不在骨骼上，头转了相机不转，只会把脑袋转进镜头里。 */
-var LOOK = { on: true, max: 1.15, neck: 0.45, head: 0.55, rate: 9, cur: 0 };
+var LOOK = { on: false, max: 1.15, neck: 0.45, head: 0.55, rate: 9, cur: 0 };
 var _lookAX = new THREE.Vector3(0, 1, 0);
 
 function updateLookPose(dt) {
@@ -1880,7 +1934,7 @@ function fireSteps(d, t0, t1) {
 
 /* ---------------- 角色状态 ---------------- */
 var P = {
-  pos: new THREE.Vector3(3.85, 0.03, -3.70),  /* 出生在门列正面，开局在第一扇门的交互范围 */
+  pos: new THREE.Vector3(4.85, 0.03, -8.0),  /* 出生在花园门前 */
   vy: 0,
   onGround: true,
   face: Math.PI / 2,    /* 当前朝向角（弧度）；出生在门前，面朝东（正对门） */
@@ -1914,21 +1968,17 @@ var FRICT = 22;
 var camYaw   = 0;          /* 水平角，0 = 在角色正后方 */
 var camPitch = 0.30;       /* 俯角 */
 var camDist  = 8.6;
-/* 视角模式：0=第一人称 1=第三人称 2=自由 3=等距（默认——v0.20.0 起开局就是等距，
-   进来第一眼看到的是完整的村子，不是角色的后背） */
-var viewMode = 3;
+/* 视角模式：0=第三人称，1=等距。 */
+var viewMode = 1;
 var firstMode = false, freeMode = false, isoMode = true;
 var fpBlend = 0;                 /* 第一/第三之间的平滑量，切换永远是连续曲线 */
 var fpPitch = -0.02;
 /* 轨道枢轴高度：肩点 1.42m。比胸口高、比眼低——挂胸口会让近景镜头卡在肚子上，
    挂眼睛那是第一人称的事。 */
 var PIVOT_H = 1.42;
-/* 自由视角：俯仰不设限、距离可滚轮/双指缩放。
-   最近只到 1.5m：再近镜头就钻进身体了（最短臂长挡着，不靠"拉进眼睛"）。
-   默认落点沿用旧的俯视档——俯角 0.66（约 38°）、机距横屏 23 / 竖屏 20。
-   它是"看全貌"的入口，进来先给全景，再自己转/缩。 */
-var FREE_PITCH_DEF = 0.66;
-var FREE_DIST_DEF_L = 23, FREE_DIST_DEF_P = 20;
+/* 第三人称支持自由转动和缩放，默认机位沿用原第三人称。 */
+var FREE_PITCH_DEF = camPitch;
+var FREE_DIST_DEF_L = camDist, FREE_DIST_DEF_P = camDist;
 var freePitch = FREE_PITCH_DEF, freeDist = FREE_DIST_DEF_L;   /* 开局就是默认落点（resize 再按横竖屏修正） */
 var freeIntro = 0;                       /* >0 表示还在往默认落点过渡（秒），用户一动就取消 */
 var freeUserZoom = false;                /* 用户自己缩过没有：没缩过就让默认机距跟着横竖屏走 */
@@ -1948,24 +1998,24 @@ var lockYaw = 0;
       水平角两级档（v0.18.0 引入，v0.21.0 起只在自由模式生效）：Q/E 轻按走 15° 细档，Shift+Q/E 走 90° 粗档；固定模式下 Q/E 与拖动都不旋转。
     45°+k·90° 那四个方位是**唯一**三条轴等长的角度，其余细档是正交斜视（方块会拉长），
     这是用户明确要的取舍：微调优先于几何纯度。 */
-var ISO_PITCH = Math.PI / 6;                  /* 45° 方位下的 2:1 地砖投影 */
+var ISO_PITCH = 36 * Math.PI / 180;           /* 默认俯角 */
 var ISO_YAW_BASE = Math.PI / 4;                 /* 45°：等距的经典方位 */
 var ISO_YAW_FINE = Math.PI / 12;                /* 细档 15°：Q/E 轻按走一格 */
 var ISO_YAW_TICKS = 24;                         /* 一圈 24 格 */
 var ISO_YAW_COARSE = 6;                         /* 粗档 = 6 细格 = 90°（Shift+Q/E、拖动） */
 var isoYawIdx = 0;                              /* 细档序号 0..23 → 方位 = 45° + n×15° */
-/* 等距旋转模式开关：默认「固定」。
+/* 等距旋转模式开关：默认「自由」。
    固定 = **完全不能旋转**（v0.21.0 用户拍板）：拖动不转、Q/E 也不转，机位焊在真等距方位上；
    自由 = 拖动跟手连续转（松手停在哪是哪），Q/E 仍可 15° / 90° 档位微调。
    两档用 G 键 / 右上角「固定/自由」按钮切换；切到固定的那一刻吸附到最近的真等距方位。 */
-var isoFreeDrag = false;
+var isoFreeDrag = true;
 var isoDistCur = 0;                             /* 等距的当前机距（每帧缓动到目标） */
 /* 取景用"画面纵向覆盖多少米世界"来定（isoViewH），不用"窄边"那套：
    竖屏窄边是宽，一旦按窄边算，纵向会撑到 34m，人为一个小点、上下全是空地。
    28m 是量出来的：v0.11.39 删正交的理由之一是"出生点的房子跑出画面上边"，
    24m 时房子顶部仍被顶出去（等距把前方的东西推到画面上方），30m 完整、28m 刚好压住边。
    横屏竖屏都用 28 —— 角色在两种握法下都是屏幕高度的 6% 上下，看着一样大。 */
-var ISO_VIEW_H_L = 20, ISO_VIEW_H_P = 20;      /* v0.27.8：默认取景 28 → 20m（用户指定「大概这么高就行」） */
+var ISO_VIEW_H_L = 17, ISO_VIEW_H_P = 17;      /* 默认画面取景高度 */
 var ISO_VIEW_H_MIN = 6, ISO_VIEW_H_MAX = 90;
 var isoViewH = ISO_VIEW_H_L;                    /* 画面纵向覆盖的世界高度：滚轮/捏合改它 */
 var isoUserZoom = false;                        /* 用户自己缩过没有：没缩过就让默认高度跟着横竖屏走 */
@@ -2027,7 +2077,7 @@ var themeBtn = document.getElementById('themeBtn');
 var colBtn   = document.getElementById('colBtn');
 var runBtn   = document.getElementById('runBtn');
 var slowBtn = document.getElementById('slowBtn');
-var VIEW_NAME = ['第一', '第三', '自由', '等距'];
+var VIEW_NAME = ['第三人称', '等距视角'];
 var LOCK_NAME = ['俯仰', '45°'];   /* 显示当前状态：自由俯仰 / 锁在 45° */
 
 /* ---------------- 主题：深色（默认）/ 白色 ----------------
@@ -2228,12 +2278,11 @@ function toggleMousePointer() {
 mouseBtn.addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); toggleMousePointer(); }, { passive: false });
 
 function toggleView() {
-  viewMode = (viewMode + 1) % 4;
-  firstMode = (viewMode === 0);
-  freeMode = (viewMode === 2);
-  isoMode = (viewMode === 3);
-  /* 进自由视角：从当前第三人称取景出发，再短缓动到"俯视全景"默认落点。
-     直接硬切会闪一下，所以给 0.55s 的接近；用户一动（转俯仰/缩放）立刻取消，不抢操作。 */
+  viewMode = (viewMode + 1) % 2;
+  firstMode = false;
+  freeMode = (viewMode === 0);
+  isoMode = (viewMode === 1);
+  /* 切到第三人称时缓动到默认机位，用户转动或缩放时取消缓动。 */
   if (freeMode) {
     freePitch = camPitch; freeDist = camDist + distKick;
     freeToPitch = freeLock ? LOCK_PITCH : FREE_PITCH_DEF;   /* 锁定 45° 时落点也落在 45° */
@@ -2347,11 +2396,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第一/第三/自由/等距 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.29.14';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第三人称/等距视角 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.30.1';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第一/第三/自由/等距） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.29.14';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第三人称/等距视角） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.30.1';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -3007,6 +3056,19 @@ function collideXZ(dt, tx, tz) {
     var wx = nx * col.c + nz * col.s;
     var wz = -nx * col.s + nz * col.c;
     var vn = vel.x * wx + vel.z * wz;
+    if (col.pushDoor) {
+      var door = col.pushDoor, pressDoor = Math.max(0, -(tx * wx + tz * wz), -vn);
+      if (pressDoor > 0.01) {
+        door.hinge.getWorldPosition(portalPushPivot);
+        var rxDoor = P.pos.x - portalPushPivot.x, rzDoor = P.pos.z - portalPushPivot.z;
+        var torque = rzDoor * (-wx) - rxDoor * (-wz);
+        door.angularVelocity = (door.angularVelocity || 0) + torque * pressDoor * dt * 13;
+        door.servo = false; door.arrive.servo = false;
+        door.pushContact = true;
+      }
+      if (vn < 0) { vel.x -= vn * wx; vel.z -= vn * wz; }
+      continue;
+    }
     motionDebug.wall = col.kind;
     if (vn < -0.7 && P.onGround && motionDebug.cooldown <= 0) {
       P.face = P.faceTarget = Math.atan2(tx, tz);
@@ -3058,6 +3120,7 @@ function supportAt(px, pz, feet, world) {
   var best = 0;
   if (world === 'garden') best = platformSupport(gardenInverse, 14.5, px, pz);
   if (world === 'konbini') best = platformSupport(duskGroundInverse, 10, px, pz);
+  if (world === 'field' && px * px + (pz + 5) * (pz + 5) > 23 * 23) best = -100;
   var limit = feet + STEP_UP + 0.02;
   for (var i = 0; i < colliders.length; i++) {
     var col = colliders[i];
@@ -3081,8 +3144,8 @@ function supportAt(px, pz, feet, world) {
 }
 
 function update(dt) {
-  if ((curWorld === 'garden' || curWorld === 'konbini') && P.pos.y < -8) {
-    var entry = curWorld === 'garden' ? GARDEN_ARCH : DOOR_A;
+  if ((curWorld === 'garden' || curWorld === 'konbini' || curWorld === 'field') && P.pos.y < -8) {
+    var entry = curWorld === 'garden' ? GARDEN_ARCH : (curWorld === 'field' ? FIELD_EXIT : DOOR_A);
     P.pos.set(entry.x - 1.2, 0, entry.z);
     portalPreviousPosition.copy(P.pos);
     P.vy = 0; P.onGround = true;
@@ -3254,14 +3317,7 @@ function update(dt) {
     P.faceTarget = Math.atan2(tx, tz); /* 输入意图不受墙面消速影响 */
   }
   /* 第一人称：身体跟着视线转，不然会横着走 */
-  if (fpBlend > 0.5 || (settings.followView && !freeMode && !isoMode)) {
-    P.faceTarget = camYaw + Math.PI;
-  }
-  /* 站定时身体跟着视线转：v0.13.2 的原地转身（90° TurnInPlace）全靠这里给触发点 ——
-     不接管这一下，站定甩视角就再也不会迈步转身了。
-     v0.14.0 拆武器时只摘掉了原来那句 -0.5rad（约 29°）的侧身偏移：那是持枪站姿，
-     为了让右肩和枪露出来；没有枪之后身体应该正对视线，不用斜着站。 */
-  if (!climb && !isoMode && fpBlend < 0.5 && sp < 0.2 && tx * tx + tz * tz < 0.01) {
+  if (fpBlend > 0.5 || (settings.followView && freeMode)) {
     P.faceTarget = camYaw + Math.PI;
   }
   var diff = P.faceTarget - P.face;
@@ -3957,33 +4013,8 @@ function buildDuskLevel(worldScene) {
         glassDeep: new THREE.MeshBasicMaterial({ color: 0x9fd6e8, transparent: true, opacity: 0.24, depthWrite: false, side: THREE.DoubleSide }),
         shadowBlob: new THREE.MeshBasicMaterial({ color: 0x241c2e, transparent: true, opacity: 0.22, depthWrite: false }),
     };
-    /* --------------------------------------------------------- outline shells -- */
-    var OUTLINE_VS = "\n  uniform float uT;\n  void main(){\n    vec4 mv = modelViewMatrix * vec4( position, 1.0 );\n    vec3 n = normalize( normalMatrix * normal );\n    mv.xyz += n * ( -mv.z ) * uT;        // constant screen-space ink width\n    gl_Position = projectionMatrix * mv;\n  }";
-    var OUTLINE_FS = "\n  uniform vec3 uC;\n  void main(){ gl_FragColor = vec4(uC, 1.0); }";
-    var _omCache = new Map();
-    function outlineMat(t, color) {
-        var k = t.toFixed(3) + '|' + color;
-        var m = _omCache.get(k);
-        if (m)
-            return m;
-        m = new THREE.ShaderMaterial({
-            uniforms: { uT: { value: t * 0.125 }, uC: { value: new THREE.Color(color) } },
-            vertexShader: OUTLINE_VS,
-            fragmentShader: OUTLINE_FS,
-            side: THREE.BackSide,
-        });
-        _omCache.set(k, m);
-        return m;
-    }
-    function outline(mesh, t, color) {
-        var shell = new THREE.Mesh(mesh.geometry, outlineMat(t === undefined ? 0.022 : t, color === undefined ? PAL.ink : color));
-        shell.castShadow = false;
-        shell.receiveShadow = false;
-        mesh.add(shell);
-        return shell;
-    }
     /* ------------------------------------------------------- geometry helpers -- */
-    /** box whose `yb` is the BOTTOM face (real geometry so outline shells stay exact) */
+    /** box whose `yb` is the BOTTOM face */
     function boxAt(parent, w, h, d, mat, x, yb, z, ry) {
         var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
         m.position.set(x, yb + h / 2, z);
@@ -4779,7 +4810,6 @@ function buildDuskLevel(worldScene) {
         var plinth = piece('plinth', 0, 0);
         boxAt(plinth, 21.3, 0.22, 21.3, toon(PAL.creamDark), 0, -1.30, 0);
         var body = boxAt(plinth, 20.5, 1.08, 20.5, toon(PAL.cream), 0, -1.08, 0);
-        outline(body, 0.03);
         boxAt(plinth, 20.58, 0.09, 20.58, toon(0xb09b78), 0, -0.16, 0);
         boxAt(plinth, 20.02, 0.10, 20.02, toon(PAL.creamLight), 0, -0.125, 0);
         plinth.traverse(function (mesh) {
@@ -4883,7 +4913,6 @@ function buildDuskLevel(worldScene) {
         var bodyMat = toon(0xdfe1e0);
         var dark = toon(0x8e9498);
         var b = boxAt(g, 0.92 * s, 0.62 * s, 0.44 * s, bodyMat, 0, 0, 0);
-        outline(b, 0.012);
         // fan cowl
         var fan = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * s, 0.2 * s, 0.04, 16), dark);
         fan.rotation.x = Math.PI / 2;
@@ -4985,7 +5014,6 @@ function buildDuskLevel(worldScene) {
         });
         // solid rear part of the west wall
         var wsolid = boxAt(storeWest, S.wall, S.fasciaTop - 0.22, 1.66, wallMat, wxC_1, 0.22, -5.86);
-        outline(wsolid, 0.018);
         // header along the west face
         boxAt(storeWest, S.wall, 0.32, 6.0, wallMat, wxC_1, S.glassTop, SCZ);
         var storeEast = new THREE.Group();
@@ -4993,7 +5021,6 @@ function buildDuskLevel(worldScene) {
         p_2.add(storeEast);
         /* ---------------- east wall ( +X ) ---------------- */
         var ew = boxAt(storeEast, S.wall, S.fasciaTop - 0.22, 6.0, wallMat, S.x1 + S.wall / 2, 0.22, SCZ);
-        outline(ew, 0.018);
         // service door
         boxAt(storeEast, 0.05, 2.05, 0.86, toon(0x9aa3a8), S.x1 + S.wall - 0.02, 0.24, -5.7);
         boxAt(storeEast, 0.06, 2.15, 1.0, toon(0x7f878c), S.x1 + S.wall - 0.05, 0.22, -5.7);
@@ -5003,7 +5030,6 @@ function buildDuskLevel(worldScene) {
         p_2.add(storeBack);
         /* ---------------- back wall ( -Z ) ---------------- */
         var bw = boxAt(storeBack, 7.0, S.fasciaTop - 0.22, S.wall, wallMat, SCX, 0.22, S.z0 - S.wall / 2);
-        outline(bw, 0.018);
         /* down pipes & small exterior boxes */
         var pipeMat = toon(0xd8d5cd);
         var p1 = cylAt(p_2, 0.06, 0.06, 3.7, pipeMat, S.x0 - 0.1, 0.22, S.z1 - 0.1, 8);
@@ -5020,9 +5046,7 @@ function buildDuskLevel(worldScene) {
         var wallMat = toon(PAL.wall);
         // fascia band all around
         var fFront = boxAt(p, 7.2, S.fasciaTop - S.headTop, 0.2, fasciaMat, SCX, S.headTop, S.z1 + 0.02);
-        outline(fFront, 0.018);
         var fWest = boxAt(p, 0.2, S.fasciaTop - S.headTop, 6.2, fasciaMat, S.x0 - 0.02, S.headTop, SCZ);
-        outline(fWest, 0.018);
         boxAt(p, 0.2, S.fasciaTop - S.headTop, 6.2, fasciaMat, S.x1 + 0.02, S.headTop, SCZ);
         boxAt(p, 7.2, S.fasciaTop - S.headTop, 0.2, fasciaMat, SCX, S.headTop, S.z0 - 0.02);
         // brand colour stripe under the fascia
@@ -5059,7 +5083,6 @@ function buildDuskLevel(worldScene) {
         // awning
         var awnMat = toon(0xfaf6ee);
         var awn = boxAt(p_3, 7.1, 0.13, 1.35, awnMat, SCX, S.glassTop + 0.02, S.z1 + 0.62);
-        outline(awn, 0.016);
         boxAt(p_3, 7.1, 0.22, 0.1, toon(PAL.teal), SCX, S.glassTop - 0.13, S.z1 + 1.22);
         boxAt(p_3, 7.14, 0.06, 1.36, toon(0xe6e2d8), SCX, S.glassTop - 0.04, S.z1 + 0.62);
         // struts
@@ -5094,7 +5117,6 @@ function buildDuskLevel(worldScene) {
         var roofMat = toon(0xc4c2ba);
         boxAt(p_4, NB.x1 - NB.x0 + 0.14, 0.18, NB.z1 - NB.z0 + 0.14, toon(0xb7ad9e), NBX, BLOCK_Y, NBZ);
         var mass = boxAt(p_4, NB.x1 - NB.x0, NB.top - NBY, NB.z1 - NB.z0, wallMat, NBX, NBY, NBZ);
-        outline(mass, 0.022);
         // storey band
         boxAt(p_4, NB.x1 - NB.x0 + 0.07, 0.1, NB.z1 - NB.z0 + 0.07, trim, NBX, 2.86, NBZ);
         // roof slab + parapet
@@ -5178,12 +5200,10 @@ function buildDuskLevel(worldScene) {
         sbox.position.set(NB.x0 - 0.26, 3.6, -2.35);
         sbox.castShadow = true;
         p_4.add(sbox);
-        outline(sbox, 0.014);
         boxAt(p_4, 0.3, 0.05, 0.05, toon(0x8f9599), NB.x0 - 0.12, 4.3, -2.35);
         boxAt(p_4, 0.3, 0.05, 0.05, toon(0x8f9599), NB.x0 - 0.12, 2.9, -2.35);
         /* ---------------- rooftop ---------------- */
         var tank = cylAt(p_4, 0.42, 0.42, 1.0, toon(0xdfe3e4), NBX - 0.35, NB.top + 0.55, -5.15, 14);
-        outline(tank, 0.014);
         cylAt(p_4, 0.44, 0.44, 0.08, toon(0xc6cbcd), NBX - 0.35, NB.top + 1.55, -5.15, 14);
         for (var i = 0; i < 4; i++) {
             var a = Math.PI / 4 + i * Math.PI / 2;
@@ -5392,7 +5412,6 @@ function buildDuskLevel(worldScene) {
         boxAt(p_8, 0.6, 0.09, 0.04, new THREE.MeshBasicMaterial({ color: 0xfff0cf }), 3.3, IFLOOR + 1.44, -1.08);
         // ATM / multi-copy machine by the window
         var atm = boxAt(p_8, 0.72, 1.5, 0.46, toon(0xdfe4e6), IX1 - 0.5, IFLOOR, -1.9);
-        outline(atm, 0.012);
         boxAt(p_8, 0.5, 0.34, 0.04, new THREE.MeshBasicMaterial({ color: 0x9fd8e8 }), IX1 - 0.5, IFLOOR + 0.95, -1.66);
         boxAt(p_8, 0.44, 0.1, 0.05, new THREE.MeshBasicMaterial({ color: 0xf2f6f7 }), IX1 - 0.5, IFLOOR + 0.6, -1.66);
         boxAt(p_8, 0.72, 0.08, 0.46, toon(0x1c9b95), IX1 - 0.5, IFLOOR + 1.5, -1.9);
@@ -5423,7 +5442,6 @@ function buildDuskLevel(worldScene) {
         body.castShadow = true;
         body.receiveShadow = true;
         g.add(body);
-        outline(body, 0.016);
         boxAt(g, 1.06, 0.06, 0.82, toon(0x9aa1a8), 0, 1.92, 0);
         boxAt(g, 1.06, 0.05, 0.82, toon(0x8d959c), 0, 0.0, 0);
         // small recycling box beside it
@@ -5556,7 +5574,6 @@ function buildDuskLevel(worldScene) {
         boxAt(g, 0.06, 1.0, 0.06, toon(0x8d8577), -0.4, 0, 0);
         boxAt(g, 0.06, 1.0, 0.06, toon(0x8d8577), 0.4, 0, 0);
         var board = boxAt(g, 1.06, 0.98, 0.07, toon(0xc9bfa8), 0, 0.62, 0);
-        outline(board, 0.012);
         panelAt(g, 0.96, 0.88, new THREE.MeshBasicMaterial({ map: TEX.poster }), 0, 0.67, 0.045);
         boxAt(g, 1.12, 0.08, 0.1, toon(0x8d8577), 0, 1.6, 0);
         p.add(g);
@@ -5682,7 +5699,6 @@ function buildDuskLevel(worldScene) {
         g.position.set(x, BLOCK_Y, z);
         var pole = cylAt(g, 0.15, 0.19, 8.7, toon(0xb4b0a8), 0, 0, 0, 10);
         pole.castShadow = true;
-        outline(pole, 0.02);
         var metal = toon(0x767c82);
         [7.62, 7.12].forEach(function (y, i) {
             boxAt(g, 1.95, 0.11, 0.12, toon(0x9aa0a4), 0, y, 0);
@@ -5729,14 +5745,12 @@ function buildDuskLevel(worldScene) {
         boxAt(g, 1.02, 0.18, 0.62, toon(0xd9d3c6), 0, 0, 0);
         boxAt(g, 0.9, 0.06, 0.52, toon(0xc3bcae), 0, 0.18, 0);
         var pole = boxAt(g, 0.26, 3.3, 0.26, toon(0xe6e6e0), 0, 0.2, 0);
-        outline(pole, 0.018);
         var face = new THREE.MeshBasicMaterial({ map: TEX.pylon });
         var side = toon(0x1c9b95);
         var box = new THREE.Mesh(new THREE.BoxGeometry(1.16, 1.94, 0.36), [side, side, toon(0xf4f2ea), side, face, face]);
         box.position.set(0, 4.5, 0);
         box.castShadow = true;
         g.add(box);
-        outline(box, 0.02);
         boxAt(g, 1.22, 0.09, 0.42, toon(0xf4f2ea), 0, 5.47, 0);
         boxAt(g, 1.22, 0.09, 0.42, toon(0xf4f2ea), 0, 3.5, 0);
         p.add(g);
@@ -5763,7 +5777,6 @@ function buildDuskLevel(worldScene) {
         dg.position.set(2.7, BLOCK_Y, -7.3);
         dg.rotation.y = 0.15;
         var db = boxAt(dg, 1.15, 0.92, 0.86, toon(0x4f6a58), 0, 0, 0);
-        outline(db, 0.014);
         boxAt(dg, 1.2, 0.09, 0.9, toon(0x3d5546), 0, 0.92, 0);
         boxAt(dg, 0.5, 0.06, 0.06, toon(0x2f4136), 0, 1.0, -0.3);
         p.add(dg);
@@ -6239,6 +6252,8 @@ function buildSunnyGarden(worldScene) {
 
 
   var geoCube = new THREE.BoxGeometry(1, 1, 1);
+  /* 描边：v0.30.1 美术重做时删过，场景恢复时一并还原。只用于花园，
+     便利店保持新版的无描边风格（用户：「黄昏便利店场景不用恢复」）。 */
   var outlineMat = new THREE.MeshBasicMaterial({ color: 0x35302c, side: THREE.BackSide });
 
   function outline(mesh, k) {
@@ -7112,6 +7127,7 @@ function buildSunnyGarden(worldScene) {
       var wingGeo = new THREE.CircleGeometry(0.16, 7);
       [-1, 1].forEach(function (s) {
         var w = new THREE.Mesh(wingGeo, MB(col, { side: THREE.DoubleSide }));
+        w.castShadow = true;
         w.position.x = s * 0.15;
         w.rotation.y = s * 0.5;
         w.scale.set(1, 0.7, 1);
@@ -7203,7 +7219,10 @@ function buildGateButterflies() {
     }
     butterfly.add(new THREE.Mesh(bodyGeometry, bodyMaterial));
     butterfly.traverse(function (mesh) {
-      if (mesh.isMesh) mesh.userData.colExempt = '穿花园门的蝴蝶';
+      if (!mesh.isMesh) return;
+      mesh.castShadow = true;
+      mesh.material.clipShadows = true;
+      mesh.userData.colExempt = '穿花园门的蝴蝶';
     });
     gateButterflies.push(butterfly);
     scene.add(butterfly);
@@ -7251,6 +7270,24 @@ spawnRoot.position.set(0, 0, 0);
 var fieldRoot = new THREE.Group(); fieldRoot.name = 'fieldWorld';
 scene.add(spawnRoot); scene.add(fieldRoot);
 var curWorld = 'spawn';
+var WORLD_LOCATION_NAMES = {
+  spawn: '出生空地', konbini: '黄昏便利店', field: '旧测试场', garden: '晴日花园'
+};
+var WORLD_LOCATION_COLORS = { spawn: '#9eaa87', konbini: '#edb385', field: '#b8b29c', garden: '#a0c481' };
+var shownWorldLocation = null;
+var worldLocation = document.getElementById('worldLocation');
+var worldLocationHud = document.getElementById('worldLocationHud');
+
+function updateWorldLocation() {
+  if (shownWorldLocation === curWorld) return;
+  shownWorldLocation = curWorld;
+  worldLocation.classList.remove('is-arriving');
+  worldLocation.textContent = WORLD_LOCATION_NAMES[curWorld] || '';
+  worldLocationHud.textContent = worldLocation.textContent;
+  worldLocationHud.style.color = WORLD_LOCATION_COLORS[curWorld] || "";
+  void worldLocation.offsetWidth;
+  worldLocation.classList.add('is-arriving');
+}
 var portalDoors = [];
 var portalFocusDoor = null;
 var portalMaskScene = new THREE.Scene();
@@ -7359,25 +7396,24 @@ var DOOR_OPEN_ANGLE = -2.00, DOOR_PASS_ANGLE = 1.55;
 /* 三座入口沿 Z 轴并排，门槛面沿 X 轴穿过。 */
 var DOOR_A = { x: 1.65, z: -2.7 };
 var DOOR_B = { x: 1.65, z: -5.2 };
-var FIELD_EXIT = { x: 0.2, z: 1.7, yaw: Math.PI };
 var DOOR_FACE = 3 * Math.PI / 2;
 var RETURN_DOOR_FACE = DOOR_FACE - Math.PI;
-var GARDEN_ARCH = { x: 1.65, z: -8.0, halfWidth: 0.68, shoulder: 2.81, crown: 3.30 };
-function makeStandaloneDoor(parent, x, z, ry, name) {
+var FIELD_EXIT = { x: 0.2, z: 1.7, yaw: RETURN_DOOR_FACE };
+var GARDEN_ARCH = { x: 1.65, z: -8.0, halfWidth: 0.715, shoulder: 2.81, crown: 3.30 };
+function makeKonbiniPortalDoor(parent, x, z, ry, name) {
   var g = new THREE.Group(); g.name = name;
   g.position.set(x, 0, z); g.rotation.y = ry;
   g.scale.setScalar(DOOR_SCALE);
-  var wood = new THREE.MeshStandardMaterial({ color: 0x6b4a33, roughness: 0.92 });
-  var dark = new THREE.MeshStandardMaterial({ color: 0x47301f, roughness: 0.95 });
-  var stone = new THREE.MeshStandardMaterial({ color: 0x8d8781, roughness: 1 });
-  var brass = new THREE.MeshStandardMaterial({ color: 0xc19a58, roughness: 0.45, metalness: 0.6 });
+  var glass = new THREE.MeshBasicMaterial({
+    color: 0x9cbac5, transparent: true, opacity: 0.10, depthWrite: false
+  });
+  var dark = new THREE.MeshStandardMaterial({ color: 0x414950, roughness: 0.42, metalness: 0.46 });
+  var white = new THREE.MeshBasicMaterial({ color: 0xf3f4ec });
   function bx(w, h, d, mat, px, py, pz) {
     var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
     m.position.set(px, py, pz); m.castShadow = true; m.receiveShadow = true;
     g.add(m); return m;
   }
-  bx(1.50, 0.12, 0.62, stone, 0, 0.06, 0.10);          /* 门前石阶 */
-  bx(1.34, 0.10, 0.34, stone, 0, 0.05, 0);              /* 门槛 */
   bx(0.12, DOOR_H + 0.16, 0.20, dark, -(DOOR_W / 2 + 0.06), (DOOR_H + 0.16) / 2, 0);
   bx(0.12, DOOR_H + 0.16, 0.20, dark, (DOOR_W / 2 + 0.06), (DOOR_H + 0.16) / 2, 0);
   bx(DOOR_W + 0.36, 0.15, 0.20, dark, 0, DOOR_H + 0.16, 0);
@@ -7389,37 +7425,32 @@ function makeStandaloneDoor(parent, x, z, ry, name) {
         像被推开靠在旁边的门；既不挡门洞，也不会跑到门框后面在等距投影里
         「从门楣上方探出头」（92° 时就是这样，试过，不行）。 */
   var hinge = new THREE.Group(); hinge.position.set(DOOR_W / 2, 0, -0.09); g.add(hinge);
-  var leaf = new THREE.Mesh(new THREE.BoxGeometry(DOOR_W, DOOR_H, 0.06), wood);
-  leaf.position.set(-DOOR_W / 2, DOOR_H / 2 + 0.02, 0); leaf.castShadow = true; leaf.receiveShadow = true;
-  leaf.userData.colExempt = true; hinge.add(leaf);
-  for (var i = 0; i < 3; i++) {
-    var p = new THREE.Mesh(new THREE.BoxGeometry(0.018, DOOR_H - 0.14, 0.012), dark);
-    p.position.set(-(0.18 + i * 0.26), DOOR_H / 2 + 0.02, -0.036);
-    p.userData.colExempt = true; hinge.add(p);
+  var leaf = new THREE.Mesh(new THREE.BoxGeometry(DOOR_W, DOOR_H, 0.06), glass);
+  leaf.position.set(-DOOR_W / 2, DOOR_H / 2 + 0.02, 0);
+  leaf.userData.colExempt = true;
+  hinge.add(leaf);
+  function trim(w, h, depth, material, x, y, z) {
+    var piece = bx(w, h, depth, material, x, y, z);
+    piece.userData.colExempt = true;
+    hinge.add(piece);
   }
-  var knob = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), brass);
-  knob.position.set(-(DOOR_W - 0.10), 1.06, -0.055); knob.userData.colExempt = true; hinge.add(knob);
+  var stile = 0.055;
+  trim(DOOR_W, stile, 0.088, dark, -DOOR_W / 2, 0.047, 0);
+  trim(DOOR_W, stile, 0.088, dark, -DOOR_W / 2, DOOR_H - 0.007, 0);
+  trim(stile, DOOR_H, 0.088, dark, -stile / 2, DOOR_H / 2 + 0.02, 0);
+  trim(stile, DOOR_H, 0.088, dark, -DOOR_W + stile / 2, DOOR_H / 2 + 0.02, 0);
+  trim(DOOR_W - 2 * stile, 0.048, 0.064, white, -DOOR_W / 2, 1.28, 0);
+  trim(0.038, 0.27, 0.10, dark, -DOOR_W + 0.12, 1.08, 0);
   var plane = new THREE.Mesh(new THREE.PlaneGeometry(DOOR_W, DOOR_H),
     new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, toneMapped: false }));
   plane.position.set(0, DOOR_H / 2 + 0.02, 0); plane.visible = false;
   plane.userData.colExempt = true; g.add(plane);
   parent.add(g);
   return {
-    group: g, hinge: hinge, leaf: leaf, plane: plane, name: name,
+    group: g, hinge: hinge, leaf: leaf, plane: plane, name: name, previewWhenClosed: true,
     open: false, angle: 0, target: 0, focus: false,
     dest: null, arrive: null, world: null, blocker: null
   };
-}
-
-/* ---------------- 出生世界的陈设（极简：两扇门、几条石阶、灯、立石、枯树） ---------------- */
-function buildSpawnWorld() {
-  /* v0.27.8：出生世界只留两扇门和门前的两点暖光。
-     原来那批石板路 / 石灯笼 / 枯树 / 立石 / 苔整块删掉——
-     这个世界要空，跨门时才是「世界变了」，而不是「走到另一个布景里」。 */
-  var l1 = new THREE.PointLight(0xffb066, 6, 9, 2);
-  l1.position.set(DOOR_A.x - 1.0, 1.9, DOOR_A.z + 0.8); spawnRoot.add(l1);
-  var l2 = new THREE.PointLight(0xffb066, 6, 9, 2);
-  l2.position.set(DOOR_B.x + 1.0, 1.9, DOOR_B.z + 0.8); spawnRoot.add(l2);
 }
 
 /* ---------------- 建三组世界的门并互相链接 ---------------- */
@@ -7521,11 +7552,11 @@ function registerGardenFence() {
 function buildPortalDoors() {
   /* 木门与花藤拱门沿 Z 轴并排。
      便利店与花园共用门槛；旧测试场使用独立的出口位置与方向。 */
-  doorK = makeStandaloneDoor(spawnRoot, DOOR_A.x, DOOR_A.z, DOOR_FACE, 'doorKonbini');
+  doorK = makeKonbiniPortalDoor(spawnRoot, DOOR_A.x, DOOR_A.z, DOOR_FACE, 'doorKonbini');
   doorF = makeStonePortal(spawnRoot, DOOR_B.x, DOOR_B.z, DOOR_FACE, 'doorField', 'spawn', 'field');
   /* 便利店世界的回程门：宿主在 DUSK_SPOT 转 90°，本地 (x,z) 映射到世界
      (host.x+z, host.z-x)。本地 (-2.5,7.5) 正好落回 DOOR_A；门面与出生侧相反。 */
-  doorRK = makeStandaloneDoor(duskLevel.host, -2.5, 7.5, RETURN_DOOR_FACE - DUSK_YAW, 'returnKonbini');
+  doorRK = makeKonbiniPortalDoor(duskLevel.host, -2.5, 7.5, RETURN_DOOR_FACE - DUSK_YAW, 'returnKonbini');
   doorRF = makeStonePortal(fieldRoot, FIELD_EXIT.x, FIELD_EXIT.z, FIELD_EXIT.yaw, 'returnField', 'field', 'spawn');
 
   doorK.dest = 'konbini'; doorK.world = 'spawn'; doorK.arrive = doorRK;
@@ -7534,8 +7565,9 @@ function buildPortalDoors() {
   doorRF.arrive = doorF;
   connectGardenArch();
   portalDoors = [doorK, doorF, doorRK, doorRF, doorG, doorRG];
-  connectOffsetDoors(doorF, doorRF, FIELD_EXIT.yaw + Math.PI - DOOR_FACE);
-  connectOffsetDoors(doorRF, doorF, DOOR_FACE - FIELD_EXIT.yaw - Math.PI);
+  for (var i = 0; i < portalDoors.length; i++) portalDoors[i].frontOnly = true;
+  connectOffsetDoors(doorF, doorRF, 0);
+  connectOffsetDoors(doorRF, doorF, 0);
 }
 
 /* ---------------- 门的提示 / 手机按钮 ---------------- */
@@ -7571,12 +7603,13 @@ function togglePortal(d) {
   if (!d) return;
   d.open = d.arrive.open = !d.open;
   d.target = d.arrive.target = d.open ? DOOR_OPEN_ANGLE : 0;
+  d.servo = d.arrive.servo = true;
   markInput();
 }
 
 function portalPassable(d) {
   if (!d.hinge) return true;
-  return Math.abs(d.angle) >= DOOR_PASS_ANGLE;
+  return Math.abs(d.angle) >= 0.65;
 }
 
 /* 出门 = 入口局部坐标绕 Y 半转，再放进出口局部坐标。两端等比例，变换保长。 */
@@ -7698,6 +7731,7 @@ function initPortals() {
       kind: 'solid', world: d.world, reach: DOOR_W * DOOR_SCALE / 2 + PLAYER_R + 0.6
     };
     d.leafCol = leafCol;
+    leafCol.pushDoor = d;
     d.leafPivot = new THREE.Vector3();
     d.leafRotation = new THREE.Quaternion();
     colliders.push(leafCol);
@@ -7713,22 +7747,29 @@ function updatePortalLeaf(d) {
   col.z = d.leafPivot.z;
   col.c = 1 - 2 * d.leafRotation.y * d.leafRotation.y;
   col.s = 2 * d.leafRotation.w * d.leafRotation.y;
-  d.blocker.disabled = portalPassable(d);
+  d.blocker.disabled = true; /* 实体门扇自己阻挡，不再用整门洞隐形挡板。 */
 }
 
+var portalPushPivot = new THREE.Vector3();
 function updatePortals(dt) {
   var best = null, bestDistance = Infinity;
   for (var i = 0; i < portalDoors.length; i++) {
     var d = portalDoors[i];
     if (!d.hinge) continue;
-    if (d.angle !== d.target) {
-      d.angle += (d.target - d.angle) * Math.min(1, dt * 9);
-      if (Math.abs(d.target - d.angle) < 0.001) d.angle = d.target;
-      d.hinge.rotation.y = d.angle;
-      updatePortalLeaf(d);
-      if (colVizOn && d.world === curWorld) portalVizDirty = true;
-    } else {
-      d.blocker.disabled = portalPassable(d);
+    if (d.world === curWorld) {
+      var stepDoor = Math.min(dt, 0.04), av = d.angularVelocity || 0;
+      if (d.servo) av += (d.target - d.angle) * 32 * stepDoor;
+      av *= Math.exp(-(d.servo ? 10 : 2.8) * stepDoor);
+      av = THREE.MathUtils.clamp(av, -3.6, 3.6);
+      d.angle += av * stepDoor;
+      if (Math.abs(d.angle) > 2.05) { d.angle = Math.sign(d.angle) * 2.05; av *= -0.12; }
+      if (d.servo && Math.abs(d.angle - d.target) < .002 && Math.abs(av) < .02) {d.angle=d.target;av=0;}
+      d.angularVelocity = av; d.open = Math.abs(d.angle) > .12 || !!(d.servo && d.target !== 0);
+      d.arrive.angle = d.angle; d.arrive.angularVelocity = av; d.arrive.open = d.open;
+      d.hinge.rotation.y = d.angle; d.arrive.hinge.rotation.y = d.angle;
+      updatePortalLeaf(d); updatePortalLeaf(d.arrive);
+      if (colVizOn && (av || d.pushContact)) portalVizDirty = true;
+      d.pushContact = false;
     }
 
     d.focus = false;
@@ -7749,20 +7790,36 @@ function updatePortals(dt) {
 }
 
 /* 按物理步检测真实的门面交点，保留角色、运动和相机状态。 */
+function portalBodyFitsOpening(body, clearance, width, height, scale) {
+  /* 用身体中线判定高度，允许起跳时头顶越过门楣。 */
+  return Math.abs(body.x) + clearance <= width && body.y >= -0.1 && body.y + 0.9 / scale <= height;
+}
+
+var pendingPortalCrossing = null;
 function crossPortal(previousPosition) {
   for (var i = 0; i < portalDoors.length; i++) {
     var d = portalDoors[i];
-    if (d.world !== curWorld || !portalPassable(d)) continue;
+    if (d.world !== curWorld || !portalPassable(d)) {
+      if (pendingPortalCrossing === d) pendingPortalCrossing = null;
+      continue;
+    }
     portalStart.copy(previousPosition).applyMatrix4(d.worldToDoor);
     portalEnd.copy(P.pos).applyMatrix4(d.worldToDoor);
-    if ((portalStart.z >= 0) === (portalEnd.z >= 0)) continue;
-    if (d.frontOnly && portalStart.z >= 0) continue;
-    portalStart.lerp(portalEnd, portalStart.z / (portalStart.z - portalEnd.z));
     var scale = d.hinge ? DOOR_SCALE : 1;
+    var clearance = rBody / scale;
     var halfWidth = d.hinge ? DOOR_W / 2 : d.apertureWidth;
     var height = d.hinge ? DOOR_H : d.apertureHeight;
-    if (Math.abs(portalStart.x) + rBody / scale >= halfWidth ||
-        portalStart.y < -0.1 || portalStart.y + 1.8 / scale > height) continue;
+    if (pendingPortalCrossing === d &&
+        (portalEnd.z < 0 || Math.abs(portalEnd.x) > halfWidth)) pendingPortalCrossing = null;
+    if (portalStart.z < 0 && portalEnd.z >= 0) {
+      activeCam.updateMatrixWorld();
+      if (!portalFrontVisible(d, activeCam)) continue;
+      portalStart.lerp(portalEnd, portalStart.z / (portalStart.z - portalEnd.z));
+      if (!portalBodyFitsOpening(portalStart, clearance, halfWidth, height, scale)) continue;
+      pendingPortalCrossing = d;
+    }
+    if (pendingPortalCrossing !== d || portalEnd.z < clearance) continue;
+    pendingPortalCrossing = null;
     beginPortalBlend(curWorld, d.dest, d.arrive);
     if (d.through) carryThroughPortal(d);
     curWorld = d.dest;
@@ -7786,7 +7843,114 @@ function portalFrontVisible(door, camera) {
   return door.seam.distanceToPoint(portalFacingVector) < -0.005;
 }
 
-function renderPortals(world, baseCamera, splitDoor) {
+var gardenShadowMesh;
+var gardenShadowDirection = new THREE.Vector3();
+var gardenShadowTarget = new THREE.Vector3();
+var gardenShadowPlane = new THREE.Vector4();
+
+/* A projected shadow can reach the arch before the character's body does. */
+function gardenShadowDoor(world) {
+  var door = world === 'spawn' ? doorG : (world === 'garden' ? doorRG : null);
+  if (!door || !door.worldToDoor) return null;
+  gardenShadowTarget.copy(P.pos).applyMatrix4(door.worldToDoor);
+  if (gardenShadowTarget.z > 0 || gardenShadowTarget.z < -2.2 ||
+      Math.abs(gardenShadowTarget.x) > door.apertureWidth + 0.8) return null;
+  return door;
+}
+
+function drawGardenShadowLayer(camera, door, light, showShadow) {
+  if (!gardenShadowMesh) {
+    var material = new THREE.MeshBasicMaterial({
+      color: 0x10141a, opacity: 0.34, transparent: true,
+      side: THREE.DoubleSide, depthFunc: THREE.LessDepth
+    });
+    material.forceSinglePass = true;
+    material.onBeforeCompile = function (shader) {
+      shader.uniforms.shadowDirection = { value: gardenShadowDirection };
+      shader.uniforms.shadowPlane = { value: gardenShadowPlane };
+      shader.vertexShader = 'uniform vec3 shadowDirection; varying vec3 shadowPoint;\n' +
+        shader.vertexShader.replace('#include <project_vertex>', [
+          'vec3 point = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+          'point.xz -= shadowDirection.xz * (point.y / shadowDirection.y);',
+          'point.y = 0.004;',
+          'shadowPoint = point;',
+          'vec4 mvPosition = viewMatrix * vec4(point, 1.0);',
+          'gl_Position = projectionMatrix * mvPosition;'
+        ].join('\n'));
+      shader.fragmentShader = 'uniform vec4 shadowPlane; varying vec3 shadowPoint;\n' +
+        shader.fragmentShader.replace('#include <clipping_planes_fragment>',
+          '#include <clipping_planes_fragment>\nif (dot(shadowPlane, vec4(shadowPoint, 1.0)) > 0.0) discard;');
+    };
+    gardenShadowMesh = new THREE.SkinnedMesh(skinMesh.geometry, material);
+    gardenShadowMesh.bind(skinMesh.skeleton, skinMesh.bindMatrix);
+    gardenShadowMesh.frustumCulled = false;
+    gardenShadowMesh.visible = false;
+    gardenShadowMesh.renderOrder = 1;
+    gardenShadowMesh.userData.colExempt = '门洞阴影层';   /* 运行时新建，纯投影用，不参与碰撞 */
+    scene.add(gardenShadowMesh);
+  }
+  scene.updateMatrixWorld(true);
+  gardenShadowMesh.matrixAutoUpdate = false;
+  gardenShadowMesh.matrix.copy(skinMesh.matrixWorld);
+  gardenShadowMesh.matrixWorldNeedsUpdate = true;
+  light.getWorldPosition(gardenShadowDirection);
+  light.target.getWorldPosition(gardenShadowTarget);
+  gardenShadowDirection.sub(gardenShadowTarget);
+  gardenShadowPlane.set(door.seam.normal.x, door.seam.normal.y, door.seam.normal.z, door.seam.constant);
+  var cast = skinMesh.castShadow;
+  skinMesh.castShadow = false;
+  gardenShadowMesh.visible = showShadow && skinMesh.visible;
+  try {
+    renderer.render(scene, camera);
+  } finally {
+    skinMesh.castShadow = cast;
+    gardenShadowMesh.visible = false;
+  }
+}
+
+var gardenRippleScene = new THREE.Scene();
+var gardenRippleMesh;
+var gardenRipplePoint = new THREE.Vector3();
+var gardenRippleRay = new THREE.Vector3();
+
+function drawGardenShadowRipple(door, camera) {
+  var light = door.world === 'garden' ? sunnyGarden.lights.sun : sun;
+  light.getWorldPosition(gardenRippleRay);
+  light.target.getWorldPosition(gardenRipplePoint);
+  gardenRippleRay.subVectors(gardenRipplePoint, gardenRippleRay).transformDirection(door.worldToDoor);
+  gardenRipplePoint.copy(P.pos).add(gardenShadowTarget.set(0, 1.15, 0)).applyMatrix4(door.worldToDoor);
+  if (gardenRippleRay.z <= 0.001) return;
+  var reach = -gardenRipplePoint.z / gardenRippleRay.z;
+  gardenRipplePoint.addScaledVector(gardenRippleRay, reach);
+  if (reach < 0 || gardenRipplePoint.y < 0 || gardenRipplePoint.y > door.apertureHeight ||
+      Math.abs(gardenRipplePoint.x) > door.apertureWidth) return;
+  if (!gardenRippleMesh) {
+    gardenRippleMesh = new THREE.Mesh(door.mask.geometry, new THREE.ShaderMaterial({
+      transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide,
+      uniforms: { impact: { value: gardenRipplePoint }, phase: { value: 0 } },
+      vertexShader: 'varying vec2 gatePoint; void main() { gatePoint = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: [
+        'varying vec2 gatePoint; uniform vec3 impact; uniform float phase;',
+        'void main() {',
+        '  vec2 delta = gatePoint - impact.xy;',
+        '  float radius = length(delta * vec2(1.0, 0.72));',
+        '  float band = 0.5 + 0.5 * cos(radius * 32.0 - phase);',
+        '  float fade = (1.0 - smoothstep(0.06, 0.64, radius));',
+        '  vec3 tint = mix(vec3(0.09, 0.08, 0.22), vec3(0.44, 0.82, 0.94), band);',
+        '  gl_FragColor = vec4(tint, fade * (0.12 + 0.23 * pow(band, 6.0)));',
+        '}'
+      ].join('\n')
+    }));
+    gardenRippleMesh.matrixAutoUpdate = false;
+    gardenRippleScene.add(gardenRippleMesh);
+  }
+  gardenRippleMesh.matrix.copy(door.mask.matrix);
+  gardenRippleMesh.matrixWorldNeedsUpdate = true;
+  gardenRippleMesh.material.uniforms.phase.value = (performance.now() * 0.009) % (Math.PI * 2);
+  renderer.render(gardenRippleScene, camera);
+}
+
+function renderPortals(world, baseCamera, splitDoor, shadowDoor) {
   baseCamera = baseCamera || activeCam;
   baseCamera.updateMatrixWorld();
   portalProjection.multiplyMatrices(baseCamera.projectionMatrix, baseCamera.matrixWorldInverse);
@@ -7796,7 +7960,7 @@ function renderPortals(world, baseCamera, splitDoor) {
   var background = scene.background;
   for (var i = 0; i < portalDoors.length; i++) {
     var d = portalDoors[i];
-    d.mask.visible = d.world === world && (!d.hinge || Math.abs(d.angle) > 0.08) &&
+    d.mask.visible = d.world === world && (d.previewWhenClosed || !d.hinge || Math.abs(d.angle) > 0.08) &&
       portalFrustum.intersectsObject(d.mask) && portalFrontVisible(d, baseCamera);
     if (!d.mask.visible) continue;
     d.mask.material.color.copy(background);
@@ -7828,7 +7992,25 @@ function renderPortals(world, baseCamera, splitDoor) {
       stencil.setFunc(THREE.EqualStencilFunc, view.mask.material.stencilRef, 0xff);
       stencil.setOp(THREE.KeepStencilOp, THREE.KeepStencilOp, THREE.KeepStencilOp);
       stencil.setLocked(true);
-      renderer.render(scene, otherCamera);
+      var castPawnShadow = skinMesh.castShadow;
+      var mappedPawn = pawn.visible && view.through;
+      var sourceYaw = pawn.rotation.y;
+      skinMesh.castShadow = false;
+      if (mappedPawn) {
+        portalSlicePawn.copy(pawn.position);
+        pawn.position.applyMatrix4(view.through);
+        pawn.rotation.y += view.turnYaw;
+      }
+      try {
+        renderer.render(scene, otherCamera);
+      } finally {
+        skinMesh.castShadow = castPawnShadow;
+        if (mappedPawn) {
+          pawn.position.copy(portalSlicePawn);
+          pawn.rotation.y = sourceYaw;
+        }
+      }
+      if (view === shadowDoor && pawnVisible) drawGardenShadowRipple(view, baseCamera);
       view.arrive.group.visible = true;
     }
   } finally {
@@ -7845,7 +8027,10 @@ function renderPortals(world, baseCamera, splitDoor) {
 }
 
 /* 两个世界用相对各自门槛一致的机位实时画。换层后的余光在很短时间内退去，避免整屏亮度跳变。 */
-var PORTAL_BLEND_TIME = 0.24;
+var PORTAL_BLEND_TIME = 1.9;
+var gardenBlendCenter = new THREE.Vector3();
+var gardenBlendMask = { value: new THREE.Vector4() };
+var gardenBlendWings = { value: false };
 var portalBlendWorld = null, portalBlendDoor = null, portalBlendAge = 0, portalBlendFresh = false;
 var portalBlendTarget = null, portalBlendScene = null;
 var portalBlendCamera = new THREE.Camera();
@@ -7863,27 +8048,54 @@ function beginPortalBlend(from, to, returnDoor) {
   portalBlendFresh = true;
 }
 
+var portalSliceBody = new THREE.Vector3();
+var portalSlicePawn = new THREE.Vector3();
+
+function portalBodyAtDoor(world, camera) {
+  for (var i = 0; i < portalDoors.length; i++) {
+    var door = portalDoors[i];
+    if (door.world !== world || !portalPassable(door) || !portalFrontVisible(door, camera)) continue;
+    var scale = door.hinge ? DOOR_SCALE : 1;
+    var width = door.hinge ? DOOR_W / 2 : door.apertureWidth;
+    var height = door.hinge ? DOOR_H : door.apertureHeight;
+    portalSliceBody.copy(P.pos).applyMatrix4(door.worldToDoor);
+    if (Math.abs(portalSliceBody.z) <= GARDEN_SEAM_REACH / scale &&
+        portalBodyFitsOpening(portalSliceBody, rBody / scale, width, height, scale)) return door;
+  }
+  return null;
+}
 function drawWorldLayer(world, camera) {
-  var splitDoor = adjacentGardenDoor(world);
-  var exiting = splitDoor && portalBlendWorld === world && portalBlendDoor === splitDoor.arrive;
+  var shadowDoor = gardenShadowDoor(world);
   camera.updateMatrixWorld();
-  if (!splitDoor || (gardenBody.z > 0 && !exiting) || !portalFrontVisible(splitDoor, camera)) {
-    renderer.render(scene, camera);
-    renderPortals(world, camera);
+  var splitDoor = portalBodyAtDoor(world, camera);
+  var exiting = splitDoor && portalBlendWorld === world && portalBlendDoor === splitDoor.arrive;
+  var clearance = splitDoor && splitDoor.hinge ? rBody / DOOR_SCALE : rBody;
+  if (!splitDoor || (portalSliceBody.z >= clearance && !exiting)) {
+    if (shadowDoor && world === 'spawn' && portalFrontVisible(shadowDoor, camera)) drawGardenShadowLayer(camera, shadowDoor, sun, pawn.visible);
+    else renderer.render(scene, camera);
+    renderPortals(world, camera, null, shadowDoor);
     return;
   }
   gardenPawnClip.copy(splitDoor.seam).negate();
+  drawGardenPawnSlice(camera, gardenPawnClipPlanes, splitDoor, exiting);
+  renderPortals(world, camera, splitDoor, shadowDoor);
+}
+
+function drawGardenPawnSlice(camera, planes, door, exiting) {
   var oldPlanes = MAT.clippingPlanes;
+  var oldClipShadows = MAT.clipShadows;
   var oldClipping = renderer.localClippingEnabled;
   renderer.localClippingEnabled = true;
-  MAT.clippingPlanes = gardenPawnClipPlanes;
+  MAT.clippingPlanes = planes;
+  MAT.clipShadows = door.world !== 'garden';
   try {
-    renderer.render(scene, camera);
+    if (door !== doorG) renderer.render(scene, camera);
+    else drawGardenShadowLayer(camera, door, sun, pawn.visible && portalSliceBody.z < rBody && !exiting);
   } finally {
     MAT.clippingPlanes = oldPlanes;
+    MAT.clipShadows = oldClipShadows;
     renderer.localClippingEnabled = oldClipping;
   }
-  renderPortals(world, camera, splitDoor);
 }
 
 function drawPortalSource() {
@@ -7908,11 +8120,11 @@ function drawPortalSource() {
 }
 
 function drawPortalWorld(dt) {
-  var straddlingGarden = portalBlendDoor && portalBlendDoor === adjacentGardenDoor(curWorld);
-  if (portalBlendWorld && !portalBlendFresh && !straddlingGarden) portalBlendAge += Math.min(dt, 0.05);
+  var duration = PORTAL_BLEND_TIME;
+  if (portalBlendWorld && !portalBlendFresh) portalBlendAge += Math.min(dt, 0.05);
   portalBlendFresh = false;
-  if (portalBlendAge >= PORTAL_BLEND_TIME) portalBlendWorld = null;
-  if (portalBlendWorld && portalBlendAge === 0) {
+  if (portalBlendAge >= duration) portalBlendWorld = null;
+  if (portalBlendWorld && portalBlendAge === 0 && !portalBlendDoor) {
     setWorldVisible(portalBlendWorld);
     applyWorldLighting(portalBlendWorld);
     try {
@@ -7930,6 +8142,56 @@ function drawPortalWorld(dt) {
       portalBlendMaterial = new THREE.MeshBasicMaterial({
         map: portalBlendTarget.texture, transparent: true, depthTest: false, depthWrite: false, toneMapped: false
       });
+      portalBlendMaterial.onBeforeCompile = function (shader) {
+        shader.uniforms.gardenBlendMask = gardenBlendMask;
+        shader.uniforms.gardenBlendWings = gardenBlendWings;
+        shader.fragmentShader = [
+          'uniform vec4 gardenBlendMask;',
+          'uniform bool gardenBlendWings;',
+          'float wingRandom(vec2 cell) {',
+          '  return fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453);',
+          '}',
+          'float wingReveal(vec2 offset, float front) {',
+          '  vec2 grid = offset * 54.0;',
+          '  vec2 cell = floor(grid);',
+          '  float reveal = 0.0;',
+          '  for (int y = -1; y <= 1; y++) {',
+          '    for (int x = -1; x <= 1; x++) {',
+          '      vec2 id = cell + vec2(float(x), float(y));',
+          '      vec2 center = id + 0.06 + 0.88 * vec2(wingRandom(id + 17.0), wingRandom(id + 53.0));',
+          '      float arrival = length(center / 54.0) + wingRandom(id) * 0.075;',
+          '      float opening = smoothstep(0.0, 0.16, front - arrival);',
+          '      float size = mix(0.72, 1.28, wingRandom(id + 37.0));',
+          '      vec2 wing = (grid - center) / (size * mix(0.2, 1.85, opening));',
+          '      float tilt = (wingRandom(id + 91.0) - 0.5) * 0.9;',
+          '      wing = vec2(abs(wing.x + wing.y * tilt), wing.y - wing.x * tilt);',
+          '      float upper = length((wing - vec2(0.19, 0.14)) / vec2(0.25, 0.21));',
+          '      float lower = length((wing - vec2(0.16, -0.14)) / vec2(0.19, 0.16));',
+          '      float shape = 1.0 - smoothstep(0.86, 1.05, min(upper, lower));',
+          '      reveal = max(reveal, shape * smoothstep(0.0, 0.2, opening));',
+          '    }',
+          '  }',
+          '  return max(reveal, smoothstep(0.14, 0.19, front - length(offset)));',
+          '}'
+        ].join('\n') + '\n' + shader.fragmentShader.replace(
+          '#include <map_fragment>',
+          [
+            '#include <map_fragment>',
+            'if (gardenBlendMask.z >= 0.0) {',
+            '  vec2 offset = vMapUv - gardenBlendMask.xy;',
+            '  offset.x *= gardenBlendMask.w;',
+            '  if (gardenBlendWings) {',
+            '    diffuseColor.a *= 1.0 - wingReveal(offset, gardenBlendMask.z);',
+            '  } else {',
+            '    vec2 cell = floor(offset * 255.0);',
+            '    vec2 center = (cell + 0.5) / 255.0;',
+            '    float arrival = length(center) + wingRandom(cell) * 0.16;',
+            '    diffuseColor.a *= smoothstep(gardenBlendMask.z - 0.013, gardenBlendMask.z + 0.013, arrival);',
+            '  }',
+            '}'
+          ].join('\n')
+        );
+      };
       portalBlendScene = new THREE.Scene();
       var screen = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), portalBlendMaterial);
       screen.frustumCulled = false;
@@ -7950,8 +8212,22 @@ function drawPortalWorld(dt) {
 
   drawWorldLayer(curWorld, activeCam);
   if (!portalBlendWorld) return;
-  var t = portalBlendAge / PORTAL_BLEND_TIME;
-  portalBlendMaterial.opacity = 1 - t * t * (3 - 2 * t);
+  var t = portalBlendAge / duration;
+  portalBlendMaterial.opacity = portalBlendDoor ? 1 : 1 - t * t * (3 - 2 * t);
+  if (portalBlendDoor) {
+    portalBlendDoor.group.getWorldPosition(gardenBlendCenter);
+    gardenBlendCenter.y += 1.3;
+    gardenBlendCenter.project(activeCam);
+    var x = THREE.MathUtils.clamp(gardenBlendCenter.x * 0.5 + 0.5, 0, 1);
+    var y = THREE.MathUtils.clamp(gardenBlendCenter.y * 0.5 + 0.5, 0, 1);
+    var aspect = renderer.domElement.width / renderer.domElement.height;
+    var radius = Math.hypot(Math.max(x, 1 - x) * aspect, Math.max(y, 1 - y));
+    gardenBlendWings.value = portalBlendDoor === doorG || portalBlendDoor === doorRG;
+    var margin = gardenBlendWings.value ? 0.21 : 0.13;
+    gardenBlendMask.value.set(x, y, 0.06 + t * (radius + margin), aspect);
+  } else {
+    gardenBlendMask.value.z = -1;
+  }
   var autoClear = renderer.autoClear;
   renderer.autoClear = false;
   try { renderer.render(portalBlendScene, portalBlendCamera); }
@@ -7959,11 +8235,87 @@ function drawPortalWorld(dt) {
 }
 
 /* 初始化（放在 fillCollisionGaps 之后，门的碰撞体和落点要用世界矩阵） */
+function fitPortalFrameColliders(door) {
+  var toDoor = new THREE.Matrix4();
+  var point = new THREE.Vector3();
+  var center = new THREE.Vector3();
+  door.group.updateWorldMatrix(true, true);
+  var fromDoor = door.group.matrixWorld;
+  var inverse = fromDoor.clone().invert();
+  var scale = fromDoor.getMaxScaleOnAxis();
+  var yaw = Math.atan2(fromDoor.elements[8], fromDoor.elements[10]);
+  door.group.children.forEach(function (mesh) {
+    if (!mesh.isMesh || mesh === door.plane) return;
+    var type = mesh.geometry.type;
+    if (type !== 'BoxGeometry' && type !== 'ExtrudeGeometry' && type !== 'CylinderGeometry') return;
+    toDoor.multiplyMatrices(inverse, mesh.matrixWorld);
+    var positions = mesh.geometry.attributes.position;
+    var index = mesh.geometry.index;
+    var vertices = [];
+    var bounds = new THREE.Box3();
+    for (var i = 0; i < positions.count; i++) {
+      point.fromBufferAttribute(positions, i).applyMatrix4(toDoor);
+      bounds.expandByPoint(point);
+      vertices.push(point.clone());
+    }
+    var count = type === 'BoxGeometry' ? 1 : Math.ceil((bounds.max.y - bounds.min.y) * scale / 0.09);
+    var height = (bounds.max.y - bounds.min.y) / count;
+    for (var band = 0; band < count; band++) {
+      var low = bounds.min.y + band * height;
+      var high = low + height;
+      var slice = new THREE.Box3();
+      for (var j = 0; j < (index ? index.count : vertices.length); j += 3) {
+        for (var edge = 0; edge < 3; edge++) {
+          var first = j + edge, next = j + (edge + 1) % 3;
+          var a = vertices[index ? index.getX(first) : first];
+          var b = vertices[index ? index.getX(next) : next];
+          if (a.y >= low && a.y <= high) slice.expandByPoint(a);
+          if (a.y === b.y) continue;
+          var lowT = (low - a.y) / (b.y - a.y);
+          var highT = (high - a.y) / (b.y - a.y);
+          if (lowT > 0 && lowT < 1) slice.expandByPoint(point.copy(a).lerp(b, lowT));
+          if (highT > 0 && highT < 1) slice.expandByPoint(point.copy(a).lerp(b, highT));
+        }
+      }
+      if (slice.isEmpty()) continue;
+      center.set((slice.min.x + slice.max.x) / 2, (low + high) / 2, (slice.min.z + slice.max.z) / 2);
+      center.applyMatrix4(fromDoor);
+      addCollider({ position: center, rotation: { y: yaw } },
+        (slice.max.x - slice.min.x) * scale, (slice.max.z - slice.min.z) * scale, height * scale);
+      var collider = colliders[colliders.length - 1];
+      collider.world = door.world;
+      collider.sourceMesh = mesh;
+    }
+    mesh.userData.fittedDoorCollision = true;
+  });
+}
+
+
+/* v0.30.1 的美术注入块（buildStoryWorlds：原野花海 / 初始之地浮空柱廊 / 蝶语花园树荫）
+   已按需求撤回——出生空地、旧测试场、晴日花园三个场景回到 v0.29.14 的原貌。
+   保留的只有黄昏便利店的配色调整（用户：「黄昏便利店场景不用恢复」）。
+   v0.28.x 的门洞实时渲染、玻璃门推动、门槛坐标共用等与场景无关的改进不受影响。 */
+function tuneKonbiniArt() {
+  duskLevel.lights.hemi.color.setHex(0xb6cee0);duskLevel.lights.hemi.groundColor.setHex(0x807b78);
+  duskLevel.lights.sun.color.setHex(0xffc99c);duskLevel.lights.fill.color.setHex(0xa2bfd6);
+  var u=duskLevel.sky.material.uniforms;u.cTop.value.setHex(0x577f9f);u.cMid.value.setHex(0x9dabbc);u.cHor.value.setHex(0xf3bd92);u.cBot.value.setHex(0x607485);
+  scene.updateMatrixWorld(true);
+}
+
+/* v0.27.8：出生世界只留门前两点暖光——这个世界要空，跨门时才是「世界变了」。 */
+function buildSpawnWorld() {
+  var l1 = new THREE.PointLight(0xffb066, 6, 9, 2);
+  l1.position.set(DOOR_A.x - 1.0, 1.9, DOOR_A.z + 0.8); spawnRoot.add(l1);
+  var l2 = new THREE.PointLight(0xffb066, 6, 9, 2);
+  l2.position.set(DOOR_B.x + 1.0, 1.9, DOOR_B.z + 0.8); spawnRoot.add(l2);
+}
+
 function initPortalWorlds() {
   splitWorlds();
   var _bwS = BUILD_WORLD; BUILD_WORLD = 'spawn';
-buildSpawnWorld();
-BUILD_WORLD = _bwS;
+  buildSpawnWorld();
+  BUILD_WORLD = _bwS;
+  tuneKonbiniArt();
   buildPortalDoors();
   buildGateButterflies();
   registerGardenFence();
@@ -7972,6 +8324,7 @@ BUILD_WORLD = _bwS;
 }
 
 initPortalWorlds();
+portalDoors.forEach(fitPortalFrameColliders);
 
 fillCollisionGaps();
 
@@ -8244,6 +8597,7 @@ function loop(t) {
     showGateButterflies(curWorld);
   }
   drawPortalWorld(dt);
+  updateWorldLocation();
   adaptResolution(dt);
   /* 音效在渲染之后播：手机上 <audio> / WebAudio 的调度是同步开销，
      放在起跳那一帧的渲染前会抢主线程（用户感觉「起跳时掉帧」）。 */
@@ -8256,9 +8610,15 @@ function loop(t) {
   if (!window.__worldDrawn) { window.__worldDrawn = true; }
   rafId = requestAnimationFrame(loop);
 }
+/* 首次绘制前先完成真实机位和角色姿态，不能渲染默认原点相机。 */
+follow.set(P.pos.x, P.pos.y * 0.4, P.pos.z);
+camBlockCur = camBlockGoal = isoMode ? isoDistTarget() : freeDist;
+update(FIXED);
+driveAnim(0);
+camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.29.14';
+window.__worldVersion = 'v0.30.1';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
@@ -8313,10 +8673,11 @@ targets: targets,
   get portals() {
     var out = [];
     for (var i = 0; i < portalDoors.length; i++) { var d = portalDoors[i];
-      out.push({ name: d.name, open: d.open, focus: d.focus, world: d.world, dest: d.dest, arch: !d.hinge }); }
+      out.push({ name: d.name, open: d.open, focus: d.focus, world: d.world, dest: d.dest, arch: !d.hinge,
+        angle: d.angle || 0, angularVelocity: d.angularVelocity || 0 }); }
     return { cur: curWorld, focus: portalFocusDoor ? portalFocusDoor.name : null, doors: out };
   },
-  gotoWorld: function (w) { portalBlendWorld = null; portalMoveYaw = 0; curWorld = w; setWorldVisible(w); applyWorldLighting(w); refreshColViz(); return curWorld; },
+  gotoWorld: function (w) { pendingPortalCrossing = null; portalBlendWorld = null; portalMoveYaw = 0; curWorld = w; setWorldVisible(w); applyWorldLighting(w); refreshColViz(); return curWorld; },
   /* 诊断（v0.15.0）：等距视角。renderer 到底在用哪台相机、投影是不是正交、
      视锥半高是否等于机距×tan(FOV/2)（这条不等就说明投影和机位脱节了）。 */
   get activeCamObj() { return activeCam; },

@@ -97,7 +97,7 @@ await ev(`window.dispatchEvent(new KeyboardEvent('keyup',{key:'w'}))`);
 await sleep(300);
 const p1 = await ev(`({x:+__world.P.pos.x.toFixed(2), z:+__world.P.pos.z.toFixed(2)})`);
 ok('还能走', Math.hypot(p1.x - p0.x, p1.z - p0.z) > 0.8, (Math.hypot(p1.x - p0.x, p1.z - p0.z)).toFixed(2) + 'm');
-ok('碰撞体仍是 820 个（按世界核对）', (await num('window.__colliders.length')) === 820);
+ok('碰撞体 1075 个（按世界核对）', (await num('window.__colliders.length')) === 1075);
 ok('碰撞自检遗漏 0', (await num('window.__collisionAudit.verify.missing')) === 0);
 ok('脚部 IK 参数还在', (await num('window.__world.ikCfg.ankleH')) > 0.05,
    await num('window.__world.ikCfg.ankleH'));
@@ -107,10 +107,10 @@ console.log('\n【7】四档视角 + 等距仍成立');
 const vmStart = await num('window.__world.viewMode');
 const modes = [];
 for (let i = 0; i < 4; i++) { await V('v'); await sleep(500); modes.push(await num('window.__world.viewMode')); }
-ok('V 走完四档回到原档', modes[3] === vmStart && new Set(modes).size === 4, vmStart + ' → ' + modes.join(','));
+ok('V 在两档之间来回切', modes[1] === vmStart && new Set(modes).size === 2, vmStart + ' → ' + modes.join(','));
 let vm7 = await num('window.__world.viewMode');
-for (let i = 0; vm7 !== 3 && i < 4; i++) { await V('v'); await sleep(600); vm7 = await num('window.__world.viewMode'); }
-ok('切到等距', vm7 === 3, vm7);
+for (let i = 0; vm7 !== 1 && i < 4; i++) { await V('v'); await sleep(600); vm7 = await num('window.__world.viewMode'); }
+ok('切到等距', vm7 === 1, vm7);
 await sleep(1200);
 const iso = JSON.parse(await ev('JSON.stringify(window.__world.iso)'));
 ok('等距仍是正交投影', iso.active === 'ortho' && iso.isOrtho === true, iso.active);
