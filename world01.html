@@ -3559,12 +3559,15 @@ function updateSceneMusic() {
     musicContext = AC; musicWorld = null; musicSource = null; musicBuffers = {};
     musicGain = AC.createGain(); musicGain.connect(AM);
     musicPanner = AC.createPanner(); musicPanner.panningModel = 'HRTF';
+    musicPanner.channelCount = 1; musicPanner.channelCountMode = 'explicit';
     musicPanner.refDistance = 3; musicPanner.rolloffFactor = 0.85;
     musicPanner.connect(musicGain);
   }
   if (musicWorld !== curWorld) {
     if (musicSource) { musicSource.stop(); musicSource.disconnect(); musicSource = null; }
     musicWorld = curWorld;
+    musicPanner.refDistance = curWorld === 'konbini' ? 2 : 3;
+    musicPanner.rolloffFactor = curWorld === 'konbini' ? 1.6 : 0.85;
     if (curWorld === 'garden' || curWorld === 'field') {
       var buffer = musicBuffers[curWorld] || (musicBuffers[curWorld] = makeSceneMusic(curWorld));
       playSceneMusic(buffer);
@@ -3584,6 +3587,9 @@ function updateSceneMusic() {
   }
   if (!musicSource) return;
   activeCam.getWorldDirection(musicDirection);
+  musicDirection.y = 0;
+  if (musicDirection.lengthSq() < 0.0001) musicDirection.set(0, 0, -1);
+  musicDirection.normalize();
   AC.listener.setOrientation(musicDirection.x, 0, musicDirection.z, 0, 1, 0);
   AC.listener.setPosition(P.pos.x, P.pos.y + 1.5, P.pos.z);
   if (musicWorld === 'konbini') {
@@ -3600,7 +3606,7 @@ function playSceneMusic(buffer) {
   musicSource = AC.createBufferSource(); musicSource.buffer = buffer;
   musicSource.loop = true; musicSource.connect(musicPanner);
   musicGain.gain.setValueAtTime(0, AC.currentTime);
-  var vol = musicWorld === 'field' ? 0.14 : (musicWorld === 'konbini' ? 0.20 : 0.28);
+  var vol = musicWorld === 'field' ? 0.14 : (musicWorld === 'konbini' ? 0.12 : 0.28);
   musicGain.gain.setTargetAtTime(vol, AC.currentTime, 0.25);
   musicSource.start();
 }
