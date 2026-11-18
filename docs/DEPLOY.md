@@ -4,18 +4,16 @@
 
 ## 首次发布
 
-在 GitHub 创建本项目专用仓库，配置 Pages 的 Source 为 GitHub Actions。将本目录提交并推送到 `main`。工作流 `.github/workflows/deploy-pages.yml` 会把 `world01.html` 复制为网站入口 `index.html`，然后部署 Pages。实际网址在仓库 Settings → Pages 或 Actions 的部署结果中确认。
-
-发布前确认仓库可见范围。公开 Pages 和公开仓库会让任何人下载完整游戏及其内嵌音频。音频的使用与发布范围应由项目拥有者确认。
+项目私有仓库为 `ly202o/world-between-doors`，`main` 保存游戏文件。用户要求网页经身份验证后访问。普通 GitHub Pages 默认公开，不能用于保护本游戏的内嵌音频。受保护的 Cloudflare 部署尚未配置完成，不能声称游戏已有网页地址。上线前须确认验证覆盖所有访问入口，包括默认域名和静态资源。
 
 ## 日常更新
 
 1. 修改 `world01.html`，保留它的单文件离线能力并先备份。
 2. 检查五个 script 块的语法，在隔离目录用浏览器打开，并验证修改涉及的功能。
 3. 更新项目变更记录和测试清单，检查 `git status` 避免提交临时文件。
-4. 提交并推送到 `main`。检查 Actions 中 Deploy game to GitHub Pages 的运行结果，再打开实际 Pages 地址确认新版本。
+4. 提交并推送到私有仓库的 `main`。受保护部署接通后，检查部署结果、未登录访问的拦截，以及登录后的游戏播放。
 
-如果 GitHub CLI 登录失效，使用 `gh auth login` 重新登录项目拥有者的账号。不要把令牌写入文件或日志。部署失败时检查 Actions 日志、Pages Source 和仓库权限，排队中的任务不代表发布成功。
+如果 GitHub CLI 登录失效，使用 `gh auth login` 重新登录项目拥有者的账号。不要把令牌写入文件或日志。部署失败时检查部署日志和仓库权限，排队中的任务不代表发布成功。
 
 ## 音乐
 
