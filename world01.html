@@ -1700,6 +1700,8 @@ function wavPlay(kind) {
   var i = WAV_IDX[kind] = ((WAV_IDX[kind] | 0) + 1) % arr.length;
   var el = arr[i];
   try {
+    el.volume = (kind === 'walk' || kind === 'run') ? 0.28 : 0.9;
+    el.playbackRate = (kind === 'walk' || kind === 'run') ? 0.9 : 1;
     el.currentTime = 0;
     var p = el.play();
     if (p && p.then) {
@@ -1864,7 +1866,14 @@ function playBuf(set, rate, gain) {
   src.playbackRate.value = rate;
   var g = AC.createGain();
   g.gain.value = gain;
-  src.connect(g); g.connect(AM);
+  if (set === 'walk' || set === 'run') {
+    var filter = AC.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 2100;
+    filter.Q.value = 0.7;
+    src.connect(filter); filter.connect(g);
+  } else src.connect(g);
+  g.connect(AM);
   src.start();
   return true;
 }
@@ -1886,9 +1895,9 @@ function sfxStep(gait) {
   var set = gait === 0 ? 'walk' : 'run';
   if (!AC || AC.state !== 'running') { if (wavPlay(set)) return; }   /* WebAudio 被拦 → 走备用播放 */
   if (!audioReady()) return;
-  var rate = 0.95 + Math.random() * 0.1;
-  var gain = gait === 0 ? 0.85 : 1.0;
-  if (gait === 2) { rate *= 1.06; gain = 1.12; }
+  var rate = 0.88 + Math.random() * 0.08;
+  var gain = gait === 0 ? 0.26 : 0.32;
+  if (gait === 2) { rate *= 1.04; gain = 0.38; }
   playBuf(set, rate, gain);
 }
 /* 起跳：ALS 原版就是播一声脚步（Animation Notify），我们也一样 */
