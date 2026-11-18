@@ -322,6 +322,9 @@
   <pre id="debugInfo"></pre>
   <div id="settingsFoot">
   <div id="settingsStatus">设置修改后自动保存到本浏览器</div>
+  <button id="fullscreenBtn" type="button">全屏</button>
+  <button id="updateGameBtn" type="button">更新游戏</button>
+  <div id="displayStatus" role="status" style="font-size:11px;line-height:1.5;margin:8px 0;color:var(--ink-dim)"></div>
   <button id="settingsReset" type="button">恢复默认</button>
   <button id="settingsClose" type="button">关闭</button>
   </div>
@@ -3900,6 +3903,32 @@ settingsPanel.addEventListener('pointerdown', function (e) { e.stopPropagation()
 settingsPanel.addEventListener('wheel', function (e) { e.stopPropagation(); });
 document.getElementById('settingsBtn').addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); showSettings(!settingsOpen); });
 document.getElementById('settingsClose').onclick = function () { showSettings(false); };
+var fullscreenBtn = document.getElementById('fullscreenBtn');
+var displayStatus = document.getElementById('displayStatus');
+function syncFullscreenButton() {
+  fullscreenBtn.textContent = (document.fullscreenElement || document.webkitFullscreenElement) ? '退出全屏' : '全屏';
+}
+fullscreenBtn.onclick = function () {
+  var active = document.fullscreenElement || document.webkitFullscreenElement;
+  var action = active ? (document.exitFullscreen || document.webkitExitFullscreen) :
+    (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+  if (!action) {
+    displayStatus.textContent = '此浏览器请使用“分享”→“添加到主屏幕”，再从桌面打开。';
+    return;
+  }
+  try {
+    var result = action.call(active ? document : document.documentElement);
+    if (result && result.catch) result.catch(function () { displayStatus.textContent = '无法进入全屏，请在浏览器菜单中尝试。'; });
+  } catch (error) { displayStatus.textContent = '无法进入全屏，请在浏览器菜单中尝试。'; }
+};
+document.addEventListener('fullscreenchange', syncFullscreenButton);
+document.addEventListener('webkitfullscreenchange', syncFullscreenButton);
+document.getElementById('updateGameBtn').onclick = function () {
+  try { sessionStorage.setItem('world01.updatePosition', JSON.stringify({ world: curWorld, x: P.pos.x, y: P.pos.y, z: P.pos.z, face: P.face })); } catch (error) {}
+  var url = new URL(location.href);
+  if (url.protocol === 'http:' || url.protocol === 'https:') url.searchParams.set('_update', Date.now());
+  location.replace(url.href);
+};
 
 document.getElementById('timeScale').oninput = function () { settings.timeScale = Math.max(0.25, Math.min(2, +this.value)); syncSettings(); saveSettings(); };
 document.getElementById('mouseSensitivity').oninput = function () { settings.mouse = +this.value; syncSettings(); saveSettings(); };
@@ -10297,6 +10326,19 @@ function updateStoreDoor(dt) {
 }
 initStoreDoor();
 initPortals();
+try {
+  var updatePosition = JSON.parse(sessionStorage.getItem('world01.updatePosition') || 'null');
+  sessionStorage.removeItem('world01.updatePosition');
+  if (updatePosition && ['spawn', 'field', 'garden', 'konbini'].indexOf(updatePosition.world) >= 0 &&
+      isFinite(updatePosition.x) && isFinite(updatePosition.y) && isFinite(updatePosition.z) && isFinite(updatePosition.face)) {
+    curWorld = updatePosition.world;
+    P.pos.set(updatePosition.x, updatePosition.y, updatePosition.z);
+    P.face = P.faceTarget = updatePosition.face;
+    follow.set(P.pos.x, P.pos.y * 0.4, P.pos.z);
+    portalPreviousPosition.copy(P.pos);
+    setWorldVisible(curWorld); applyWorldLighting(curWorld);
+  }
+} catch (error) {}
 
 /* ---------------- 主循环 ---------------- */
 var last = performance.now();
