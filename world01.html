@@ -1700,7 +1700,7 @@ function wavPlay(kind) {
   var i = WAV_IDX[kind] = ((WAV_IDX[kind] | 0) + 1) % arr.length;
   var el = arr[i];
   try {
-    el.volume = (kind === 'walk' || kind === 'run') ? 0.28 : 0.9;
+    el.volume = (kind === 'walk' || kind === 'run') ? 0.10 : 0.9;
     el.playbackRate = (kind === 'walk' || kind === 'run') ? 0.9 : 1;
     el.currentTime = 0;
     var p = el.play();
@@ -1896,8 +1896,8 @@ function sfxStep(gait) {
   if (!AC || AC.state !== 'running') { if (wavPlay(set)) return; }   /* WebAudio 被拦 → 走备用播放 */
   if (!audioReady()) return;
   var rate = 0.88 + Math.random() * 0.08;
-  var gain = gait === 0 ? 0.26 : 0.32;
-  if (gait === 2) { rate *= 1.04; gain = 0.38; }
+  var gain = gait === 0 ? 0.09 : 0.11;
+  if (gait === 2) { rate *= 1.04; gain = 0.13; }
   playBuf(set, rate, gain);
 }
 /* 起跳：ALS 原版就是播一声脚步（Animation Notify），我们也一样 */
