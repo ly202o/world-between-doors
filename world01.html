@@ -99,6 +99,29 @@
     -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
   }
   .pill.on { background: var(--on-bg); color: var(--on-ink); }
+  /* 开门 / 关门：和上面的药丸同一套语言（同变量、同圆角、同阴影），只加高一档，
+     放在快跑键上方。原来这两个是 76px 深色圆钮 + 毛玻璃，跟旁边的按钮完全是两套东西。 */
+  #portalBtn, #doorBtn {
+    right: 14px; bottom: calc(env(safe-area-inset-bottom, 0px) + 142px);
+    height: 40px; padding: 0 18px; min-width: 88px;
+    font-size: 13px; letter-spacing: .08em; z-index: 211;
+  }
+  /* 门的提示条：同样改成主题配色。桌面上没有门按钮，就停在原来那一带；
+     触屏上把位置让到按钮上方，免得压在按钮上。 */
+  #portalTip, #doorTip {
+    position: fixed; left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 118px);
+    transform: translateX(-50%) translateY(8px);
+    padding: 6px 14px; border-radius: 999px;
+    background: var(--panel); color: var(--ink);
+    box-shadow: 0 1px 5px var(--shadow);
+    font: 600 12px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    letter-spacing: .06em; pointer-events: none; opacity: 0;
+    transition: opacity .16s ease, transform .16s ease; z-index: 211;
+  }
+  @media (pointer: coarse) {
+    #portalTip, #doorTip { bottom: calc(env(safe-area-inset-bottom, 0px) + 194px); }
+  }
   /* 快跑放在提示文字上方一点：药丸变小了，别和底部那三行提示压在一起 */
   #runBtn   { right: 14px; bottom: calc(env(safe-area-inset-bottom, 0px) + 100px); }
   #slowBtn  { right: 84px; bottom: calc(env(safe-area-inset-bottom, 0px) + 100px); }
@@ -284,7 +307,7 @@
 </section>
 <div id="worldLocation" role="status" aria-atomic="true"></div>
 <div id="worldLocationHud" aria-hidden="true"></div>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.30.1</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.30.2</div>
 <script>
 /**
  * @license
@@ -1909,11 +1932,86 @@ function setAmb(v) {
   if (cb) cb.checked = SOUND.amb;
 }
 function ambientTick() {   /* 每帧调一次，代价只有一次 null 判断 */
+  updateSceneMusic();
   if (!AMB_SRC) { startAmbient(); return; }
   if (AC && AC.state !== 'running') return;
   if (AMB_GAIN && Math.abs(AMB_GAIN.gain.value - AMB_VOL) > 0.02) {
     AMB_GAIN.gain.setTargetAtTime(AMB_VOL, AC.currentTime, 0.8);
   }
+}
+
+// 原创循环可离线播放。便利店录音确认后填入音频 data URI。
+var storeMusicRecording = '';
+var musicContext, musicWorld, musicSource, musicGain, musicPanner;
+var musicBuffers = {};
+var musicDirection = new THREE.Vector3();
+var musicPosition = new THREE.Vector3();
+function makeSceneMusic(world) {
+  var garden = world === 'garden';
+  var phrase = garden ? [72,76,79,81,79,76,74,0,71,74,79,83,81,79,76,0] :
+    [57,0,64,0,67,0,64,0,55,0,62,0,65,0,62,0];
+  var step = garden ? 0.63 : 1.2;
+  var rate = 22050;
+  var buffer = AC.createBuffer(1, Math.floor(rate * step * phrase.length), rate);
+  var samples = buffer.getChannelData(0);
+  phrase.forEach(function (note, index) {
+    if (!note) return;
+    var start = Math.floor(index * step * rate);
+    var hz = 440 * Math.pow(2, (note - 69) / 12);
+    for (var i = 0; i < Math.floor(step * 2 * rate); i++) {
+      var t = i / rate, phase = t * hz * Math.PI * 2;
+      var envelope = Math.min(1, t / 0.035) * Math.exp(-t * (garden ? 4.8 : 2.6));
+      envelope *= Math.min(1, (step * 2 - t) / 0.12);
+      samples[(start + i) % samples.length] += 0.36 * envelope * (Math.sin(phase) + 0.18 * Math.sin(2 * phase));
+    }
+  });
+  return buffer;
+}
+
+function updateSceneMusic() {
+  if (!AC || AC.state !== 'running' || SOUND.muted) return;
+  if (musicContext !== AC) {
+    musicContext = AC; musicWorld = null; musicSource = null; musicBuffers = {};
+    musicGain = AC.createGain(); musicGain.connect(AM);
+    musicPanner = AC.createPanner(); musicPanner.panningModel = 'HRTF';
+    musicPanner.refDistance = 3; musicPanner.rolloffFactor = 0.85;
+    musicPanner.connect(musicGain);
+  }
+  if (musicWorld !== curWorld) {
+    if (musicSource) { musicSource.stop(); musicSource.disconnect(); musicSource = null; }
+    musicWorld = curWorld;
+    if (curWorld === 'garden' || curWorld === 'field') {
+      var buffer = musicBuffers[curWorld] || (musicBuffers[curWorld] = makeSceneMusic(curWorld));
+      playSceneMusic(buffer);
+    } else if (curWorld === 'konbini' && storeMusicRecording) {
+      var context = AC;
+      fetch(storeMusicRecording).then(function (response) { return response.arrayBuffer(); })
+        .then(function (bytes) { return context.decodeAudioData(bytes); })
+        .then(function (buffer) {
+          if (context === AC && musicWorld === 'konbini' && !musicSource) playSceneMusic(buffer);
+        }).catch(function (error) { console.warn('便利店音源读取失败', error); });
+    }
+  }
+  if (!musicSource) return;
+  activeCam.getWorldDirection(musicDirection);
+  AC.listener.setOrientation(musicDirection.x, 0, musicDirection.z, 0, 1, 0);
+  AC.listener.setPosition(P.pos.x, P.pos.y + 1.5, P.pos.z);
+  if (musicWorld === 'konbini') {
+    var store = duskLevel.store;
+    musicPosition.set((store.x0 + store.x1) / 2, 2.1, (store.z0 + store.z1) / 2);
+    duskLevel.host.localToWorld(musicPosition);
+  } else if (musicWorld === 'garden') {
+    musicPosition.set(-4, 1.8, -6); sunnyGarden.host.localToWorld(musicPosition);
+  } else musicPosition.set(0, 1.5, 0);
+  musicPanner.setPosition(musicPosition.x, musicPosition.y, musicPosition.z);
+}
+
+function playSceneMusic(buffer) {
+  musicSource = AC.createBufferSource(); musicSource.buffer = buffer;
+  musicSource.loop = true; musicSource.connect(musicPanner);
+  musicGain.gain.setValueAtTime(0, AC.currentTime);
+  musicGain.gain.setTargetAtTime(musicWorld === 'field' ? 0.14 : 0.28, AC.currentTime, 0.25);
+  musicSource.start();
 }
 
 
@@ -2209,7 +2307,7 @@ function applyTheme(n) {
   settings.theme = n;
   saveSettings();
   syncSettings();
-  scene.background.setHex(t.sky);
+  scene.background.setHex(worldBackground(curWorld, t));
   FOG.color.setHex(t.fog);
   hemi.intensity = t.hemiI;
   sun.intensity = t.sunI;
@@ -2396,11 +2494,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第三人称/等距视角 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.30.1';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第三人称/等距视角 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.30.2';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第三人称/等距视角） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.30.1';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第三人称/等距视角） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.30.2';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -6252,19 +6350,6 @@ function buildSunnyGarden(worldScene) {
 
 
   var geoCube = new THREE.BoxGeometry(1, 1, 1);
-  /* 描边：v0.30.1 美术重做时删过，场景恢复时一并还原。只用于花园，
-     便利店保持新版的无描边风格（用户：「黄昏便利店场景不用恢复」）。 */
-  var outlineMat = new THREE.MeshBasicMaterial({ color: 0x35302c, side: THREE.BackSide });
-
-  function outline(mesh, k) {
-    var o = new THREE.Mesh(mesh.geometry, outlineMat);
-    o.scale.setScalar(k || 1.035);
-    o.castShadow = false;
-    o.receiveShadow = false;
-    o.renderOrder = -1;
-    mesh.add(o);
-    return o;
-  }
   function B(w, h, d, mat, x, y, z, parent, ol) {
     var m = new THREE.Mesh(geoCube, mat);
     m.scale.set(w, h, d);
@@ -6272,7 +6357,6 @@ function buildSunnyGarden(worldScene) {
     m.castShadow = true;
     m.receiveShadow = true;
     (parent || root).add(m);
-    if (ol) outline(m, ol);
     return m;
   }
   function CY(rt, rb, h, mat, x, y, z, seg, parent, ol) {
@@ -6281,7 +6365,6 @@ function buildSunnyGarden(worldScene) {
     m.castShadow = true;
     m.receiveShadow = true;
     (parent || root).add(m);
-    if (ol) outline(m, ol);
     return m;
   }
   function PL(w, h, mat, x, y, z, rx, ry, parent) {
@@ -6298,7 +6381,6 @@ function buildSunnyGarden(worldScene) {
     m.castShadow = true;
     m.receiveShadow = true;
     (parent || root).add(m);
-    if (ol) outline(m, ol);
     return m;
   }
   function tube(a, b, r, mat, parent) {
@@ -6552,7 +6634,6 @@ function buildSunnyGarden(worldScene) {
     roof.castShadow = true;
     roof.receiveShadow = true;
     g.add(roof);
-    outline(roof, 1.012);
     // 檐口
     CY(R + 0.9, R + 0.95, 0.14, matWood, 0, postTop + 0.05, 0, 6, g);
     // 顶饰
@@ -7114,7 +7195,6 @@ function buildSunnyGarden(worldScene) {
   exemptGroup(fence, '花园外栅栏：使用连续分段碰撞');
   root.traverse(function (mesh) {
     if (mesh.isInstancedMesh) mesh.userData.colExempt = mesh.userData.colExempt || '花园植被与表面点缀';
-    if (mesh.isMesh && mesh.material === outlineMat) mesh.userData.colExempt = '花园物体描边';
   });
 
   var butterflies = [];
@@ -7271,7 +7351,7 @@ var fieldRoot = new THREE.Group(); fieldRoot.name = 'fieldWorld';
 scene.add(spawnRoot); scene.add(fieldRoot);
 var curWorld = 'spawn';
 var WORLD_LOCATION_NAMES = {
-  spawn: '出生空地', konbini: '黄昏便利店', field: '旧测试场', garden: '晴日花园'
+  spawn: '原野', konbini: '黄昏便利店', field: '初始之地', garden: '蝶语花园'
 };
 var WORLD_LOCATION_COLORS = { spawn: '#9eaa87', konbini: '#edb385', field: '#b8b29c', garden: '#a0c481' };
 var shownWorldLocation = null;
@@ -7351,13 +7431,18 @@ function setWorldVisible(w) {
   fieldRoot.visible = (w === 'field');
   duskLevel.host.visible = (w === 'konbini');
   sunnyGarden.host.visible = (w === 'garden');
-  ground.visible = (w !== 'garden' && w !== 'konbini');
+  ground.visible = (w === 'field'); // 原野的脚下支撑由 supportAt 提供。
   if (gateButterflies.length && doorG.seam) showGateButterflies(w);
 }
 
 /* 每个世界自己的天光：便利店关用关卡自带的黄昏灯 + 橙雾，另外两个世界用主题灯。 */
+function worldBackground(w, theme) {
+  return w === 'spawn' ? 0x15171b : theme.sky;
+}
+
 function applyWorldLighting(w) {
   var th = THEMES[themeName];
+  if (scene.background) scene.background.setHex(worldBackground(w, th));
   if (w === 'garden') {
     hemi.intensity = 0; sun.intensity = 0; sun.castShadow = false;
     duskLevel.sky.visible = false;
@@ -7575,22 +7660,13 @@ function makePortalUI() {
   portalTip = document.createElement('div');
   portalTip.id = 'portalTip';
   portalTip.textContent = '按 E 开门';
-  portalTip.style.cssText = 'position:fixed;left:50%;bottom:120px;transform:translateX(-50%) translateY(8px);' +
-    'padding:8px 16px;border-radius:999px;background:rgba(12,14,20,.66);color:#f2f5fa;' +
-    'font:500 13px/1.25 "PingFang SC","Microsoft YaHei",system-ui,sans-serif;letter-spacing:.04em;' +
-    'border:1px solid rgba(255,255,255,.16);pointer-events:none;opacity:0;' +
-    'transition:opacity .16s ease,transform .16s ease;z-index:34;' +
-    'backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);';
+  /* 样式全在样式表的 #portalTip 里，这里只挂 id 与文字。 */
   document.body.appendChild(portalTip);
   portalBtn = document.createElement('button');
   portalBtn.id = 'portalBtn';
   portalBtn.type = 'button';
   portalBtn.textContent = '开门';
-  portalBtn.style.cssText = 'position:fixed;right:22px;bottom:220px;width:76px;height:76px;border-radius:50%;' +
-    'border:1px solid rgba(255,255,255,.24);background:rgba(18,20,28,.74);color:#f6f8fc;' +
-    'font:600 15px/1 "PingFang SC","Microsoft YaHei",system-ui,sans-serif;letter-spacing:.08em;' +
-    'display:none;z-index:35;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);' +
-    'touch-action:manipulation;-webkit-user-select:none;user-select:none;';
+  portalBtn.className = 'pill';   /* 与快跑/视角/设置同一套样式 */
   portalBtn.addEventListener('pointerdown', function (ev) {
     ev.preventDefault(); ev.stopPropagation();
     if (portalFocusDoor) togglePortal(portalFocusDoor);
@@ -7786,6 +7862,7 @@ function updatePortals(dt) {
   if (best) {
     portalTip.textContent = best.open ? '按 E 关门' : '按 E 开门';
     portalBtn.textContent = best.open ? '关门' : '开门';
+    portalBtn.classList.toggle('on', !!best.open);   /* 开着＝按下态，和快跑键同一套高亮 */
   }
 }
 
@@ -7963,7 +8040,7 @@ function renderPortals(world, baseCamera, splitDoor, shadowDoor) {
     d.mask.visible = d.world === world && (d.previewWhenClosed || !d.hinge || Math.abs(d.angle) > 0.08) &&
       portalFrustum.intersectsObject(d.mask) && portalFrontVisible(d, baseCamera);
     if (!d.mask.visible) continue;
-    d.mask.material.color.copy(background);
+    d.mask.material.color.setHex(worldBackground(d.dest, THEMES[themeName]));
     portalViews.push(d);
   }
   if (!portalViews.length) return;
@@ -8291,7 +8368,7 @@ function fitPortalFrameColliders(door) {
 }
 
 
-/* v0.30.1 的美术注入块（buildStoryWorlds：原野花海 / 初始之地浮空柱廊 / 蝶语花园树荫）
+/* v0.30.2 的美术注入块（buildStoryWorlds：原野花海 / 初始之地浮空柱廊 / 蝶语花园树荫）
    已按需求撤回——出生空地、旧测试场、晴日花园三个场景回到 v0.29.14 的原貌。
    保留的只有黄昏便利店的配色调整（用户：「黄昏便利店场景不用恢复」）。
    v0.28.x 的门洞实时渲染、玻璃门推动、门槛坐标共用等与场景无关的改进不受影响。 */
@@ -8302,19 +8379,8 @@ function tuneKonbiniArt() {
   scene.updateMatrixWorld(true);
 }
 
-/* v0.27.8：出生世界只留门前两点暖光——这个世界要空，跨门时才是「世界变了」。 */
-function buildSpawnWorld() {
-  var l1 = new THREE.PointLight(0xffb066, 6, 9, 2);
-  l1.position.set(DOOR_A.x - 1.0, 1.9, DOOR_A.z + 0.8); spawnRoot.add(l1);
-  var l2 = new THREE.PointLight(0xffb066, 6, 9, 2);
-  l2.position.set(DOOR_B.x + 1.0, 1.9, DOOR_B.z + 0.8); spawnRoot.add(l2);
-}
-
 function initPortalWorlds() {
   splitWorlds();
-  var _bwS = BUILD_WORLD; BUILD_WORLD = 'spawn';
-  buildSpawnWorld();
-  BUILD_WORLD = _bwS;
   tuneKonbiniArt();
   buildPortalDoors();
   buildGateButterflies();
@@ -8367,22 +8433,13 @@ function initStoreDoor() {
   var tip = document.createElement('div');
   tip.id = 'doorTip';
   tip.textContent = '按 E 开门';
-  tip.style.cssText = 'position:fixed;left:50%;bottom:86px;transform:translateX(-50%) translateY(8px);' +
-    'padding:8px 16px;border-radius:999px;background:rgba(12,14,20,.66);color:#f2f5fa;' +
-    'font:500 13px/1.25 "PingFang SC","Microsoft YaHei",system-ui,sans-serif;letter-spacing:.04em;' +
-    'border:1px solid rgba(255,255,255,.16);pointer-events:none;opacity:0;' +
-    'transition:opacity .16s ease,transform .16s ease;z-index:34;' +
-    'backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);';
+  /* 样式全在样式表的 #doorTip 里 */
   document.body.appendChild(tip);
   var btn = document.createElement('button');
   btn.id = 'doorBtn';
   btn.type = 'button';
   btn.textContent = '开门';
-  btn.style.cssText = 'position:fixed;right:22px;bottom:130px;width:76px;height:76px;border-radius:50%;' +
-    'border:1px solid rgba(255,255,255,.24);background:rgba(18,20,28,.74);color:#f6f8fc;' +
-    'font:600 15px/1 "PingFang SC","Microsoft YaHei",system-ui,sans-serif;letter-spacing:.08em;' +
-    'display:none;z-index:35;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);' +
-    'touch-action:manipulation;-webkit-user-select:none;user-select:none;';
+  btn.className = 'pill';   /* 与其它药丸同一套样式 */
   btn.addEventListener('pointerdown', function (ev) {
     ev.preventDefault(); ev.stopPropagation();
     toggleStoreDoor(); markInput();
@@ -8405,6 +8462,7 @@ function toggleStoreDoor() {
   storeDoor.target = storeDoor.open ? 1.62 : 0;
   storeDoor.tip.textContent = storeDoor.open ? '按 E 关门' : '按 E 开门';
   storeDoor.btn.textContent = storeDoor.open ? '关门' : '开门';
+  storeDoor.btn.classList.toggle('on', storeDoor.open);
 }
 var storeViewPosition = new THREE.Vector3();
 /* 正交镜头方向固定，遮挡按镜头所在的屋外侧决定。只改墙面显示，碰撞独立。 */
@@ -8448,7 +8506,8 @@ function updateStoreDoor(dt) {
   var focus = curWorld === 'konbini' && (ddx * ddx + ddz * ddz < 6.76) && p.y < 1.2;
   if (focus !== storeDoor.focus) {
     storeDoor.focus = focus;
-    storeDoor.tip.style.opacity = focus ? '1' : '0';
+    /* 触屏上没有 E 键，提示条会误导；按钮本身已经写着「开门」，所以只在键鼠下显示 */
+    storeDoor.tip.style.opacity = (focus && !TOUCH_UI) ? '1' : '0';
     storeDoor.tip.style.transform = 'translateX(-50%) translateY(' + (focus ? '0' : '8px') + ')';
     storeDoor.btn.style.display = (focus && TOUCH_UI) ? 'block' : 'none';
   }
@@ -8618,7 +8677,7 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.30.1';
+window.__worldVersion = 'v0.30.2';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
