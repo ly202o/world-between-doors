@@ -307,7 +307,7 @@
 </section>
 <div id="worldLocation" role="status" aria-atomic="true"></div>
 <div id="worldLocationHud" aria-hidden="true"></div>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.30.2</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.30.3</div>
 <script>
 /**
  * @license
@@ -2494,11 +2494,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第三人称/等距视角 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.30.2';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第三人称/等距视角 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.30.3';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第三人称/等距视角） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.30.2';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第三人称/等距视角） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.30.3';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -7436,8 +7436,16 @@ function setWorldVisible(w) {
 }
 
 /* 每个世界自己的天光：便利店关用关卡自带的黄昏灯 + 橙雾，另外两个世界用主题灯。 */
+
+/* v0.30.3 原野＝虚空：背景压到近黑、天光压到只够勾出门的轮廓，雾把远处吃掉。
+   想更黑就调小 VOID_HEMI / VOID_SUN、把 VOID_BG 往 0x000000 靠；想亮回来反之。 */
+var VOID_BG = 0x05060a;
+var VOID_HEMI = 0.30;    /* 主题环境光的倍数：原来 1.9，那是给「空场」补光的 */
+var VOID_SUN = 0.38;     /* 主题太阳光的倍数 */
+var VOID_FOG_NEAR = 6, VOID_FOG_FAR = 90;
+
 function worldBackground(w, theme) {
-  return w === 'spawn' ? 0x15171b : theme.sky;
+  return w === 'spawn' ? VOID_BG : theme.sky;
 }
 
 function applyWorldLighting(w) {
@@ -7459,15 +7467,22 @@ function applyWorldLighting(w) {
     duskLevel.sky.visible = true; duskLevel.sky.material.opacity = 1;
     scene.fog.color.setHex(0x7d5449); scene.fog.near = 140; scene.fog.far = 230;
   } else {
-    /* v0.27.8：这两个世界各只有一套光——主题的天光，不再靠摆灯笼照亮。
-       出生世界是空场，环境光抬一档，否则删掉布景后就是一片黑。 */
-    hemi.intensity = th.hemiI * (w === 'spawn' ? 1.9 : 1.0);
-    sun.intensity = th.sunI * (w === 'spawn' ? 1.05 : 1.0); sun.castShadow = true;
+    /* 这两个世界各只有一套光——主题的天光。
+       出生世界现在是虚空：环境光压到 0.3 倍，只够勾出门的轮廓；
+       没有地面也就没有投影可落，直接关掉太阳阴影省一趟渲染。 */
+    var isVoid = (w === 'spawn');
+    hemi.intensity = th.hemiI * (isVoid ? VOID_HEMI : 1.0);
+    sun.intensity = th.sunI * (isVoid ? VOID_SUN : 1.0);
+    sun.castShadow = !isVoid;
     var L2 = duskLevel.lights;
     L2.hemi.intensity = 0; L2.sun.intensity = 0; L2.fill.intensity = 0; L2.bounce.intensity = 0;
     L2.sun.castShadow = false;
     duskLevel.sky.visible = false;
-    scene.fog.color.setHex(th.fog); scene.fog.near = 20; scene.fog.far = 145;
+    if (isVoid) {
+      scene.fog.color.setHex(VOID_BG); scene.fog.near = VOID_FOG_NEAR; scene.fog.far = VOID_FOG_FAR;
+    } else {
+      scene.fog.color.setHex(th.fog); scene.fog.near = 20; scene.fog.far = 145;
+    }
   }
 }
 
@@ -8368,7 +8383,7 @@ function fitPortalFrameColliders(door) {
 }
 
 
-/* v0.30.2 的美术注入块（buildStoryWorlds：原野花海 / 初始之地浮空柱廊 / 蝶语花园树荫）
+/* v0.30.3 的美术注入块（buildStoryWorlds：原野花海 / 初始之地浮空柱廊 / 蝶语花园树荫）
    已按需求撤回——出生空地、旧测试场、晴日花园三个场景回到 v0.29.14 的原貌。
    保留的只有黄昏便利店的配色调整（用户：「黄昏便利店场景不用恢复」）。
    v0.28.x 的门洞实时渲染、玻璃门推动、门槛坐标共用等与场景无关的改进不受影响。 */
@@ -8677,7 +8692,7 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.30.2';
+window.__worldVersion = 'v0.30.3';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
