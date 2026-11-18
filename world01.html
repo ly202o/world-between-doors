@@ -322,6 +322,9 @@
   <pre id="debugInfo"></pre>
   <div id="settingsFoot">
   <div id="settingsStatus">设置修改后自动保存到本浏览器</div>
+  <button id="fullscreenBtn" type="button">全屏</button>
+  <button id="updateGameBtn" type="button">更新游戏</button>
+  <div id="displayStatus" role="status" style="font-size:11px;line-height:1.5;margin:8px 0;color:var(--ink-dim)"></div>
   <button id="settingsReset" type="button">恢复默认</button>
   <button id="settingsClose" type="button">关闭</button>
   </div>
@@ -1758,6 +1761,7 @@ document.addEventListener('visibilitychange', function () {
   if (document.hidden) {
     /* 切后台：停掉渲染循环省电，回来时重置时间基准，避免卡一大跳 */
     renderPaused = true;
+    pauseSceneMusic();
     resetInput();
   } else {
     renderPaused = false;
@@ -3474,6 +3478,7 @@ var storeMusicRecording = 'data:audio/ogg; codecs=opus;base64,' +
   '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';
 var musicContext, musicWorld, musicSource, musicGain, musicPanner;
+var musicStartedAt = 0, musicOffset = 0, musicPausedBuffer = null;
 var musicBuffers = {};
 var musicDirection = new THREE.Vector3();
 var musicPosition = new THREE.Vector3();
@@ -3555,6 +3560,7 @@ function makeKonbiniMusic() {
 
 function updateSceneMusic() {
   if (!AC || AC.state !== 'running' || SOUND.muted) return;
+  if (idleMode || document.hidden) return;
   if (musicContext !== AC) {
     musicContext = AC; musicWorld = null; musicSource = null; musicBuffers = {};
     musicGain = AC.createGain(); musicGain.connect(AM);
@@ -3565,6 +3571,7 @@ function updateSceneMusic() {
   }
   if (musicWorld !== curWorld) {
     if (musicSource) { musicSource.stop(); musicSource.disconnect(); musicSource = null; }
+    musicOffset = 0; musicPausedBuffer = null;
     musicWorld = curWorld;
     musicPanner.refDistance = curWorld === 'konbini' ? 2 : 3;
     musicPanner.rolloffFactor = curWorld === 'konbini' ? 1.6 : 0.85;
@@ -3577,13 +3584,20 @@ function updateSceneMusic() {
         fetch(storeMusicRecording).then(function (response) { return response.arrayBuffer(); })
           .then(function (bytes) { return context.decodeAudioData(bytes); })
           .then(function (buffer) {
-            if (context === AC && musicWorld === 'konbini' && !musicSource) playSceneMusic(buffer);
+            if (context === AC && musicWorld === 'konbini' && !musicSource) {
+              if (idleMode || document.hidden) musicPausedBuffer = buffer;
+              else playSceneMusic(buffer);
+            }
           }).catch(function (error) { console.warn('便利店音源读取失败', error); });
       } else {
         var bed = musicBuffers.konbini || (musicBuffers.konbini = makeKonbiniMusic());
         playSceneMusic(bed);
       }
     }
+  }
+  if (!musicSource && musicPausedBuffer) {
+    var pausedBuffer = musicPausedBuffer; musicPausedBuffer = null;
+    playSceneMusic(pausedBuffer, musicOffset);
   }
   if (!musicSource) return;
   activeCam.getWorldDirection(musicDirection);
@@ -3602,13 +3616,21 @@ function updateSceneMusic() {
   musicPanner.setPosition(musicPosition.x, musicPosition.y, musicPosition.z);
 }
 
-function playSceneMusic(buffer) {
+function pauseSceneMusic() {
+  if (!musicSource || !AC) return;
+  musicPausedBuffer = musicSource.buffer;
+  musicOffset = (musicOffset + AC.currentTime - musicStartedAt) % musicPausedBuffer.duration;
+  musicSource.stop(); musicSource.disconnect(); musicSource = null;
+}
+
+function playSceneMusic(buffer, offset) {
   musicSource = AC.createBufferSource(); musicSource.buffer = buffer;
   musicSource.loop = true; musicSource.connect(musicPanner);
   musicGain.gain.setValueAtTime(0, AC.currentTime);
   var vol = musicWorld === 'field' ? 0.14 : (musicWorld === 'konbini' ? 0.12 : 0.28);
   musicGain.gain.setTargetAtTime(vol, AC.currentTime, 0.25);
-  musicSource.start();
+  musicOffset = offset || 0; musicStartedAt = AC.currentTime;
+  musicSource.start(0, musicOffset);
 }
 
 
@@ -3881,6 +3903,32 @@ settingsPanel.addEventListener('pointerdown', function (e) { e.stopPropagation()
 settingsPanel.addEventListener('wheel', function (e) { e.stopPropagation(); });
 document.getElementById('settingsBtn').addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); showSettings(!settingsOpen); });
 document.getElementById('settingsClose').onclick = function () { showSettings(false); };
+var fullscreenBtn = document.getElementById('fullscreenBtn');
+var displayStatus = document.getElementById('displayStatus');
+function syncFullscreenButton() {
+  fullscreenBtn.textContent = (document.fullscreenElement || document.webkitFullscreenElement) ? '退出全屏' : '全屏';
+}
+fullscreenBtn.onclick = function () {
+  var active = document.fullscreenElement || document.webkitFullscreenElement;
+  var action = active ? (document.exitFullscreen || document.webkitExitFullscreen) :
+    (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+  if (!action) {
+    displayStatus.textContent = '此浏览器请使用“分享”→“添加到主屏幕”，再从桌面打开。';
+    return;
+  }
+  try {
+    var result = action.call(active ? document : document.documentElement);
+    if (result && result.catch) result.catch(function () { displayStatus.textContent = '无法进入全屏，请在浏览器菜单中尝试。'; });
+  } catch (error) { displayStatus.textContent = '无法进入全屏，请在浏览器菜单中尝试。'; }
+};
+document.addEventListener('fullscreenchange', syncFullscreenButton);
+document.addEventListener('webkitfullscreenchange', syncFullscreenButton);
+document.getElementById('updateGameBtn').onclick = function () {
+  try { sessionStorage.setItem('world01.updatePosition', JSON.stringify({ world: curWorld, x: P.pos.x, y: P.pos.y, z: P.pos.z, face: P.face })); } catch (error) {}
+  var url = new URL(location.href);
+  if (url.protocol === 'http:' || url.protocol === 'https:') url.searchParams.set('_update', Date.now());
+  location.replace(url.href);
+};
 
 document.getElementById('timeScale').oninput = function () { settings.timeScale = Math.max(0.25, Math.min(2, +this.value)); syncSettings(); saveSettings(); };
 document.getElementById('mouseSensitivity').oninput = function () { settings.mouse = +this.value; syncSettings(); saveSettings(); };
@@ -10278,6 +10326,19 @@ function updateStoreDoor(dt) {
 }
 initStoreDoor();
 initPortals();
+try {
+  var updatePosition = JSON.parse(sessionStorage.getItem('world01.updatePosition') || 'null');
+  sessionStorage.removeItem('world01.updatePosition');
+  if (updatePosition && ['spawn', 'field', 'garden', 'konbini'].indexOf(updatePosition.world) >= 0 &&
+      isFinite(updatePosition.x) && isFinite(updatePosition.y) && isFinite(updatePosition.z) && isFinite(updatePosition.face)) {
+    curWorld = updatePosition.world;
+    P.pos.set(updatePosition.x, updatePosition.y, updatePosition.z);
+    P.face = P.faceTarget = updatePosition.face;
+    follow.set(P.pos.x, P.pos.y * 0.4, P.pos.z);
+    portalPreviousPosition.copy(P.pos);
+    setWorldVisible(curWorld); applyWorldLighting(curWorld);
+  }
+} catch (error) {}
 
 /* ---------------- 主循环 ---------------- */
 var last = performance.now();
@@ -10297,7 +10358,7 @@ var idleTxtT = 0;
 var lastInputT = (typeof performance !== 'undefined' ? performance.now() : Date.now());
 function markInput() {
   lastInputT = performance.now();
-  if (idleMode) { idleMode = false; fpsN = 0; fpsT0 = lastInputT; }
+  if (idleMode) { idleMode = false; fpsN = 0; fpsT0 = lastInputT; updateSceneMusic(); }
 }
 /* 捕获阶段挂，保证别处 stopPropagation 也不影响计时（这只是一个时间戳） */
 ['keydown', 'pointerdown', 'mousedown', 'wheel', 'touchstart'].forEach(function (ev) {
@@ -10356,7 +10417,7 @@ function loop(t) {
     (t - lastInputT) > IDLE_MS &&
     Math.hypot(vel.x, vel.z) < 0.05 && P.onGround;
   if (idleNow) {
-    if (!idleMode) { idleMode = true; idleTxtT = 0; }
+    if (!idleMode) { idleMode = true; idleTxtT = 0; pauseSceneMusic(); }
     last = t; acc = 0;                 /* 时间基准跟着走，回来时不会卡一大跳 */
     if (t - idleTxtT > 1000) {
       idleTxtT = t;
