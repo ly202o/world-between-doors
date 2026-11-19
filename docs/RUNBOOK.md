@@ -326,3 +326,5 @@ window.__errors                     // 未捕获异常数组（每套测试末�
 
 ### land 场景重建
 源码 vendor/land，运行 npm install 后，在项目根目录执行 node vendor/land/tools/build.mjs --scene scenes/hateno-valley.js --out ../../.art-check/land-valley.html。集成脚本 tools/integrate-land.cjs 从构建文件生成嵌入内容，需先恢复 pre-land 快照再运行，禁止对已嵌入页面重复运行。运行 node tests/land-integration.cjs 检查。第三方 LICENSE 必须保留且游戏场景中显示 land 链接致谢。
+
+v0.31.1 起：已有集成版本重建时，先构建 .art-check/land-valley.html，再运行 node tools/rebuild-land.cjs。桥接源码维护在 vendor/land/game-bridge.html，保留角色和倍速接入；不要再次使用初版 integrate-land.cjs 覆盖现有版本。
