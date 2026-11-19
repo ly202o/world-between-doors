@@ -35,7 +35,7 @@ replace('window.__world = { saveSettingsArchive:',"window.__world = { get yunagi
 replace("(curWorld === 'garden' || curWorld === 'konbini' || curWorld === 'field') && P.pos.y < -8","(curWorld === 'garden' || curWorld === 'konbini' || curWorld === 'field' || curWorld === 'yunagi') && P.pos.y < -8");
 replace("var entry = curWorld === 'garden' ? GARDEN_ARCH", "var entry = curWorld==='yunagi'?{x:76.11,z:3.5}:curWorld === 'garden' ? GARDEN_ARCH");
 replace('P.pos.set(entry.x - 1.2, 0, entry.z);',"P.pos.set(entry.x - 1.2, curWorld==='yunagi'?.476:0, entry.z);");
-replace("window.__worldVersion = 'v0.32.5'","window.__worldVersion = 'v0.33.0'");
+replace("window.__worldVersion = 'v0.32.5'","window.__worldVersion = 'v0.33.1'");
 fs.writeFileSync('world01/world01.html',s);
 
 
