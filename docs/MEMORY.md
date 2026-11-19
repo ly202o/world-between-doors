@@ -810,3 +810,6 @@ PC 操作为主，手机兼容为辅。功能使用单个弱显示入口，场�
 发布配置已从用户指定聊天找回：.art-check/private-publish 为发布仓库，origin=https://github.com/ly202o/world-between-doors.git，main 推送触发 Pages；公开地址 https://ly202o.github.io/world-between-doors/ 。
 
 用户要求真正使用 land 重做更大塞尔达参考场景，随后输出前面对话总结 HTML。选哈特诺山村，直接集成 land；不得再将借鉴算法描述为已使用生成器。当前 land 中是其第一人称控制，尚非原角色无缝接入。
+
+## v0.31.1 · 2026-11-19 · 原角色接入 land 与 10× 倍速
+将现有 pawn 蒙皮角色与骨骼动画复制到 land 渲染器，由 land 行走/地形碰撞驱动位置、原动画驱动骨骼；默认第三人称跟随。模拟倍速上限从 2× 提升到 10×，land 菜单加入同一设置入口，场景物理和原角色动画使用该倍速。未移植原游戏整套攀爬/IK 求解，原场景控制器保持原样。

@@ -201,6 +201,7 @@ export function createEditor(renderer, canvas) {
   }
 
   function renderFrame() {
+    if(window.__landAvatarUpdate)window.__landAvatarUpdate(1/60);
     if (ed.mode !== 'walk') {
       controls.update();
       const g = surfaceAt(camera.position.x, camera.position.z) + 0.6;  // keep the camera above ground and water
@@ -241,7 +242,7 @@ export function createEditor(renderer, canvas) {
     addEventListener('resize', resize);
     const clock = new THREE.Clock();
     const frame = () => {
-      const dt = Math.min(clock.getDelta(), 0.05);
+      const dt = Math.min(clock.getDelta(), 0.05) * (window.parent.__world && window.parent.__world.landTimeScale ? window.parent.__world.landTimeScale() : 1);
       U.uTime.value += dt;
       const walking = ed.mode === 'walk';
       if (ed.built && !ed.paused && walking) updateWalker(dt);
