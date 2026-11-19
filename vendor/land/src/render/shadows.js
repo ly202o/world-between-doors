@@ -17,9 +17,11 @@ export function createShadows(renderer, scene, camera, controls) {
   return {
     invalidate() { state.force = true; },
     update() {
+      if(window.__landDynamicShadow && performance.now()-(state.dynamicAt||0)>80){state.force=true;state.dynamicAt=performance.now();}
       camera.getWorldDirection(_fwd); _fwd.y = 0; if (_fwd.lengthSq() < 1e-4) _fwd.set(0, 0, -1); _fwd.normalize();
       const reach = clamp(camera.position.distanceTo(controls.target), 12, 60) * 0.8;
       _sc.set(camera.position.x + _fwd.x * reach, 0, camera.position.z + _fwd.z * reach);
+      if(window.__landDynamicShadow)_sc.copy(controls.target);
       _sc.y = heightAt(_sc.x, _sc.z);
       const sd = U.uSunDir.value;
       if (!state.force && _sc.distanceTo(state.c) < 2.5 && sd.distanceTo(state.s) < 0.002) return;
