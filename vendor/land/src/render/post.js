@@ -17,7 +17,7 @@ export function depth24(renderer) {
 
 export function createPost(renderer, scene, camera) {
   const gl2 = renderer.capabilities.isWebGL2;
-  const type = gl2 ? THREE.HalfFloatType : THREE.UnsignedByteType;
+  const type = gl2 && !isSmall ? THREE.HalfFloatType : THREE.UnsignedByteType;
   const rtScene = new THREE.WebGLRenderTarget(4, 4, { type, samples: gl2 && !isSmall ? 4 : 0 });
   rtScene.depthTexture = depth24(renderer);
   A2C.value = rtScene.samples > 0 ? 1 : 0;
@@ -27,6 +27,7 @@ export function createPost(renderer, scene, camera) {
   quad.frustumCulled = false; qScene.add(quad);
   const vs = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
   const M = (fs, uniforms) => new THREE.ShaderMaterial({ uniforms, vertexShader: vs, fragmentShader: fs, depthTest: false, depthWrite: false });
+  const mobileDisplay=M(`uniform sampler2D tScene;varying vec2 vUv;void main(){vec3 c=texture2D(tScene,vUv).rgb;float m=max(max(c.r,c.g),c.b);if(m>.7){float k=.7+.3*(1.-exp(-(m-.7)/.3));c=mix(c*(k/m),vec3(k),smoothstep(.95,1.9,m)*.75);}vec2 q=vUv-.5;c*=1.-dot(q,q)*.22;gl_FragColor=vec4(clamp(c,0.,1.),1.);}`,{tScene:{value:null}});
   const bright = M(`uniform sampler2D tSrc; varying vec2 vUv;
 void main(){ vec3 c = texture2D(tSrc, vUv).rgb; float l = dot(c, vec3(0.299, 0.587, 0.114)); gl_FragColor = vec4(c * smoothstep(1.0, 1.55, l), 1.0); }`, { tSrc: { value: null } });
   const blur = M(`uniform sampler2D tSrc; uniform vec2 uDir; varying vec2 vUv;
@@ -143,7 +144,8 @@ void main(){
   function pass(mat, target) { quad.material = mat; renderer.setRenderTarget(target); renderer.render(qScene, qCam); }
   function render() {
     renderer.setRenderTarget(rtScene); renderer.render(scene, camera);
-    const aoOn = rtScene.depthTexture && U.uAO.value > 0.001 && !isSmall;   // phones skip it (two extra half-size passes)
+    if(isSmall){mobileDisplay.uniforms.tScene.value=rtScene.texture;pass(mobileDisplay,null);return;}
+    const aoOn = rtScene.depthTexture && U.uAO.value > 0.001 && !isSmall && !camera.userData.orthographic;   // phones skip it (two extra half-size passes)
     comp.uniforms.uAO.value = aoOn ? U.uAO.value : 0;
     if (aoOn) {
       const t = Math.tan(camera.fov * Math.PI / 360);

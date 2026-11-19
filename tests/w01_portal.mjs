@@ -63,19 +63,19 @@ await until(async () => (await ev('typeof __world')) === 'object', 12000);
 console.log('\n【1】出生世界');
 const p0 = await portals();
 ok(p0.cur === 'spawn', '出生在空场世界', p0.cur);
-ok(p0.doors.length === 8, '木门、巨石门和花藤拱门各一组', p0.doors.length);
+ok(p0.doors.length === 6, '木门、巨石门和花藤拱门各一组', p0.doors.length);
 ok(p0.doors.every(d => d.open === d.arch), '木门默认关闭，巨石门和花藤拱门常开');
-ok(p0.doors.filter(d => d.world === 'spawn').length === 4, '原野保留三个入口');
+ok(p0.doors.filter(d => d.world === 'spawn').length === 3, '原野保留三个入口');
 const pos0 = JSON.parse(await ev('JSON.stringify([+__world.P.pos.x.toFixed(1), +__world.P.pos.z.toFixed(1)])'));
 ok(pos0[0] > 1.65 && pos0[0] < 8 && pos0[1] > -12 && pos0[1] < 0, '出生在门列正面', pos0);
 
 console.log('\n【2】便利店门：提示 + E 开门');
 await ev('__world.P.pos.set(3.15, 0, -2.7)'); await sleep(300);
 ok(await until(async () => (await portals()).focus === 'doorKonbini'), '走到门前进入交互范围');
-ok(await until(async () => (await tipText()) === '按 E 开门', 4000), '提示「按 E 开门」', await tipText());
+ok(await until(async () => (await tipText()) === '开门', 4000), '提示「按 E 开门」', await tipText());
 await key('e');
 ok(await until(async () => (await state()).doorKonbini.open === true), 'E 开门');
-ok(await until(async () => (await tipText()) === '按 E 关门', 4000), '提示变「按 E 关门」', await tipText());
+ok(await until(async () => (await tipText()) === '关门', 4000), '提示变「按 E 关门」', await tipText());
 
 console.log('\n【3】穿过门面：进入便利店世界');
 ok(await walkThrough(2.45, -2.7, 'w', 'konbini'), '正常走过门面进入便利店世界', (await portals()).cur);

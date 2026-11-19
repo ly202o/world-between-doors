@@ -16,13 +16,18 @@ lightCam.layers.set(SHADOW);
 export const depthMat = new THREE.ShaderMaterial({
   uniforms: { uLeaf: { value: LEAF_TEX } },
   vertexShader: `attribute vec2 aUV; attribute float aCard; attribute float aFade; varying vec2 vUV; varying float vCard; varying float vFade;
+#include <common>
+#include <skinning_pars_vertex>
 void main() {
+  #include <skinbase_vertex>
+  #include <begin_vertex>
+  #include <skinning_vertex>
   vUV = aUV; vCard = aCard; vFade = aFade;
   mat4 m = modelMatrix;
 #ifdef USE_INSTANCING
   m = modelMatrix * instanceMatrix;
 #endif
-  gl_Position = projectionMatrix * viewMatrix * m * vec4(position, 1.0);
+  gl_Position = projectionMatrix * viewMatrix * m * vec4(transformed, 1.0);
 }`,
   fragmentShader: `uniform sampler2D uLeaf; varying vec2 vUV; varying float vCard; varying float vFade;
 void main() {
