@@ -155,3 +155,6 @@ export function listInstances(kind, limit) {
   for (const k in INST) if (!kind || k.split('|')[0] === kind) for (const o of INST[k]) { out.push([+o.x.toFixed(1), +o.z.toFixed(1), +o.s.toFixed(2)]); if (out.length >= (limit || 200)) return out; }
   return out;
 }
+
+export const exportObstacles=()=>Array.from(OBST.values()).flat();
+export function restoreObstacles(a){OBST.clear();for(const o of a)obstAdd(o.x,o.z,o.r);}

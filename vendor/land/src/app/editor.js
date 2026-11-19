@@ -1,3 +1,4 @@
+import {restore,decode} from '../runtime/prebuilt.js';
 // The editor: owns the three.js scene, runs scene scripts into it, and renders frames.
 // build(fn) = reset world -> run script -> settle water -> build meshes -> apply env -> report.
 import * as THREE from 'three';
@@ -164,7 +165,12 @@ export function createEditor(renderer, canvas) {
     worldGroup = new THREE.Group(); scene.add(worldGroup);
 
     ui.stage('运行 scene.js'); await tick();
-    await runScript(fn, session);
+    const baked=window.__landBake || document.getElementById('landBakePayload')?.textContent;
+    if(baked && typeof DecompressionStream!=='undefined'){
+      ui.stage('读取预构建场景');const bytes=Uint8Array.from(atob(baked),c=>c.charCodeAt(0));
+      const text=await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+      restore(decode(text),session);delete window.__landBake;document.getElementById('landBakePayload')?.remove();session.report.prebuilt=true;
+    }else await runScript(fn, session);
 
     const tf = performance.now();
     ui.stage('生成水体与物件'); await tick();
@@ -201,12 +207,13 @@ export function createEditor(renderer, canvas) {
   }
 
   function renderFrame() {
-    if(window.__landAvatarUpdate)window.__landAvatarUpdate(1/60);
+
     if (ed.mode !== 'walk') {
       controls.update();
       const g = surfaceAt(camera.position.x, camera.position.z) + 0.6;  // keep the camera above ground and water
       if (camera.position.y < g) camera.position.y = g;
     }
+    if(window.__landSceneFrame)window.__landSceneFrame(ed.currentDt||0);
     sky.position.copy(camera.position);
     U.uFogDensity.value = atmosphere.fogBase;
     pollen.m.uniforms.uCenter.value.set(controls.target.x, heightAt(controls.target.x, controls.target.z), controls.target.z);
@@ -243,6 +250,7 @@ export function createEditor(renderer, canvas) {
     const clock = new THREE.Clock();
     const frame = () => {
       const dt = Math.min(clock.getDelta(), 0.05) * (window.parent.__world && window.parent.__world.landTimeScale ? window.parent.__world.landTimeScale() : 1);
+      ed.currentDt=dt;
       U.uTime.value += dt;
       const walking = ed.mode === 'walk';
       if (ed.built && !ed.paused && walking) updateWalker(dt);

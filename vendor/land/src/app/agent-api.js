@@ -1,3 +1,4 @@
+import {exportObstacles} from '../objects/placement.js';
 // window.mapEditor: the console / headless-browser interface agents drive the editor with.
 import { heightAt, slopeAt } from '../world/grid.js';
 import { ensureWater, waterInfo } from '../water/water.js';
@@ -10,6 +11,7 @@ import { LOD } from '../render/props.js';
 
 export function installAgentAPI(ed, canvas) {
   window.mapEditor = {
+    obstacles:()=>exportObstacles(),
     get source() { return ed.sceneFn ? ed.sceneFn.toString() : ''; },
     schema: SCHEMA, signatures: SIGS, kinds: KIND_DOCS,
     run: fn => ed.build(fn),
