@@ -284,6 +284,32 @@
 #settingsPanel{z-index:270} #tip{max-width:calc(100vw - 40px);box-sizing:border-box}
 @media(pointer:coarse){#worldMenuToggle{width:42px;height:42px;right:16px;top:16px;opacity:.5}#worldMenu{right:16px;top:66px}#portalTip:before,#doorTip:before{display:none}}
 
+
+/* v0.32.1 Settings: single scroll region, large controls, separate advanced tools. */
+#settingsPanel{top:24px!important;right:24px!important;bottom:24px!important;left:auto!important;width:420px!important;max-width:calc(100vw - 48px)!important;max-height:none!important;padding:0!important;overflow:hidden!important;border:1px solid #b8cbb526;border-radius:18px!important;background:var(--panel-solid);box-shadow:0 16px 64px #0005;display:grid;grid-template-rows:auto auto minmax(0,1fr);z-index:400}
+#settingsPanel[hidden]{display:none!important}body.sideOpen #c{width:100%!important}
+#settingsPanel .settingsHeader{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 12px;gap:12px;border-bottom:0}
+#settingsPanel .settingsHeader h2{margin:0;font:500 20px/1.3 system-ui;letter-spacing:.1em}#settingsPanel .settingsHeader p{margin:4px 0 0;font-size:11px;color:var(--ink-dim)}
+#settingsPanel #settingsClose{width:44px;height:44px;min-height:44px;padding:0;margin:0;border:1px solid var(--shadow);background:transparent;color:var(--ink);border-radius:10px;font-size:24px;font-weight:400}
+#settingsPanel .settingsTabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:0 16px 12px;border-bottom:1px solid var(--shadow)}
+#settingsPanel .settingsTabs button{margin:0;padding:0 6px;min-height:44px;border-radius:8px;background:transparent;color:var(--ink-dim);font-size:13px}
+#settingsPanel .settingsTabs button[aria-selected=true]{background:var(--on-bg);color:var(--on-ink)}
+#settingsPanel .settingsScroll{overflow:auto;overscroll-behavior:contain;min-height:0;padding:8px 20px max(24px,env(safe-area-inset-bottom));touch-action:pan-y;-webkit-overflow-scrolling:touch}
+#settingsPanel [role=tabpanel][hidden]{display:none!important}#settingsPanel [role=tabpanel]{padding-top:6px}
+#settingsPanel label{display:block;padding:12px 0;margin:0;border-bottom:1px solid var(--shadow);font-size:14px;line-height:1.8;min-height:48px;cursor:pointer}
+#settingsPanel output{color:var(--ink);font-size:14px;font-variant-numeric:tabular-nums}#settingsPanel input[type=range]{height:44px;margin:6px 0 0;cursor:ew-resize;touch-action:pan-x}
+#settingsPanel input[type=range]::-webkit-slider-thumb{min-height:24px;min-width:24px}#settingsPanel input[type=checkbox]{width:22px;height:22px;vertical-align:middle;margin-right:10px}
+#settingsPanel select{height:44px;padding:0 12px;font-size:14px;border-radius:8px;margin-top:8px}
+#settingsPanel .settingsActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}#settingsPanel .settingsActions button{min-height:46px;border-radius:8px;margin:0;font-size:13px}
+#settingsPanel .speedPresets{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:8px 0 16px}#settingsPanel .speedPresets button{height:44px;margin:0;padding:0;border-radius:7px;background:transparent;border:1px solid var(--shadow);color:var(--ink);font-size:13px}#settingsPanel .speedPresets button[aria-pressed=true]{background:var(--on-bg);color:var(--on-ink)}
+#settingsPanel .settingsNote{font-size:12px;line-height:1.7;color:var(--ink-dim);margin:14px 0}#settingsPanel details{margin-top:18px}#settingsPanel summary{min-height:44px;line-height:44px;font-size:14px;cursor:pointer}
+#settingsPanel #debugInfo{max-height:none;overflow:visible;font-size:11px}#settingsPanel #resourceInfo{font-size:14px!important;line-height:2!important;opacity:1!important;white-space:pre-line;word-break:break-word;margin:10px 0!important;padding:16px;border:1px solid var(--shadow);border-radius:10px}
+#settingsPanel #settingsReset{min-height:44px;margin-top:18px;font-size:13px;border-radius:8px}#settingsPanel #settingsStatus,#settingsPanel #displayStatus{font-size:12px;line-height:1.7;margin-top:16px}
+#settingsPanel button:focus-visible,#settingsPanel select:focus-visible,#settingsPanel input:focus-visible{outline:2px solid #90bba0;outline-offset:3px}
+@media(max-width:600px){#settingsPanel{top:auto!important;bottom:0!important;left:0!important;right:0!important;width:100%!important;max-width:none!important;height:min(94dvh,850px);max-height:100dvh!important;border-radius:18px 18px 0 0!important;border-bottom:0}#settingsPanel .settingsHeader{padding-top:18px}#settingsPanel .settingsScroll{padding-left:20px;padding-right:20px}}
+@media(max-height:500px){#settingsPanel{top:0!important;bottom:0!important;height:100dvh;max-height:100dvh!important;border-radius:0!important}#settingsPanel .settingsHeader{padding-top:6px;padding-bottom:4px}#settingsPanel .settingsTabs{padding-bottom:4px}}
+@media(pointer:coarse){#settingsPanel .desktopControl{display:none!important}}
+@media(pointer:fine){#settingsPanel .touchControl{display:none!important}}
 </style>
 <!-- Third-party notice: MIT License with Attribution Requirement
 
@@ -509,12 +535,12 @@ scene.background = new THREE.Color(SKY);
 var FOG = new THREE.Fog(0xf1f5f8, 20, 145);
 scene.fog = FOG;
 
-var camera = new THREE.PerspectiveCamera(48, 1, 0.1, 400);
+var camera = new THREE.PerspectiveCamera(48, 1, 0.1, 2400);
 /* 等距视角（v0.15.0）要的是正交投影，透视相机给不了——所以另开一台，
    每帧跟着透视相机走同一套机位（位置 + 朝向完全复制），只把投影换掉。
    送进 renderer 的那台由 activeCam 决定；第一/第三/自由永远是透视这台，
    等距是正交那台，两台的视锥在枢轴平面上等大，所以切换那一刻不跳。 */
-var orthoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
+var orthoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 2400);
 var activeCam = camera;
 
 /* ---------------- 光 ---------------- */
@@ -3743,7 +3769,7 @@ var freePitch = FREE_PITCH_DEF, freeDist = FREE_DIST_DEF_L;   /* 开局就是默
 var freeIntro = 0;                       /* >0 表示还在往默认落点过渡（秒），用户一动就取消 */
 var freeUserZoom = false;                /* 用户自己缩过没有：没缩过就让默认机距跟着横竖屏走 */
 var freeToPitch = 0, freeToDist = 0;
-var FREE_PITCH = 1.45, FREE_DIST_MIN = 1.5, FREE_DIST_MAX = 60;
+var FREE_PITCH = 1.45, FREE_DIST_MIN = 1.5, FREE_DIST_MAX = 400;
 /* 45° 视角锁定：俯角焊死 π/4，水平角焊死在按下按钮那一刻（lockYaw）。
    僵毁那类等距生存游戏的相机本来就是世界朝向固定的，角色怎么转镜头都不跟。
    注意只在 freeMode 生效——切到第一/第三人称仍然要能正常转视角。 */
@@ -3776,7 +3802,7 @@ var isoDistCur = 0;                             /* 等距的当前机距（每�
    24m 时房子顶部仍被顶出去（等距把前方的东西推到画面上方），30m 完整、28m 刚好压住边。
    横屏竖屏都用 28 —— 角色在两种握法下都是屏幕高度的 6% 上下，看着一样大。 */
 var ISO_VIEW_H_L = 17, ISO_VIEW_H_P = 17;      /* 默认画面取景高度 */
-var ISO_VIEW_H_MIN = 6, ISO_VIEW_H_MAX = 90;
+var ISO_VIEW_H_MIN = 6, ISO_VIEW_H_MAX = 400;
 var isoViewH = ISO_VIEW_H_L;                    /* 画面纵向覆盖的世界高度：滚轮/捏合改它 */
 var isoUserZoom = false;                        /* 用户自己缩过没有：没缩过就让默认高度跟着横竖屏走 */
 var ASPECT = 1;
@@ -10570,8 +10596,8 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.32.0';
-window.__world = {landControlBegin:function(env){landEnvironment=env;resetInput();curWorld='land';for(var ci=colliders.length-1;ci>=0;ci--)if(colliders[ci].world==='land')colliders.splice(ci,1);var savedBuildWorld=BUILD_WORLD;BUILD_WORLD='land';env.obstacles.forEach(function(o){var groundY=env.heightAt(o.x,o.z);addPost(o.x,groundY+1.5,o.z,o.r,3);});BUILD_WORLD=savedBuildWorld;P.pos.set(8,env.heightAt(8,119),119);P.onGround=true;P.vy=0;vel.set(0,0,0);motionDebug.stepTarget=P.pos.y;},landControlFrame:function(dt){dt=Math.min(.1,Math.max(0,dt));var sim=dt*settings.timeScale;for(var left=sim;left>1e-6;left-=FIXED)update(Math.min(left,FIXED));driveAnim(sim);updateFootContact(sim);updateLookPose(sim);pawn.updateMatrixWorld(true);activeCam.updateMatrixWorld(true);return {position:pawn.position.toArray(),rotation:pawn.rotation.toArray(),bones:skinMesh.skeleton.bones.map(function(b){return [b.name,b.position.toArray(),b.quaternion.toArray(),b.scale.toArray()];}),cameraPosition:activeCam.position.toArray(),cameraQuaternion:activeCam.quaternion.toArray(),projection:activeCam.projectionMatrix.toArray(),target:[P.pos.x,P.pos.y+1,P.pos.z]};}, landAvatarData: function(){return pawn.toJSON();}, landTimeScale:function(){return settings.timeScale;}, landAvatarPose:function(speed,grounded,dt){setAnim(!grounded?'fall':speed>5?'run':speed>.15?'walk':'idle',1);driveAnim(dt*settings.timeScale);return skinMesh.skeleton.bones.map(function(b){return [b.name,b.position.toArray(),b.quaternion.toArray(),b.scale.toArray()];});}, P: P, vel: vel, camera: camera, ANIM: ANIM,
+window.__worldVersion = 'v0.32.1';
+window.__world = {landControlBegin:function(env){landEnvironment=env;resetInput();curWorld='land';for(var ci=colliders.length-1;ci>=0;ci--)if(colliders[ci].world==='land')colliders.splice(ci,1);var savedBuildWorld=BUILD_WORLD;BUILD_WORLD='land';env.obstacles.forEach(function(o){var groundY=env.heightAt(o.x,o.z);addPost(o.x,groundY+1.5,o.z,o.r,3);});BUILD_WORLD=savedBuildWorld;P.pos.set(8,env.heightAt(8,119),119);P.onGround=true;P.vy=0;vel.set(0,0,0);motionDebug.stepTarget=P.pos.y;},landControlFrame:function(dt){dt=Math.min(.1,Math.max(0,dt));var sim=dt*settings.timeScale;for(var left=sim;left>1e-6;left-=FIXED)update(Math.min(left,FIXED));driveAnim(sim);updateFootContact(sim);updateLookPose(sim);pawn.updateMatrixWorld(true);activeCam.updateMatrixWorld(true);return {position:pawn.position.toArray(),rotation:pawn.rotation.toArray(),bones:skinMesh.skeleton.bones.map(function(b){return [b.name,b.position.toArray(),b.quaternion.toArray(),b.scale.toArray()];}),cameraPosition:activeCam.position.toArray(),cameraQuaternion:activeCam.quaternion.toArray(),projection:activeCam.projectionMatrix.toArray(),near:activeCam.near,far:activeCam.far,orthographic:!!activeCam.isOrthographicCamera,target:[P.pos.x,P.pos.y+1,P.pos.z]};}, landAvatarData: function(){return pawn.toJSON();}, landTimeScale:function(){return settings.timeScale;}, landAvatarPose:function(speed,grounded,dt){setAnim(!grounded?'fall':speed>5?'run':speed>.15?'walk':'idle',1);driveAnim(dt*settings.timeScale);return skinMesh.skeleton.bones.map(function(b){return [b.name,b.position.toArray(),b.quaternion.toArray(),b.scale.toArray()];});}, P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
   get bones() { return boneByName; },
@@ -10754,7 +10780,7 @@ setTimeout(function () {
   toggle.addEventListener('click',function(e){if(e.detail===0)show(menu.hidden);});
   menu.addEventListener('pointerdown',function(e){e.stopPropagation();});menu.addEventListener('wheel',function(e){e.stopPropagation();});
   document.addEventListener('pointerdown',function(e){if(!menu.hidden&&!menu.contains(e.target)&&e.target!==toggle&&!document.getElementById('settingsPanel').contains(e.target))show(false);},true);
-  window.addEventListener('keydown',function(e){if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if(e.key==='Tab'&&(menu.hidden||e.target===document.body||e.target===toggle)){e.preventDefault();show(menu.hidden);}else if(e.key==='Escape'&&!menu.hidden){show(false);toggle.focus();}},true);
+  window.addEventListener('keydown',function(e){if(!document.getElementById('settingsPanel').hidden)return;if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if(e.key==='Tab'&&(menu.hidden||e.target===document.body||e.target===toggle)){e.preventDefault();show(menu.hidden);}else if(e.key==='Escape'&&!menu.hidden){show(false);toggle.focus();}},true);
   /* 按真实设备能力与当前视角筛选菜单，不覆盖游戏原有状态。 */
   function syncMenuAvailability() {
     var touch = navigator.maxTouchPoints > 0 && window.matchMedia('(pointer: coarse)').matches;
@@ -10788,6 +10814,21 @@ setInterval(function(){if(!window.__world)return;if(!active&&__world.portals.cur
 window.__drawLandPreview=function(renderer){if(!ready||active)return false;if(Date.now()-previewAt>900){previewAt=Date.now();previewImage.src=frame.contentWindow.mapEditor.snapshot();}if(!previewImage.complete||!previewImage.naturalWidth)return false;if(!previewTexture){previewTexture=new THREE.Texture(previewImage);previewTexture.colorSpace=THREE.SRGBColorSpace;previewScene=new THREE.Scene();previewCamera=new THREE.OrthographicCamera(-1,1,1,-1,0,2);previewCamera.position.z=1;previewScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.MeshBasicMaterial({map:previewTexture,depthTest:false,depthWrite:false,toneMapped:false})));}previewTexture.needsUpdate=true;renderer.render(previewScene,previewCamera);return true;};
 })();
 </script>
-<script>window.__resourceManifest={"gameBytes":61302824,"totalBytes":64356225,"cacheBytes":28448105};</script><script>(function(){var m=window.__resourceManifest;var el=document.getElementById('resourceInfo');if(!el)return;function mb(n){return(n/1048576).toFixed(1)+' MiB';}el.textContent='游戏文件：'+mb(m.gameBytes)+' · 已载入 '+mb(m.gameBytes)+'\n发布文件夹：'+mb(m.totalBytes)+'\n预构建缓存（压缩）：'+mb(m.cacheBytes);el.style.whiteSpace='pre-line';})();</script></body>
+<script>window.__resourceManifest={"gameBytes":61302824,"totalBytes":64356225,"cacheBytes":28448105};</script><script>(function(){var m=window.__resourceManifest;var el=document.getElementById('resourceInfo');if(!el)return;function mb(n){return(n/1048576).toFixed(1)+' MiB';}el.textContent='游戏文件：'+mb(m.gameBytes)+' · 已载入 '+mb(m.gameBytes)+'\n发布文件夹：'+mb(m.totalBytes)+'\n预构建缓存（压缩）：'+mb(m.cacheBytes);el.style.whiteSpace='pre-line';})();</script><script>
+(function(){var panel=document.getElementById('settingsPanel'),close=document.getElementById('settingsClose'),saved=document.getElementById('settingsStatus');var header=document.createElement('header');header.className='settingsHeader';header.innerHTML='<div><h2 id="settingsHeading">设置</h2><p>更改自动保存 · Esc 返回</p></div>';close.textContent='×';close.setAttribute('aria-label','关闭设置');header.appendChild(close);
+var tabs=document.createElement('nav');tabs.className='settingsTabs';tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','设置分类');var scroll=document.createElement('div');scroll.className='settingsScroll';var pages={},buttons={},current='common';
+[['common','常用'],['controls','操作'],['advanced','高级'],['resources','资源']].forEach(function(item){var id=item[0],b=document.createElement('button');b.type='button';b.id='settingsTab-'+id;b.textContent=item[1];b.setAttribute('role','tab');b.setAttribute('aria-controls','settingsPage-'+id);b.onclick=function(){select(id);};tabs.appendChild(b);buttons[id]=b;var page=document.createElement('div');page.id='settingsPage-'+id;page.setAttribute('role','tabpanel');page.setAttribute('aria-labelledby',b.id);scroll.appendChild(page);pages[id]=page;});
+function move(id,target,label){var el=document.getElementById(id);if(!el)return;target.appendChild(label?el.closest('label'):el);}
+move('timeScale',pages.common,true);var presets=document.createElement('div');presets.className='speedPresets';presets.setAttribute('aria-label','模拟倍速快捷设置');[.5,1,2,5,10].forEach(function(v){var b=document.createElement('button');b.type='button';b.textContent=v+'×';b.dataset.speed=v;b.onclick=function(){var input=document.getElementById('timeScale');input.value=v;input.dispatchEvent(new Event('input',{bubbles:true}));};presets.appendChild(b);});pages.common.appendChild(presets);move('settingsTheme',pages.common,true);move('settingsAmb',pages.common,true);var actions=document.createElement('div');actions.className='settingsActions';move('fullscreenBtn',actions);move('updateGameBtn',actions);pages.common.appendChild(actions);move('displayStatus',pages.common);pages.common.appendChild(saved);
+move('mouseSensitivity',pages.controls,true);pages.controls.querySelector('#mouseSensitivity').closest('label').classList.add('desktopControl');move('touchSensitivity',pages.controls,true);pages.controls.querySelector('#touchSensitivity').closest('label').classList.add('touchControl');move('followView',pages.controls,true);var note=document.createElement('p');note.className='settingsNote';note.textContent='电脑：WASD 移动，Shift 快跑，空格跳跃，V 切换视角。手机：左侧移动，右侧控制视角。';pages.controls.appendChild(note);
+['walkSpeed','runSpeed','sprintSpeed','walkAccel','sprintAccel','slowWalk','settingsCollision'].forEach(function(id){move(id,pages.advanced,true);});var details=document.createElement('details');details.innerHTML='<summary>运行诊断</summary>';move('debugInfo',details);pages.advanced.appendChild(details);move('settingsReset',pages.advanced);move('resourceInfo',pages.resources);var resourceNote=document.createElement('p');resourceNote.className='settingsNote';resourceNote.textContent='发布文件夹包含游戏与总结页面。预构建缓存已经计入游戏文件，不重复相加。';pages.resources.appendChild(resourceNote);
+while(panel.firstChild)panel.removeChild(panel.firstChild);panel.appendChild(header);panel.appendChild(tabs);panel.appendChild(scroll);panel.setAttribute('aria-labelledby','settingsHeading');
+function select(id){current=id;Object.keys(pages).forEach(function(key){pages[key].hidden=key!==id;buttons[key].setAttribute('aria-selected',String(key===id));buttons[key].tabIndex=key===id?0:-1;});scroll.scrollTop=0;}
+select('common');function syncSpeed(){var value=+document.getElementById('timeScale').value;presets.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed',String(+b.dataset.speed===value));});}document.getElementById('timeScale').addEventListener('input',syncSpeed);syncSpeed();
+tabs.addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;e.preventDefault();e.stopPropagation();var ids=Object.keys(pages),idx=ids.indexOf(current);select(ids[(idx+(e.key==='ArrowRight'?1:3))%4]);buttons[current].focus();});
+panel.addEventListener('keydown',function(e){if(e.key!=='Tab')return;var nodes=Array.prototype.slice.call(panel.querySelectorAll('button:not([tabindex="-1"]),input,select,summary')).filter(function(el){return el.getClientRects().length>0;});if(!nodes.length)return;var first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}});
+new MutationObserver(function(){if(panel.hidden)return;var menu=document.getElementById('worldMenu');if(menu)menu.hidden=true;var toggle=document.getElementById('worldMenuToggle');if(toggle)toggle.setAttribute('aria-expanded','false');syncSpeed();close.focus({preventScroll:true});}).observe(panel,{attributes:true,attributeFilter:['hidden']});
+})();
+</script></body>
 </html>
 
