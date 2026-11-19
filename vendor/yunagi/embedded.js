@@ -115,7 +115,7 @@ var YunagiScene = (function () {
     __export(yunagi_adapter_exports, {
         build: function () { return build; }
     });
-    function build(THREE) {
+    function build(THREE, renderer) {
         var BufferGeometry = THREE.BufferGeometry, BufferAttribute = THREE.BufferAttribute, mergeGeometries = mergeBufferGeometries;
         function mergeBufferGeometries(geometries, useGroups) {
             if (useGroups === void 0) { useGroups = false; }
@@ -528,8 +528,8 @@ var YunagiScene = (function () {
             mesh.quaternion.setFromUnitVectors(UP, b.sub(a).normalize());
             return mesh;
         }
-        function tube(parent, finish, points2, radius) {
-            var curve = new THREE.CatmullRomCurve3(points2.map(function (point) {
+        function tube(parent, finish, points, radius) {
+            var curve = new THREE.CatmullRomCurve3(points.map(function (point) {
                 var _d;
                 return new ((_d = THREE.Vector3).bind.apply(_d, __spreadArray([void 0], __read(point), false)))();
             }));
@@ -1411,7 +1411,7 @@ var YunagiScene = (function () {
                 setWeather: function (amount) {
                     uniforms.mirrorRain.value = amount;
                 },
-                capture: function (renderer, scene, amount) {
+                capture: function (renderer2, scene, amount) {
                     lens.getWorldPosition(view.position);
                     forward.set(0, 0, 1).transformDirection(lens.matrixWorld);
                     view.up.set(0, 1, 0).transformDirection(lens.matrixWorld);
@@ -1419,25 +1419,25 @@ var YunagiScene = (function () {
                     view.lookAt(aim.copy(view.position).add(forward));
                     view.updateMatrixWorld(true);
                     uniforms.captureDirection.value.multiplyMatrices(view.projectionMatrix, view.matrixWorldInverse);
-                    var previous = renderer.getRenderTarget(), background = scene.background;
-                    var clearAlpha = renderer.getClearAlpha(), shadowUpdate = renderer.shadowMap.autoUpdate, autoClear = renderer.autoClear;
-                    renderer.getClearColor(clear);
+                    var previous = renderer2.getRenderTarget(), background = scene.background;
+                    var clearAlpha = renderer2.getClearAlpha(), shadowUpdate = renderer2.shadowMap.autoUpdate, autoClear = renderer2.autoClear;
+                    renderer2.getClearColor(clear);
                     lens.visible = false;
                     scene.background = null;
-                    renderer.autoClear = true;
-                    renderer.shadowMap.autoUpdate = false;
-                    renderer.setClearColor(0, 0);
+                    renderer2.autoClear = true;
+                    renderer2.shadowMap.autoUpdate = false;
+                    renderer2.setClearColor(0, 0);
                     try {
-                        renderer.setRenderTarget(target);
-                        renderer.render(scene, view);
+                        renderer2.setRenderTarget(target);
+                        renderer2.render(scene, view);
                         uniforms.mirrorReady.value = 1;
                         capturedFor = amount;
                     }
                     finally {
-                        renderer.setRenderTarget(previous);
-                        renderer.setClearColor(clear, clearAlpha);
-                        renderer.autoClear = autoClear;
-                        renderer.shadowMap.autoUpdate = shadowUpdate;
+                        renderer2.setRenderTarget(previous);
+                        renderer2.setClearColor(clear, clearAlpha);
+                        renderer2.autoClear = autoClear;
+                        renderer2.shadowMap.autoUpdate = shadowUpdate;
                         scene.background = background;
                         lens.visible = true;
                     }
@@ -1615,12 +1615,12 @@ var YunagiScene = (function () {
             try {
                 for (var _1 = __values([-0.44, 0, 0.44].entries()), _2 = _1.next(); !_2.done; _2 = _1.next()) {
                     var _3 = __read(_2.value, 2), index = _3[0], offset = _3[1];
-                    var points2 = [];
+                    var points = [];
                     for (var i = 0; i <= 12; i++) {
                         var t = i / 12;
-                        points2.push([THREE.MathUtils.lerp(first[0], second[0], t) + offset, THREE.MathUtils.lerp(first[2], second[2], t) + 0.067 - (0.73 + 0.045 * index) * 4 * t * (1 - t), THREE.MathUtils.lerp(first[1], second[1], t)]);
+                        points.push([THREE.MathUtils.lerp(first[0], second[0], t) + offset, THREE.MathUtils.lerp(first[2], second[2], t) + 0.067 - (0.73 + 0.045 * index) * 4 * t * (1 - t), THREE.MathUtils.lerp(first[1], second[1], t)]);
                     }
-                    tube(parent, dark, points2, 0.013);
+                    tube(parent, dark, points, 0.013);
                 }
             }
             catch (e_42_1) { e_42 = { error: e_42_1 }; }
@@ -1957,7 +1957,7 @@ var YunagiScene = (function () {
                 }
             });
         }
-        function makeEveningEnvironment(renderer, rainy) {
+        function makeEveningEnvironment(renderer2, rainy) {
             if (rainy === void 0) { rainy = false; }
             var w = 512, h = 256, pixels = new Float32Array(w * h * 4);
             var upper = new THREE.Color(rainy ? "#8da8bc" : "#8899ba"), horizon = new THREE.Color(rainy ? "#bac9d2" : "#c8bacb");
@@ -1986,15 +1986,15 @@ var YunagiScene = (function () {
                     pixels[i + 2] = color.b;
                     pixels[i + 3] = 1;
                 }
-            var sky = new THREE.DataTexture(pixels, w, h, THREE.RGBAFormat, THREE.FloatType);
-            sky.colorSpace = THREE.LinearSRGBColorSpace;
-            sky.needsUpdate = true;
-            sky.mapping = THREE.EquirectangularReflectionMapping;
-            var generator = new THREE.PMREMGenerator(renderer);
-            var environment = generator.fromEquirectangular(sky);
+            var sky2 = new THREE.DataTexture(pixels, w, h, THREE.RGBAFormat, THREE.FloatType);
+            sky2.colorSpace = THREE.LinearSRGBColorSpace;
+            sky2.needsUpdate = true;
+            sky2.mapping = THREE.EquirectangularReflectionMapping;
+            var generator = new THREE.PMREMGenerator(renderer2);
+            var environment2 = generator.fromEquirectangular(sky2);
             generator.dispose();
-            sky.dispose();
-            return environment.texture;
+            sky2.dispose();
+            return environment2.texture;
         }
         var roadWetnessCanvas = null;
         function roadWetness() {
@@ -2084,7 +2084,7 @@ var YunagiScene = (function () {
             parent.add(puddles);
             return puddles;
         }
-        function makeRoadReflection(renderer, scene, puddles, camera) {
+        function makeRoadReflection(renderer2, scene, puddles, camera) {
             var target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
             target.scissorTest = true;
             var mirror = camera.clone();
@@ -2150,17 +2150,17 @@ var YunagiScene = (function () {
                         puddles.visible = false;
                         return;
                     }
-                    var previousTarget = renderer.getRenderTarget();
-                    var previousClipping = renderer.clippingPlanes;
-                    var previousShadows = renderer.shadowMap.autoUpdate;
-                    renderer.clippingPlanes = clipping;
-                    renderer.shadowMap.autoUpdate = false;
+                    var previousTarget = renderer2.getRenderTarget();
+                    var previousClipping = renderer2.clippingPlanes;
+                    var previousShadows = renderer2.shadowMap.autoUpdate;
+                    renderer2.clippingPlanes = clipping;
+                    renderer2.shadowMap.autoUpdate = false;
                     puddles.visible = false;
-                    renderer.setRenderTarget(target);
-                    renderer.render(scene, mirror);
-                    renderer.setRenderTarget(previousTarget);
-                    renderer.clippingPlanes = previousClipping;
-                    renderer.shadowMap.autoUpdate = previousShadows;
+                    renderer2.setRenderTarget(target);
+                    renderer2.render(scene, mirror);
+                    renderer2.setRenderTarget(previousTarget);
+                    renderer2.clippingPlanes = previousClipping;
+                    renderer2.shadowMap.autoUpdate = previousShadows;
                     puddles.visible = true;
                 }
             };
@@ -2169,11 +2169,12 @@ var YunagiScene = (function () {
         var localLighting = THREE.ShaderChunk.lights_fragment_begin.replace(/pointLight = pointLights\[ i \];([\s\S]*?)(\n\t\}\n\t#pragma unroll_loop_end)/, "pointLight = pointLights[ i ];\n        toPointLight = pointLight.position - geometryPosition;\n        if (pointLight.distance <= 0.0 || dot(toPointLight,toPointLight) < pointLight.distance * pointLight.distance) {\n          $1\n        }$2").replace("PointLight pointLight;", "PointLight pointLight;\n	vec3 toPointLight;");
         var tramLocalLighting = localLighting.replace(/(directLight\.color \*= \( directLight\.visible && receiveShadow \) \? )(getShadow\( directionalShadowMap\[ i \],[^\n]*?\))( : 1\.0;)/, "#if UNROLLED_LOOP_INDEX == 0\n        $1min($2, tramSunVisibility(tramShadowCoord,atmosphereWorld.y,directionalLightShadow.shadowIntensity))$3\n      #else\n        $1$2$3\n      #endif");
         var tramShadowFragment = "\n      #if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0\n        varying vec3 tramShadowCoord;\n        uniform highp sampler2DShadow tramDepth;\n        uniform vec2 tramShadowScale;\n        uniform float tramShadowBias;\n        uniform float tramShadowOpacity;\n        uniform float tramShadowSoftness;\n\n        float tramSunVisibility(vec3 coord,float height,float intensity) {\n          if (tramShadowOpacity < 0.001 || any(lessThan(coord,vec3(0.0))) ||\n              any(greaterThan(coord,vec3(1.0)))) return 1.0;\n          coord.z -= tramShadowBias;\n          // A small fixed tent filter stays in light space as the car moves.\n          // Its radius grows on the street below the elevated train.\n          float radius=(0.012+0.013*max(0.0,5.22-height))*tramShadowSoftness;\n          vec2 stepUV=radius*tramShadowScale;\n          float lit=0.0;\n          for(int row=-1;row<=1;row++) for(int col=-1;col<=1;col++) {\n            vec2 tap=vec2(float(col),float(row));\n            float weight=(2.0-abs(tap.x))*(2.0-abs(tap.y));\n            lit+=weight*texture(tramDepth,vec3(coord.xy+tap*stepUV,coord.z));\n          }\n          return mix(1.0,lit/16.0,tramShadowOpacity*intensity);\n        }\n      #endif\n    ";
-        function applyAtmosphericFalloff(scene, renderer, tramHeadlightX, occlusion, tramShadows) {
+        function applyAtmosphericFalloff(scene, renderer2, tramHeadlightX, occlusion, tramShadows) {
             var viewport = new THREE.Vector2();
-            renderer.getDrawingBufferSize(viewport);
+            renderer2.getDrawingBufferSize(viewport);
             var uniforms = {
                 atmosphereSky: { value: scene.background },
+                yunagiWorldToLocal: { value: new THREE.Matrix4() },
                 atmosphereSize: { value: viewport },
                 atmosphereBounds: { value: new THREE.Vector3(SITE_HALF_WIDTH, SITE_LENGTH / 2, SITE_CENTER_Z) },
                 atmosphereEnabled: { value: 1 },
@@ -2201,7 +2202,7 @@ var YunagiScene = (function () {
                     var receivesTramShadow = Boolean(tramShadows) && finish.isMeshStandardMaterial;
                     var occluded = Boolean(occlusion) && finish.isMeshStandardMaterial && !tramReceiver;
                     finish.onBeforeCompile = function (shader) {
-                        previous.call(finish, shader, renderer);
+                        previous.call(finish, shader, renderer2);
                         Object.assign(shader.uniforms, uniforms);
                         if (occluded)
                             Object.assign(shader.uniforms, occlusion);
@@ -2209,15 +2210,15 @@ var YunagiScene = (function () {
                             Object.assign(shader.uniforms, tramShadows.uniforms);
                         if (headlightReceiver)
                             shader.uniforms.tramHeadlightStrength = { value: headlightReceiver };
-                        shader.vertexShader = shader.vertexShader.replace("#include <common>", "\n              #include <common>\n              varying vec3 atmosphereWorld;\n              varying vec2 railMistUV;\n              ".concat(receivesTramShadow ? "\n                #if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0\n                  uniform mat4 tramShadowMatrix;\n                  varying vec3 tramShadowCoord;\n                #endif" : "", "\n            ")).replace("#include <project_vertex>", "\n              #include <project_vertex>\n              railMistUV = gl_Position.xy / gl_Position.w * 0.5 + 0.5;\n              vec4 atmospherePosition = vec4(transformed,1.0);\n              #ifdef USE_BATCHING\n                atmospherePosition = batchingMatrix * atmospherePosition;\n              #endif\n              #ifdef USE_INSTANCING\n                atmospherePosition = instanceMatrix * atmospherePosition;\n              #endif\n              atmosphereWorld = (modelMatrix * atmospherePosition).xyz;\n              ".concat(receivesTramShadow ? "\n                #if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0\n                  vec3 tramReceiverNormal=inverseTransformDirection(transformedNormal,viewMatrix);\n                  tramShadowCoord=(tramShadowMatrix*vec4(atmosphereWorld+0.014*tramReceiverNormal,1.0)).xyz;\n                #endif" : "", "\n            "));
-                        shader.fragmentShader = shader.fragmentShader.replace("#include <lights_fragment_begin>", receivesTramShadow ? tramLocalLighting : localLighting).replace("#include <common>", "\n              #include <common>\n              ".concat(tramReceiver ? "#define TRAM_STABLE_SHADOW 1" : "", "\n              varying vec3 atmosphereWorld;\n              varying vec2 railMistUV;\n              uniform sampler2D atmosphereSky;\n              uniform vec2 atmosphereSize;\n              uniform vec3 atmosphereBounds;\n              uniform float atmosphereEnabled;\n              uniform float atmosphereRain;\n              uniform float railMistEnd;\n              uniform float railMistZ;\n              ").concat(headlightReceiver ? "uniform float tramHeadlightX; uniform float tramHeadlightStrength;" : "", "\n              ").concat(railMistGLSL, "\n              ").concat(receivesTramShadow ? tramShadowFragment : "", "\n            ")).replace("#include <alphatest_fragment>", "\n              ".concat(railPass ? "\n                float railExterior = abs(atmosphereWorld.x) - atmosphereBounds.x;\n                ".concat(railPass === "exterior" ? "if (railExterior <= 1.8 || abs(atmosphereWorld.x) >= railMistEnd) discard;" : "if (railExterior > 1.8) discard;", "\n              ") : "", "\n              #include <alphatest_fragment>\n            "));
+                        shader.vertexShader = shader.vertexShader.replace("#include <common>", "\n              #include <common>\n              uniform mat4 yunagiWorldToLocal; varying vec3 atmosphereWorld;\n              varying vec2 railMistUV;\n              ".concat(receivesTramShadow ? "\n                #if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0\n                  uniform mat4 tramShadowMatrix;\n                  varying vec3 tramShadowCoord;\n                #endif" : "", "\n            ")).replace("#include <project_vertex>", "\n              #include <project_vertex>\n              railMistUV = gl_Position.xy / gl_Position.w * 0.5 + 0.5;\n              vec4 atmospherePosition = vec4(transformed,1.0);\n              #ifdef USE_BATCHING\n                atmospherePosition = batchingMatrix * atmospherePosition;\n              #endif\n              #ifdef USE_INSTANCING\n                atmospherePosition = instanceMatrix * atmospherePosition;\n              #endif\n              atmosphereWorld = (yunagiWorldToLocal * modelMatrix * atmospherePosition).xyz;\n              ".concat(receivesTramShadow ? "\n                #if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0\n                  vec3 tramReceiverNormal=inverseTransformDirection(transformedNormal,viewMatrix);\n                  tramShadowCoord=(tramShadowMatrix*vec4(atmosphereWorld+0.014*tramReceiverNormal,1.0)).xyz;\n                #endif" : "", "\n            "));
+                        shader.fragmentShader = shader.fragmentShader.replace("#include <lights_fragment_begin>", receivesTramShadow ? tramLocalLighting : localLighting).replace("#include <common>", "\n              #include <common>\n              ".concat(tramReceiver ? "#define TRAM_STABLE_SHADOW 1" : "", "\n              uniform mat4 yunagiWorldToLocal; varying vec3 atmosphereWorld;\n              varying vec2 railMistUV;\n              uniform sampler2D atmosphereSky;\n              uniform vec2 atmosphereSize;\n              uniform vec3 atmosphereBounds;\n              uniform float atmosphereEnabled;\n              uniform float atmosphereRain;\n              uniform float railMistEnd;\n              uniform float railMistZ;\n              ").concat(headlightReceiver ? "uniform float tramHeadlightX; uniform float tramHeadlightStrength;" : "", "\n              ").concat(railMistGLSL, "\n              ").concat(receivesTramShadow ? tramShadowFragment : "", "\n            ")).replace("#include <alphatest_fragment>", "\n              ".concat(railPass ? "\n                float railExterior = abs(atmosphereWorld.x) - atmosphereBounds.x;\n                ".concat(railPass === "exterior" ? "if (railExterior <= 1.8 || abs(atmosphereWorld.x) >= railMistEnd) discard;" : "if (railExterior > 1.8) discard;", "\n              ") : "", "\n              #include <alphatest_fragment>\n            "));
                         if (headlightReceiver) {
                             shader.fragmentShader = shader.fragmentShader.replace("#include <opaque_fragment>", "\n                float ahead = atmosphereWorld.x - tramHeadlightX;\n                if (atmosphereRain > 0.001 && ahead > 0.05 && ahead < 5.1 && atmosphereWorld.y > 5.17) {\n                  float trackOffset = abs(abs(atmosphereWorld.z-railMistZ)-0.444);\n                  float across = trackOffset / (0.13 + ahead * 0.09);\n                  float along = smoothstep(0.05,1.2,ahead)*(1.0-smoothstep(1.5,5.1,ahead));\n                  float edge = 1.0-smoothstep(railMistEnd-4.0,railMistEnd,abs(atmosphereWorld.x));\n                  float glint = along * exp(-2.8*across*across) * edge * atmosphereRain;\n                  outgoingLight += vec3(1.0,0.58,0.26) * glint * tramHeadlightStrength;\n                }\n                #include <opaque_fragment>\n              ");
                         }
                         if (occluded) {
                             shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\n                uniform sampler2D screenOcclusionMap;\n                uniform mat4 screenOcclusionViewProjection;\n                uniform float screenOcclusionStrength;\n              ").replace("#include <aomap_fragment>", "#include <aomap_fragment>\n                if (atmosphereEnabled > 0.0 && screenOcclusionStrength > 0.0) {\n                  vec4 occlusionClip = screenOcclusionViewProjection * vec4(atmosphereWorld, 1.0);\n                  vec2 occlusionUv = clamp(occlusionClip.xy / occlusionClip.w * 0.5 + 0.5, 0.0, 1.0);\n                  float screenOcclusion = mix(1.0, texture2D(screenOcclusionMap, occlusionUv).r, screenOcclusionStrength);\n                  reflectedLight.indirectDiffuse *= screenOcclusion;\n                  reflectedLight.indirectSpecular *= screenOcclusion;\n                }\n              ");
                         }
-                        shader.fragmentShader = shader.fragmentShader.replace("#include <fog_fragment>", "\n              #include <fog_fragment>\n              // Low mist thickens toward the perimeter. The same sky texture makes\n              // the outer ground and soil dissolve smoothly into the evening air.\n              vec2 district = abs(vec2(atmosphereWorld.x/atmosphereBounds.x, (atmosphereWorld.z-atmosphereBounds.z)/atmosphereBounds.y));\n              float boundary = max(district.x,district.y);\n              // Inside this bound every component of the perimeter fog is zero.\n              if (atmosphereEnabled > 0.0 ".concat(distantNeighborhood ? "" : "&& (boundary > 0.68 || atmosphereWorld.y < 0.04)", ") {\n                float mistDrift=0.024*sin(atmosphereWorld.x*0.43+atmosphereWorld.z*0.31)+0.015*sin(atmosphereWorld.z*0.73-atmosphereWorld.x*0.19);\n                float edgeMist = smoothstep(0.72,1.08,boundary+mistDrift);\n                float heightDensity = exp(-max(atmosphereWorld.y-0.17,0.0)*0.87);\n                float belowStreet = 1.0-smoothstep(-0.88,0.04,atmosphereWorld.y);\n                float outerAir = smoothstep(1.04,2.9,boundary)*mix(0.76,0.91,atmosphereRain);\n                float outerGround = smoothstep(0.98,1.19,boundary)*exp(-max(atmosphereWorld.y-0.18,0.0)*2.8);\n                float fogWeight = max(max(edgeMist*heightDensity,belowStreet*0.995),outerGround);\n                fogWeight = 1.0-(1.0-fogWeight)*(1.0-outerAir);\n                ").concat(distantNeighborhood ? "float neighborhoodHaze=0.74+0.245*smoothstep(1.05,2.35,boundary); fogWeight=1.0-(1.0-fogWeight)*(1.0-neighborhoodHaze);" : "", "\n                vec2 pixel = 1.0 / atmosphereSize;\n                vec3 skyColor = linearToOutputTexel(textureGrad(atmosphereSky,gl_FragCoord.xy*pixel,\n                  vec2(pixel.x,0.0),vec2(0.0,pixel.y))).rgb;\n                gl_FragColor.rgb = mix(gl_FragColor.rgb,skyColor,clamp(fogWeight,0.0,1.0));\n              }\n              float railFogDepth = 0.0;\n              if (district.x > 1.0) {\n                vec3 towardCamera = vec3(viewMatrix[0].z, viewMatrix[1].z, viewMatrix[2].z);\n                float viewDepth = dot(cameraPosition - atmosphereWorld, towardCamera);\n                railFogDepth = railMistDepth(atmosphereWorld, towardCamera, viewDepth);\n                float railFog = (1.0 - exp(-railFogDepth * 0.19))").concat(railPass ? " * 0.22" : "", ";\n                if (railFog >= 0.001) {\n                  vec3 mist = linearToOutputTexel(texture2D(atmosphereSky,railMistUV)).rgb;\n                  gl_FragColor.rgb = mix(gl_FragColor.rgb,mist,railFog);\n                }\n              }\n              ").concat(railPass === "exterior" ? "\n                float farEnd = railMistEnd - atmosphereBounds.x;\n                float reach = smoothstep(1.8, farEnd, railExterior);\n                gl_FragColor.a *= exp(-railFogDepth * 0.13 * reach) * (1.0 - reach * reach);\n              " : "", "\n            "));
+                        shader.fragmentShader = shader.fragmentShader.replace("#include <fog_fragment>", "\n              #include <fog_fragment>\n              // Low mist thickens toward the perimeter. The same sky texture makes\n              // the outer ground and soil dissolve smoothly into the evening air.\n              vec2 district = abs(vec2(atmosphereWorld.x/atmosphereBounds.x, (atmosphereWorld.z-atmosphereBounds.z)/atmosphereBounds.y));\n              float boundary = max(district.x,district.y);\n              // Inside this bound every component of the perimeter fog is zero.\n              if (atmosphereEnabled > 0.0 ".concat(distantNeighborhood ? "" : "&& (boundary > 0.68 || atmosphereWorld.y < 0.04)", ") {\n                float mistDrift=0.024*sin(atmosphereWorld.x*0.43+atmosphereWorld.z*0.31)+0.015*sin(atmosphereWorld.z*0.73-atmosphereWorld.x*0.19);\n                float edgeMist = smoothstep(0.72,1.08,boundary+mistDrift);\n                float heightDensity = exp(-max(atmosphereWorld.y-0.17,0.0)*0.87);\n                float belowStreet = 1.0-smoothstep(-0.88,0.04,atmosphereWorld.y);\n                float outerAir = smoothstep(1.04,2.9,boundary)*mix(0.76,0.91,atmosphereRain);\n                float outerGround = smoothstep(0.98,1.19,boundary)*exp(-max(atmosphereWorld.y-0.18,0.0)*2.8);\n                float fogWeight = max(max(edgeMist*heightDensity,belowStreet*0.995),outerGround);\n                fogWeight = 1.0-(1.0-fogWeight)*(1.0-outerAir);\n                ").concat(distantNeighborhood ? "float neighborhoodHaze=0.74+0.245*smoothstep(1.05,2.35,boundary); fogWeight=1.0-(1.0-fogWeight)*(1.0-neighborhoodHaze);" : "", "\n                vec2 pixel = 1.0 / atmosphereSize;\n                vec3 skyColor = linearToOutputTexel(textureGrad(atmosphereSky,gl_FragCoord.xy*pixel,\n                  vec2(pixel.x,0.0),vec2(0.0,pixel.y))).rgb;\n                gl_FragColor.rgb = mix(gl_FragColor.rgb,skyColor,clamp(fogWeight,0.0,1.0));\n              }\n              float railFogDepth = 0.0;\n              if (district.x > 1.0) {\n                vec3 towardCamera = vec3(viewMatrix[0].z, viewMatrix[1].z, viewMatrix[2].z);\n                float viewDepth = dot((yunagiWorldToLocal*vec4(cameraPosition,1.0)).xyz - atmosphereWorld, towardCamera);\n                railFogDepth = railMistDepth(atmosphereWorld, towardCamera, viewDepth);\n                float railFog = (1.0 - exp(-railFogDepth * 0.19))").concat(railPass ? " * 0.22" : "", ";\n                if (railFog >= 0.001) {\n                  vec3 mist = linearToOutputTexel(texture2D(atmosphereSky,railMistUV)).rgb;\n                  gl_FragColor.rgb = mix(gl_FragColor.rgb,mist,railFog);\n                }\n              }\n              ").concat(railPass === "exterior" ? "\n                float farEnd = railMistEnd - atmosphereBounds.x;\n                float reach = smoothstep(1.8, farEnd, railExterior);\n                gl_FragColor.a *= exp(-railFogDepth * 0.13 * reach) * (1.0 - reach * reach);\n              " : "", "\n            "));
                     };
                     finish.customProgramCacheKey = function () { return "".concat(cacheKey, "/district-approach-haze/").concat(distantNeighborhood, "/").concat(railPass != null ? railPass : "default", "/").concat(Boolean(headlightReceiver), "/").concat(occluded, "/").concat(receivesTramShadow, "/").concat(tramReceiver); };
                     finish.needsUpdate = true;
@@ -2237,6 +2238,9 @@ var YunagiScene = (function () {
                 }
             });
             return {
+                setWorldMatrix: function (matrix2) {
+                    uniforms.yunagiWorldToLocal.value.copy(matrix2).invert();
+                },
                 setEnabled: function (value) {
                     uniforms.atmosphereEnabled.value = value ? 1 : 0;
                 },
@@ -2244,7 +2248,7 @@ var YunagiScene = (function () {
                     uniforms.atmosphereRain.value = amount;
                 },
                 resize: function () {
-                    renderer.getDrawingBufferSize(viewport);
+                    renderer2.getDrawingBufferSize(viewport);
                 }
             };
         }
@@ -2384,13 +2388,13 @@ var YunagiScene = (function () {
         var SUN_DISC_RADIUS = 0.85;
         var SUN_MAX_PENUMBRA = 0.95;
         function vogelDisk(count) {
-            var points2 = [];
+            var points = [];
             for (var i = 0; i < count; i++) {
                 var radius = Math.sqrt((i + 0.5) / count);
                 var angle = i * 2.39996323;
-                points2.push("vec2(".concat((Math.cos(angle) * radius).toFixed(6), ",").concat((Math.sin(angle) * radius).toFixed(6), ")"));
+                points.push("vec2(".concat((Math.cos(angle) * radius).toFixed(6), ",").concat((Math.sin(angle) * radius).toFixed(6), ")"));
             }
-            return "vec2[".concat(count, "](").concat(points2.join(","), ")");
+            return "vec2[".concat(count, "](").concat(points.join(","), ")");
         }
         function installSoftSunShadows(shadowCamera, mapSize) {
             var chunk = THREE.ShaderChunk.shadowmap_pars_fragment;
@@ -2407,17 +2411,17 @@ var YunagiScene = (function () {
             THREE.ShaderChunk.shadowmap_pars_fragment = chunk.replace("float getShadow(", "".concat(functions, "\n\tfloat getShadow(")).replace(pcf, "#if defined( SHADOWMAP_TYPE_PCF )\n			shadow = softSunShadow( shadowMap, shadowCoord.xyz, shadowRadius );");
             return true;
         }
-        function createTramShadows(renderer, train, sun2) {
+        function createTramShadows(renderer2, train2, sun2) {
             var e_60, _d, e_61, _e, e_62, _f, e_63, _g;
             if (tramLocalLighting === localLighting)
                 return null;
-            train.updateWorldMatrix(true, true);
-            var localWorld = train.matrixWorld.clone().invert();
+            train2.updateWorldMatrix(true, true);
+            var localWorld = train2.matrixWorld.clone().invert();
             var casters = new THREE.Scene();
             var receivers = new Set();
             var originals = [];
             var depthMaterial = new THREE.MeshDepthMaterial({ side: THREE.DoubleSide, colorWrite: false });
-            train.traverse(function (object) {
+            train2.traverse(function (object) {
                 var e_64, _d;
                 if (!object.isMesh)
                     return;
@@ -2506,7 +2510,7 @@ var YunagiScene = (function () {
             });
             camera.updateProjectionMatrix();
             var spanX = camera.right - camera.left, spanY = camera.top - camera.bottom;
-            var size = Math.min(renderer.capabilities.maxTextureSize, matchMedia("(pointer:coarse)").matches ? 960 : 1280);
+            var size = Math.min(renderer2.capabilities.maxTextureSize, matchMedia("(pointer:coarse)").matches ? 960 : 1280);
             var pixelScale = size / Math.max(spanX, spanY);
             var width = Math.ceil(spanX * pixelScale), height = Math.ceil(spanY * pixelScale);
             var depth = new THREE.DepthTexture(width, height, THREE.UnsignedIntType);
@@ -2543,30 +2547,30 @@ var YunagiScene = (function () {
                 receivers: receivers,
                 uniforms: uniforms,
                 update: function (rain) {
-                    localWorld.copy(train.matrixWorld).invert();
+                    localWorld.copy(train2.matrixWorld).invert();
                     uniforms.tramShadowMatrix.value.multiplyMatrices(localProjection, localWorld);
-                    var fade = THREE.MathUtils.smoothstep(Math.abs(train.position.x), edge - halfLength, edge + halfLength);
-                    uniforms.tramShadowOpacity.value = train.visible ? 1 - fade : 0;
+                    var fade = THREE.MathUtils.smoothstep(Math.abs(train2.position.x), edge - halfLength, edge + halfLength);
+                    uniforms.tramShadowOpacity.value = train2.visible ? 1 - fade : 0;
                     uniforms.tramShadowSoftness.value = THREE.MathUtils.lerp(1, 2.1, rain);
                     if (!dirty)
                         return;
-                    var previous = renderer.getRenderTarget();
-                    var clipping = renderer.clippingPlanes;
-                    var shadows = renderer.shadowMap.enabled, clear = renderer.autoClear;
-                    renderer.clippingPlanes = [];
-                    renderer.shadowMap.enabled = false;
-                    renderer.autoClear = false;
+                    var previous = renderer2.getRenderTarget();
+                    var clipping = renderer2.clippingPlanes;
+                    var shadows = renderer2.shadowMap.enabled, clear = renderer2.autoClear;
+                    renderer2.clippingPlanes = [];
+                    renderer2.shadowMap.enabled = false;
+                    renderer2.autoClear = false;
                     try {
-                        renderer.setRenderTarget(target);
-                        renderer.clearDepth();
-                        renderer.render(casters, camera);
+                        renderer2.setRenderTarget(target);
+                        renderer2.clearDepth();
+                        renderer2.render(casters, camera);
                         dirty = false;
                     }
                     finally {
-                        renderer.setRenderTarget(previous);
-                        renderer.autoClear = clear;
-                        renderer.clippingPlanes = clipping;
-                        renderer.shadowMap.enabled = shadows;
+                        renderer2.setRenderTarget(previous);
+                        renderer2.autoClear = clear;
+                        renderer2.clippingPlanes = clipping;
+                        renderer2.shadowMap.enabled = shadows;
                     }
                 },
                 invalidate: function () {
@@ -2581,8 +2585,8 @@ var YunagiScene = (function () {
         var FULLSCREEN_VERTEX = "varying vec2 vUv;\n      void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}";
         function createScreenSpaceLighting(_d) {
             var e_65, _e;
-            var camera = _d.camera, sun2 = _d.sun, occlusion = _d.occlusion, lamps = _d.lamps, bounds = _d.bounds;
-            var lampCount = Math.min(lamps.length, 12);
+            var camera = _d.camera, sun2 = _d.sun, occlusion = _d.occlusion, lamps2 = _d.lamps, bounds = _d.bounds;
+            var lampCount = Math.min(lamps2.length, 12);
             var halfTarget = function () { return new THREE.WebGLRenderTarget(1, 1, {
                 type: THREE.HalfFloatType,
                 depthBuffer: false,
@@ -2606,7 +2610,7 @@ var YunagiScene = (function () {
             var lampSpheres = [];
             var lampPowers = [];
             try {
-                for (var _f = __values(lamps.slice(0, lampCount)), _g = _f.next(); !_g.done; _g = _f.next()) {
+                for (var _f = __values(lamps2.slice(0, lampCount)), _g = _f.next(); !_g.done; _g = _f.next()) {
                     var lamp = _g.value;
                     lampSpheres.push(new THREE.Vector4(lamp.position.x, lamp.position.y, lamp.position.z, lamp.range));
                     lampPowers.push(lamp.power);
@@ -2692,7 +2696,7 @@ var YunagiScene = (function () {
                     this.valid = false;
                     occlusion.screenOcclusionStrength.value = 0;
                 };
-                ScreenLightingPass.prototype.render = function (renderer, writeBuffer, readBuffer) {
+                ScreenLightingPass.prototype.render = function (renderer2, writeBuffer, readBuffer) {
                     var depth = readBuffer.depthTexture;
                     if (!depth) {
                         this.valid = false;
@@ -2722,21 +2726,21 @@ var YunagiScene = (function () {
                     uniforms.sunAir.value = settings.sunAir > 1e-5 && sun2.intensity > 0.05 ? 1 : 0;
                     uniforms.hazeFalloff.value = settings.hazeFalloff;
                     quad.material = gatherMaterial;
-                    renderer.setRenderTarget(gathered);
-                    quad.render(renderer);
+                    renderer2.setRenderTarget(gathered);
+                    quad.render(renderer2);
                     quad.material = blurMaterial;
                     blurMaterial.uniforms.tInput.value = gathered.texture;
                     blurMaterial.uniforms.step.value.set(1 / halfSize.x, 0);
-                    renderer.setRenderTarget(blurred);
-                    quad.render(renderer);
+                    renderer2.setRenderTarget(blurred);
+                    quad.render(renderer2);
                     blurMaterial.uniforms.tInput.value = blurred.texture;
                     blurMaterial.uniforms.step.value.set(0, 1 / halfSize.y);
-                    renderer.setRenderTarget(gathered);
-                    quad.render(renderer);
+                    renderer2.setRenderTarget(gathered);
+                    quad.render(renderer2);
                     quad.material = resolveMaterial;
                     resolveMaterial.uniforms.tHalf.value = gathered.texture;
-                    renderer.setRenderTarget(resolved);
-                    quad.render(renderer);
+                    renderer2.setRenderTarget(resolved);
+                    quad.render(renderer2);
                     occlusion.screenOcclusionMap.value = resolved.texture;
                     occlusion.screenOcclusionViewProjection.value.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
                     occlusion.screenOcclusionStrength.value = settings.occlusion;
@@ -2784,18 +2788,18 @@ var YunagiScene = (function () {
         }
         var LAMP_AIR_TINT = new THREE.Color("#ffbf86");
         function collectAirLamps(scene) {
-            var lamps = [];
+            var lamps2 = [];
             scene.updateMatrixWorld(true);
             scene.traverse(function (light) {
                 if (!light.isPointLight || !light.userData.airGlow)
                     return;
-                lamps.push({
+                lamps2.push({
                     position: light.getWorldPosition(new THREE.Vector3()),
                     range: light.distance,
                     power: light.intensity * light.userData.airGlow / (4 * Math.PI)
                 });
             });
-            return lamps.sort(function (a, b) { return b.power - a.power; }).slice(0, 12);
+            return lamps2.sort(function (a, b) { return b.power - a.power; }).slice(0, 12);
         }
         function buildSurroundings(scene) {
             var e_66, _d, e_67, _e, e_68, _f, e_69, _g;
@@ -8666,13 +8670,13 @@ var YunagiScene = (function () {
             upper.lineTo(1.36, 0.89);
             upper.closePath();
             extrusion(upper, 1.3, 0.048, roof);
-            function sideGlass(side, points2, u0, u1, y0, y1) {
+            function sideGlass(side, points, u0, u1, y0, y1) {
                 var e_240, _d;
                 var vertices = [];
                 var uvs = [];
                 try {
-                    for (var points2_1 = __values(points2), points2_1_1 = points2_1.next(); !points2_1_1.done; points2_1_1 = points2_1.next()) {
-                        var _e = __read(points2_1_1.value, 2), z = _e[0], y = _e[1];
+                    for (var points_1 = __values(points), points_1_1 = points_1.next(); !points_1_1.done; points_1_1 = points_1.next()) {
+                        var _e = __read(points_1_1.value, 2), z = _e[0], y = _e[1];
                         vertices.push(side * 0.703, y, z);
                         uvs.push((z - u0) / (u1 - u0), (y - y0) / (y1 - y0));
                     }
@@ -8680,7 +8684,7 @@ var YunagiScene = (function () {
                 catch (e_240_1) { e_240 = { error: e_240_1 }; }
                 finally {
                     try {
-                        if (points2_1_1 && !points2_1_1.done && (_d = points2_1.return)) _d.call(points2_1);
+                        if (points_1_1 && !points_1_1.done && (_d = points_1.return)) _d.call(points_1);
                     }
                     finally { if (e_240) throw e_240.error; }
                 }
@@ -9148,10 +9152,10 @@ var YunagiScene = (function () {
                         ctx.fillStyle = color;
                         ctx.fillRect(x, y, width, height);
                     };
-                    var shape = function (color, points2) {
+                    var shape = function (color, points) {
                         ctx.fillStyle = color;
                         ctx.beginPath();
-                        points2.forEach(function (_d, i) {
+                        points.forEach(function (_d, i) {
                             var _e = __read(_d, 2), x = _e[0], y = _e[1];
                             return i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
                         });
@@ -10759,7 +10763,7 @@ var YunagiScene = (function () {
             group.add(mistPass);
             return mistPass;
         }
-        function buildTramHeadlightBeams(train, lampX, routeEnd) {
+        function buildTramHeadlightBeams(train2, lampX, routeEnd) {
             var length = 5.1;
             var boundsMin = new THREE.Vector3(0, -0.75, -1.12);
             var boundsMax = new THREE.Vector3(length, 0.33, 1.12);
@@ -10779,13 +10783,13 @@ var YunagiScene = (function () {
             beam.name = "Rain scattering from the tram headlights";
             beam.position.set(lampX, 6.095, 0);
             beam.visible = false;
-            train.add(beam);
+            train2.add(beam);
             return function (amount) {
                 weather.value = amount;
                 beam.visible = amount > 2e-3;
             };
         }
-        function buildHeroTram(train, edgePlanes, makeTexture, tramMaterial) {
+        function buildHeroTram(train2, edgePlanes, makeTexture, tramMaterial) {
             var e_303, _d, e_304, _e, e_305, _f, e_306, _g, e_307, _h, e_308, _j, e_309, _k, e_310, _l;
             var unitY = new THREE.Vector3(0, 1, 0);
             var spacing = 6.1;
@@ -10890,17 +10894,17 @@ var YunagiScene = (function () {
                     for (var y2 = 0; y2 < glassTile; y2++) {
                         for (var x2 = 0; x2 < glassTile; x2++) {
                             var u = x2 / (glassTile - 1), v = y2 / (glassTile - 1);
-                            var sky = Math.exp(-5.4 * v);
+                            var sky2 = Math.exp(-5.4 * v);
                             var glassSlope = 0.47 + pane % 3 * 0.11;
                             var sheen = Math.exp(-__pow((u - offsets[pane] + glassSlope * (v - 0.5)) / 0.23, 2));
                             var line = Math.exp(-__pow((u - offsets[pane] - 0.07 + glassSlope * (v - 0.5)) / 0.022, 2));
                             var warm = Math.exp(-__pow((v - 0.24 - 0.025 * Math.sin(u * 4)) / 0.071, 2)) * (0.36 + 0.36 * Math.sin(u * 2.6 + 0.52));
                             var edge = Math.exp(-14 * Math.min(u, 1 - u, v, 1 - v));
-                            var alpha = 0.069 + 0.17 * sky + 0.13 * sheen + 0.043 * line + 0.09 * warm + 0.082 * edge;
+                            var alpha = 0.069 + 0.17 * sky2 + 0.13 * sheen + 0.043 * line + 0.09 * warm + 0.082 * edge;
                             var at = 4 * (y2 * glassTile + x2);
-                            pixels.data[at] = 115 + 58 * sheen + 31 * sky + 46 * warm - 32 * edge;
-                            pixels.data[at + 1] = 147 + 46 * sheen + 29 * sky + 14 * warm - 42 * edge;
-                            pixels.data[at + 2] = 165 + 45 * sheen + 28 * sky - 28 * warm - 43 * edge;
+                            pixels.data[at] = 115 + 58 * sheen + 31 * sky2 + 46 * warm - 32 * edge;
+                            pixels.data[at + 1] = 147 + 46 * sheen + 29 * sky2 + 14 * warm - 42 * edge;
+                            pixels.data[at + 2] = 165 + 45 * sheen + 28 * sky2 - 28 * warm - 43 * edge;
                             pixels.data[at + 3] = 255 * alpha;
                         }
                     }
@@ -11073,10 +11077,10 @@ var YunagiScene = (function () {
                 var direction = b.clone().sub(a);
                 pin(finish, radius, direction.length(), a.lerp(b, 0.5).toArray(), direction.toArray(), rod2, casts);
             }
-            function flex(finish, points2, radius, segments, casts) {
+            function flex(finish, points, radius, segments, casts) {
                 if (segments === void 0) { segments = 22; }
                 if (casts === void 0) { casts = false; }
-                var curve = new THREE.CatmullRomCurve3(points2.map(function (p) { return vec.apply(void 0, __spreadArray([], __read(p), false)); }));
+                var curve = new THREE.CatmullRomCurve3(points.map(function (p) { return vec.apply(void 0, __spreadArray([], __read(p), false)); }));
                 var geometry = new THREE.TubeGeometry(curve, segments, radius, 10, false);
                 addHardware(finish, geometry, [0, 0, 0], noRotation, unit, casts);
                 geometry.dispose();
@@ -12755,13 +12759,13 @@ var YunagiScene = (function () {
                     mesh.castShadow = batch.casts;
                     mesh.receiveShadow = true;
                     mesh.renderOrder = batch.order;
-                    train.add(mesh);
+                    train2.add(mesh);
                     if (batch.finish === glazing) {
                         var moisture = new THREE.Mesh(geometry, wetGlass);
                         moisture.name = "Rain on the tram panes";
                         moisture.visible = false;
                         moisture.renderOrder = 3;
-                        train.add(moisture);
+                        train2.add(moisture);
                         wetWindowMeshes.push(moisture);
                     }
                 }
@@ -12780,7 +12784,7 @@ var YunagiScene = (function () {
                     var mesh = new THREE.Mesh(geometry, batch.finish);
                     mesh.castShadow = batch.casts;
                     mesh.receiveShadow = true;
-                    train.add(mesh);
+                    train2.add(mesh);
                     batch.parts.forEach(function (part) { return part.dispose(); });
                 }
             }
@@ -12800,11 +12804,11 @@ var YunagiScene = (function () {
                 batch.frustumCulled = false;
                 batch.castShadow = casts;
                 batch.receiveShadow = true;
-                train.add(batch);
+                train2.add(batch);
                 return batch;
             }
-            function wiperTube(points2, radius, segments) {
-                return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points2.map(function (p) { return vec.apply(void 0, __spreadArray([], __read(p), false)); })), segments, radius, 10, false);
+            function wiperTube(points, radius, segments) {
+                return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points.map(function (p) { return vec.apply(void 0, __spreadArray([], __read(p), false)); })), segments, radius, 10, false);
             }
             var wiperArm = wiperTube([[0, 0, 0], [6e-3, 0, -0.093], [4e-3, 0, -0.204]], 68e-4, 12);
             var wiperBlade = wiperTube([[1e-3, 0, -0.119], [4e-3, 0, -0.202], [1e-3, 0, -0.276]], 79e-4, 12);
@@ -13340,9 +13344,9 @@ var YunagiScene = (function () {
             }
             try {
                 for (var _h = __values(byMaterial.values()), _j = _h.next(); !_j.done; _j = _h.next()) {
-                    var _k = _j.value, group = _k.group, finish = _k.finish, points2 = _k.points, uvs = _k.uvs, indices = _k.indices;
+                    var _k = _j.value, group = _k.group, finish = _k.finish, points = _k.points, uvs = _k.uvs, indices = _k.indices;
                     var geometry = new THREE.BufferGeometry();
-                    geometry.setAttribute("position", new THREE.Float32BufferAttribute(points2, 3));
+                    geometry.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
                     geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
                     geometry.setIndex(indices);
                     geometry.computeVertexNormals();
@@ -13370,9 +13374,9 @@ var YunagiScene = (function () {
             railway.name = "Y\u016Bnagi Line";
             railway.position.z = RAIL_CENTER_Z;
             parent.add(railway);
-            var train = new THREE.Group();
-            train.name = "600\u5F62 tram";
-            railway.add(train);
+            var train2 = new THREE.Group();
+            train2.name = "600\u5F62 tram";
+            railway.add(train2);
             var edgePlanes = [
                 new THREE.Plane(new THREE.Vector3(1, 0, 0), routeEnd),
                 new THREE.Plane(new THREE.Vector3(-1, 0, 0), routeEnd)
@@ -13446,9 +13450,9 @@ var YunagiScene = (function () {
                 var rotation = new THREE.Quaternion().setFromAxisAngle(unitY, faceAngle);
                 instance(group, unitDecal, material2, [width, height, 1], position, rotation, false, false);
             }
-            function wire(material2, points2, radius, group) {
+            function wire(material2, points, radius, group) {
                 if (group === void 0) { group = railway; }
-                var curve = new THREE.CatmullRomCurve3(points2.map(function (point) {
+                var curve = new THREE.CatmullRomCurve3(points.map(function (point) {
                     var _d;
                     return new ((_d = THREE.Vector3).bind.apply(_d, __spreadArray([void 0], __read(point), false)))();
                 }));
@@ -13728,7 +13732,7 @@ var YunagiScene = (function () {
                 cylinder: cylinder2,
                 darkSteel: darkSteel
             });
-            var _11 = buildHeroTram(train, edgePlanes, makeTexture, tramMaterial), lampX = _11.lampX, setTramFinish = _11.setTramFinish, updateTramMotion = _11.updateTramMotion;
+            var _11 = buildHeroTram(train2, edgePlanes, makeTexture, tramMaterial), lampX = _11.lampX, setTramFinish = _11.setTramFinish, updateTramMotion = _11.updateTramMotion;
             var _loop_29 = function (group, geometry, material2, shadows, receive, matrices) {
                 var batch = new THREE.InstancedMesh(geometry, material2, matrices.length);
                 matrices.forEach(function (matrix2, index) { return batch.setMatrixAt(index, matrix2); });
@@ -13795,11 +13799,11 @@ var YunagiScene = (function () {
                     finally { if (e_390) throw e_390.error; }
                 }
             }
-            var trainMistPass = addRailMistPass(train, "Mist on the tram");
+            var trainMistPass = addRailMistPass(train2, "Mist on the tram");
             var wetMistPane = trainMistPass.getObjectByName("Rain on the tram panes");
-            var trainHalfLength = new THREE.Box3().setFromObject(train).getSize(new THREE.Vector3()).x / 2;
+            var trainHalfLength = new THREE.Box3().setFromObject(train2).getSize(new THREE.Vector3()).x / 2;
             var headlightX = { value: lampX };
-            var setBeamRain = buildTramHeadlightBeams(train, lampX, routeEnd);
+            var setBeamRain = buildTramHeadlightBeams(train2, lampX, routeEnd);
             var visibleLimit = routeEnd + trainHalfLength;
             var turnAround = halfSpan + trainHalfLength + 1.5;
             var period = 25;
@@ -13809,12 +13813,12 @@ var YunagiScene = (function () {
                 var reach = turnAround - Math.sign(travel) * showcaseCenter;
                 var center = showcaseCenter + travel * 5.9 + __pow(travel, 3) * (reach - 5.9);
                 var approach = THREE.MathUtils.smoothstep(Math.abs(center), halfSpan - 1, turnAround);
-                train.position.x = center + Math.sign(center) * approach * RAIL_APPROACH_LENGTH;
-                headlightX.value = train.position.x + lampX;
-                var distance = Math.abs(train.position.x);
-                train.visible = distance <= visibleLimit;
-                if (train.visible)
-                    updateTramMotion(seconds, train.position.x);
+                train2.position.x = center + Math.sign(center) * approach * RAIL_APPROACH_LENGTH;
+                headlightX.value = train2.position.x + lampX;
+                var distance = Math.abs(train2.position.x);
+                train2.visible = distance <= visibleLimit;
+                if (train2.visible)
+                    updateTramMotion(seconds, train2.position.x);
                 trainMistPass.visible = distance + trainHalfLength > halfSpan + 1.8;
                 return Math.exp(-distance * distance / 13);
             }
@@ -13988,11 +13992,11 @@ var YunagiScene = (function () {
             var clear = paintEveningSky();
             var rainy = paintedTexture(768, 512, function (ctx2, w, h) {
                 var e_393, _d;
-                var sky = ctx2.createLinearGradient(0, 0, w * 0.16, h);
+                var sky2 = ctx2.createLinearGradient(0, 0, w * 0.16, h);
                 try {
                     for (var _e = __values([[0, "#485f7b"], [0.29, "#708aa2"], [0.53, "#a4b9c9"], [0.77, "#b5c6cf"], [1, "#7998ad"]]), _f = _e.next(); !_f.done; _f = _e.next()) {
                         var _g = __read(_f.value, 2), at = _g[0], tint = _g[1];
-                        sky.addColorStop(at, tint);
+                        sky2.addColorStop(at, tint);
                     }
                 }
                 catch (e_393_1) { e_393 = { error: e_393_1 }; }
@@ -14002,7 +14006,7 @@ var YunagiScene = (function () {
                     }
                     finally { if (e_393) throw e_393.error; }
                 }
-                ctx2.fillStyle = sky;
+                ctx2.fillStyle = sky2;
                 ctx2.fillRect(0, 0, w, h);
                 var random = randomFrom(3219);
                 for (var i = 0; i < 25; i++) {
@@ -14041,12 +14045,12 @@ var YunagiScene = (function () {
             return { texture: texture, setAmount: setAmount };
         }
         function createWeatherController(_d) {
-            var scene = _d.scene, renderer = _d.renderer, model2 = _d.model, sky = _d.sky, sun2 = _d.sun, hemisphere = _d.hemisphere, bounce = _d.bounce, atmosphere = _d.atmosphere, puddles = _d.puddles, rain = _d.rain, bloom = _d.bloom, clearEnvironment = _d.clearEnvironment, rainEnvironment = _d.rainEnvironment, rail2 = _d.rail, lightPaint2 = _d.lightPaint, screenLighting = _d.screenLighting, softShadows = _d.softShadows;
+            var scene = _d.scene, renderer2 = _d.renderer, model2 = _d.model, sky2 = _d.sky, sun2 = _d.sun, hemisphere = _d.hemisphere, bounce = _d.bounce, atmosphere2 = _d.atmosphere, puddles = _d.puddles, rain = _d.rain, bloom = _d.bloom, clearEnvironment = _d.clearEnvironment, rainEnvironment = _d.rainEnvironment, rail2 = _d.rail, lightPaint2 = _d.lightPaint, screenLighting = _d.screenLighting, softShadows = _d.softShadows;
             var asphalt = model2.getObjectByName("Street asphalt").material;
-            var lamps = [];
+            var lamps2 = [];
             scene.traverse(function (object) {
                 if (object.isPointLight)
-                    lamps.push({ light: object, intensity: object.intensity });
+                    lamps2.push({ light: object, intensity: object.intensity });
             });
             var button = document.querySelector("#weather");
             var stage = document.querySelector("#stage");
@@ -14061,7 +14065,7 @@ var YunagiScene = (function () {
             stage.dataset.transitioning = "false";
             function apply(value) {
                 var e_394, _d;
-                sky.setAmount(value);
+                sky2.setAmount(value);
                 sun2.color.lerpColors(sunColors[0], sunColors[1], value);
                 sun2.intensity = mix("sunIntensity", value);
                 sun2.shadow.radius = mix("sunSoftness", value) * (softShadows ? 1 : 3.2);
@@ -14075,8 +14079,8 @@ var YunagiScene = (function () {
                     scene.environment = value < 0.5 ? clearEnvironment : rainEnvironment();
                     scene.environmentIntensity = mix("environment", value);
                 }
-                renderer.toneMappingExposure = mix("exposure", value);
-                atmosphere.setRain(value);
+                renderer2.toneMappingExposure = mix("exposure", value);
+                atmosphere2.setRain(value);
                 rail2.setRain(value);
                 lightPaint2.setRain(value);
                 asphalt.roughness = mix("asphaltRoughness", value);
@@ -14085,15 +14089,15 @@ var YunagiScene = (function () {
                 asphalt.color.lerpColors(dryRoad, wetRoad, value);
                 var practical = mix("practicals", value);
                 try {
-                    for (var lamps_1 = __values(lamps), lamps_1_1 = lamps_1.next(); !lamps_1_1.done; lamps_1_1 = lamps_1.next()) {
-                        var _e = lamps_1_1.value, light = _e.light, intensity = _e.intensity;
+                    for (var lamps2_1 = __values(lamps2), lamps2_1_1 = lamps2_1.next(); !lamps2_1_1.done; lamps2_1_1 = lamps2_1.next()) {
+                        var _e = lamps2_1_1.value, light = _e.light, intensity = _e.intensity;
                         light.intensity = intensity * practical;
                     }
                 }
                 catch (e_394_1) { e_394 = { error: e_394_1 }; }
                 finally {
                     try {
-                        if (lamps_1_1 && !lamps_1_1.done && (_d = lamps_1.return)) _d.call(lamps_1);
+                        if (lamps2_1_1 && !lamps2_1_1.done && (_d = lamps2_1.return)) _d.call(lamps2_1);
                     }
                     finally { if (e_394) throw e_394.error; }
                 }
@@ -14168,8 +14172,7 @@ var YunagiScene = (function () {
         buildStreetLife(model);
         buildPocketGarden(model);
         var shops = buildShops(model, lightPaint);
-        var rail = buildRail(model);
-        var petals = buildPetals(model);
+        buildSurroundings(model);
         lightPaint.mount(model);
         model.updateMatrixWorld(true);
         var kiosk = model.getObjectByName("\u5915\u51EA\u65B0\u805E\u5E97"), ki = kiosk.matrixWorld.clone().invert(), clearance = new THREE.Box3(), clearMatrix = new THREE.Matrix4(), relocate = [];
@@ -14194,7 +14197,7 @@ var YunagiScene = (function () {
             var size = box.getSize(new THREE.Vector3());
             if (box.max.y < 0.05 || box.min.y > 2.8 || size.x * size.z > 120 || size.y < 0.12 && size.x * size.z < 0.9 || size.x < 0.035 || size.z < 0.035)
                 return;
-            if (mesh.material.transparent && mesh.material.opacity < 0.21)
+            if (mesh.material.userData && mesh.material.userData.distantNeighborhood || mesh.material.transparent && mesh.material.opacity < 0.21)
                 return;
             obstacles.push({ x: (box.min.x + box.max.x) / 2, y: (box.min.y + box.max.y) / 2, z: (box.min.z + box.max.z) / 2, w: size.x, h: size.y, d: size.z });
         }
@@ -14212,33 +14215,89 @@ var YunagiScene = (function () {
                 capture(mesh, mesh.matrixWorld);
         });
         batchStaticParts(model);
-        var points = 0;
+        var rail = buildRail(model);
+        var petals = buildPetals(model);
+        var lamps = [];
         model.traverse(function (o) {
             if (o.isPointLight) {
-                o.visible = points++ < 4;
                 o.castShadow = false;
+                lamps.push(o);
             }
-            if (o.isMesh) {
+            if (o.isMesh)
                 o.userData.colExempt = true;
-            }
         });
-        var hemi = new THREE.HemisphereLight(LOOK.skyFill[0], LOOK.groundFill[0], 1.65);
+        lamps.forEach(function (o, i) { return o.visible = i < 4; });
+        var hemi = new THREE.HemisphereLight(LOOK.skyFill[0], LOOK.groundFill[0], LOOK.fillIntensity[0]);
         model.add(hemi);
-        var sun = new THREE.DirectionalLight("#ffc795", 2.4);
-        sun.position.set(-26, 30, -18);
+        var sun = new THREE.DirectionalLight(LOOK.sunColor[0], LOOK.sunIntensity[0]);
+        sun.position.copy(EVENING_SUN);
         sun.target.position.set(0, 0, -0.6);
         sun.castShadow = true;
-        sun.shadow.mapSize.set(1024, 1024);
+        sun.shadow.mapSize.set(1536, 1536);
         Object.assign(sun.shadow.camera, { left: -35, right: 35, top: 35, bottom: -35, near: 0.5, far: 110 });
         sun.shadow.bias = -3e-4;
         sun.shadow.normalBias = 0.03;
         model.add(sun, sun.target);
-        var fill = new THREE.DirectionalLight("#aebedc", 0.65);
+        var fill = new THREE.DirectionalLight("#b7c7e3", LOOK.bounce[0]);
         fill.position.set(15, 12, 18);
         model.add(fill);
+        var sky = createWeatherSky().texture;
+        model.background = sky;
+        var environment = makeEveningEnvironment(renderer);
+        var atmosphere = applyAtmosphericFalloff(model, renderer, rail.headlightX, null, null);
+        var train = model.getObjectByName("600\u5F62 tram");
         var elapsed = 0;
-        return { model: model, obstacles: obstacles, sun: sun, update: function (dt) {
-                elapsed += Math.min(dt, 0.05);
+        return { model: model, obstacles: obstacles, sun: sun, sky: sky, environment: environment, atmosphere: atmosphere, train: train, init: function () {
+                model.updateWorldMatrix(true, true);
+                atmosphere.setWorldMatrix(model.matrixWorld);
+                var done = new Set();
+                model.traverse(function (o) {
+                    var e_395, _d, e_396, _e;
+                    if (!o.isMesh)
+                        return;
+                    try {
+                        for (var _f = __values(Array.isArray(o.material) ? o.material : [o.material]), _g = _f.next(); !_g.done; _g = _f.next()) {
+                            var m = _g.value;
+                            if (!m.clippingPlanes)
+                                continue;
+                            try {
+                                for (var _h = (e_396 = void 0, __values(m.clippingPlanes)), _j = _h.next(); !_j.done; _j = _h.next()) {
+                                    var plane = _j.value;
+                                    if (done.has(plane))
+                                        continue;
+                                    done.add(plane);
+                                    plane.applyMatrix4(model.matrixWorld);
+                                }
+                            }
+                            catch (e_396_1) { e_396 = { error: e_396_1 }; }
+                            finally {
+                                try {
+                                    if (_j && !_j.done && (_e = _h.return)) _e.call(_h);
+                                }
+                                finally { if (e_396) throw e_396.error; }
+                            }
+                        }
+                    }
+                    catch (e_395_1) { e_395 = { error: e_395_1 }; }
+                    finally {
+                        try {
+                            if (_g && !_g.done && (_d = _f.return)) _d.call(_f);
+                        }
+                        finally { if (e_395) throw e_395.error; }
+                    }
+                });
+            }, update: function (dt, hero) {
+                elapsed += Math.min(dt, 0.15);
+                var listener = hero ? model.worldToLocal(hero.clone()) : new THREE.Vector3();
+                var point = new THREE.Vector3();
+                lamps.sort(function (a, b) {
+                    a.getWorldPosition(point);
+                    var da = model.worldToLocal(point).distanceToSquared(listener);
+                    b.getWorldPosition(point);
+                    return da - model.worldToLocal(point).distanceToSquared(listener);
+                });
+                lamps.forEach(function (o, i) { return o.visible = i < 4; });
+                atmosphere.resize();
                 rail.update(elapsed);
                 shops(elapsed);
                 convenience(elapsed);
