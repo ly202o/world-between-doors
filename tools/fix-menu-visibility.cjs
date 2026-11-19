@@ -1,0 +1,1 @@
+const fs=require('fs');let p='world01/world01.html',s=fs.readFileSync(p,'utf8');s=s.replace('#worldMenu .pill:hover,','#worldMenu .pill{display:block!important}\n#worldMenu .pill:hover,');fs.writeFileSync(p,s);

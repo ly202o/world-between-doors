@@ -803,3 +803,8 @@ _最后更新：v0.11.31_
 
 ### v0.30.12 · 2026-11-19 · 第四扇门与时之神殿场景首版
 用户授权自选塞尔达经典场景、参考游戏截图、新增第四扇门并设计过渡。选择时之神殿；风格生成器留待交付后讨论。
+
+## 2026-11-19 · 长期偏好更新
+PC 操作为主，手机兼容为辅。功能使用单个弱显示入口，场景交互独立。每次修改默认提交 Git、推送并公开发布，除非用户明确不上传；当前仓库 remote 为空，需取得本游戏远端地址，不能误用参考项目 ssochi/land。
+
+发布配置已从用户指定聊天找回：.art-check/private-publish 为发布仓库，origin=https://github.com/ly202o/world-between-doors.git，main 推送触发 Pages；公开地址 https://ly202o.github.io/world-between-doors/ 。
