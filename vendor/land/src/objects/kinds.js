@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 // Model library: every placeable kind, its footprint/ecology parameters, and lazily built variant geometry.
 //   mat      prop material family (src/render/props.js)
 //   radius   default min spacing      trunk  obstacle radius for later placements and grass
@@ -104,3 +105,9 @@ export function kindGeo(kind, v, lod = 0) {
   return geoCache[key];
 }
 export const cachedGeometries = () => new Set(Object.values(geoCache));
+
+export const exportCustom = () => CUSTOM.slice();
+export function restoreCustom(a){CUSTOM.length=0;CUSTOM.push(...a);}
+
+export const exportGeometryCache=()=>Object.fromEntries(Object.entries(geoCache).map(([k,g])=>[k,(()=>{const j=g.toJSON();for(const a of Object.values(j.data.attributes||{}))a.array=new globalThis[a.type](a.array);if(j.data.index)j.data.index.array=new globalThis[j.data.index.type](j.data.index.array);return j;})()]));
+export function restoreGeometryCache(data){const loader=new THREE.BufferGeometryLoader();for(const [k,v] of Object.entries(data))geoCache[k]=loader.parse(v);}
