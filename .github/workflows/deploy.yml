@@ -18,7 +18,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - run: mkdir -p _site && cp world01.html _site/index.html
+      - run: mkdir -p _site && cp world01.html _site/index.html && cp conversation-summary.html _site/summary.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

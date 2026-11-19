@@ -323,3 +323,6 @@ window.__errors                     // 未捕获异常数组（每套测试末�
 - [ ] `AGENTS.md` 底部「当前版本」改掉
 - [ ] `bash tools/snapshot.sh <版本> "<说明>"`
 - [ ] 清理临时文件（临时截图、`.chk_*.js`；孤立目录用 `/d/temp/_isolated`，用完删掉）
+
+### land 场景重建
+源码 vendor/land，运行 npm install 后，在项目根目录执行 node vendor/land/tools/build.mjs --scene scenes/hateno-valley.js --out ../../.art-check/land-valley.html。集成脚本 tools/integrate-land.cjs 从构建文件生成嵌入内容，需先恢复 pre-land 快照再运行，禁止对已嵌入页面重复运行。运行 node tests/land-integration.cjs 检查。第三方 LICENSE 必须保留且游戏场景中显示 land 链接致谢。

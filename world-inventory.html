@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>world01 · 功能清单（详细版）</title>
+<style>
+  :root{
+    --ink:#1c1f24; --sub:#6b7280; --line:#e3e6ea; --bg:#f7f8fa; --card:#fff;
+    --ok:#0f7a4d; --okbg:#e7f5ee; --wip:#9a6200; --wipbg:#fdf3e2;
+    --todo:#4c5fd0; --todobg:#eef0fd; --rm:#8a3b47; --rmbg:#fbeaec;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:14px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+  .wrap{max-width:1240px;margin:0 auto;padding:26px 20px 90px}
+  h1{font-size:24px;margin:0 0 6px}
+  .lead{color:var(--sub);margin:0 0 18px;font-size:14px}
+  header{position:sticky;top:0;z-index:20;background:var(--bg);padding:10px 0 12px;
+    border-bottom:1px solid var(--line)}
+  .tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  input[type=search]{font:inherit;padding:7px 12px;border:1px solid var(--line);border-radius:9px;
+    background:var(--card);min-width:240px;flex:1;max-width:380px;outline:none}
+  input[type=search]:focus{border-color:#9aa4b2}
+  .chip{font:13px;padding:5px 13px;border-radius:20px;cursor:pointer;border:1px solid var(--line);
+    background:var(--card);color:var(--sub)}
+  .chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .stat{margin-left:auto;color:var(--sub);font-size:13px;white-space:nowrap}
+  nav{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  nav a{font-size:12.5px;color:var(--sub);text-decoration:none;padding:3px 9px;border-radius:6px;
+    border:1px solid var(--line);background:var(--card)}
+  nav a:hover{border-color:#9aa4b2;color:var(--ink)}
+  nav a b{color:var(--ink);font-weight:600}
+  h2{font-size:15px;margin:38px 0 4px;padding-bottom:8px;border-bottom:2px solid var(--ink);
+    display:flex;align-items:baseline;gap:10px}
+  h2 span{font-size:12.5px;color:var(--sub);font-weight:400}
+  table{width:100%;border-collapse:collapse;background:var(--card);
+    border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:10px}
+  th{text-align:left;font-size:12px;color:var(--sub);font-weight:600;letter-spacing:.5px;
+    padding:8px 12px;background:#fbfcfd;border-bottom:1px solid var(--line)}
+  td{padding:8px 12px;border-bottom:1px solid #f0f2f4;vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  tr:hover td{background:#fbfcfd}
+  .f{font-weight:500;white-space:nowrap}
+  .d{color:#414852}
+  .v{font:12px/1.6 ui-monospace,Consolas,monospace;color:var(--sub);white-space:nowrap}
+  .p{font-size:12px;color:var(--sub);white-space:nowrap}
+  .s{white-space:nowrap}
+  .pill{display:inline-block;font-size:11.5px;padding:1px 8px;border-radius:5px}
+  .pill.ok{background:var(--okbg);color:var(--ok)}
+  .pill.wip{background:var(--wipbg);color:var(--wip)}
+  .pill.todo{background:var(--todobg);color:var(--todo)}
+  .pill.removed{background:var(--rmbg);color:var(--rm)}
+  mark{background:#fff3a8;color:inherit;padding:0 1px;border-radius:2px}
+  .empty{padding:40px 0;text-align:center;color:var(--sub)}
+  .hidden{display:none!important}
+  footer{margin-top:40px;color:var(--sub);font-size:12.5px;text-align:center;line-height:2}
+  @media(max-width:760px){
+    .d,.p{display:none}
+    th:nth-child(2),th:nth-child(4){display:none}
+    .f{white-space:normal}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>world01 · 功能清单（详细版）</h1>
+  <p class="lead">每个模块拆到单个小功能。绿色＝现在能用，黄色＝能用但缺一块，蓝色＝还没做，红色＝做过又删了。<br>
+  数据从 <code>docs/CHANGELOG.md</code> 的 116 个版本里逐条拆出来，同一个功能迭代过多次的只留一条、写最终行为。</p>
+
+  <header>
+    <div class="tools">
+      <input id="q" type="search" placeholder="搜功能名、说明或关键词（如：等距、攀爬、阴影）">
+      <button class="chip on" data-f="all">全部</button>
+      <button class="chip" data-f="ok">能用</button>
+      <button class="chip" data-f="wip">缺一块</button>
+      <button class="chip" data-f="todo">没做</button>
+      <button class="chip" data-f="removed">已删</button>
+      <button class="chip" data-f="desktop">仅桌面</button>
+      <button class="chip" data-f="mobile">仅手机</button>
+      <span class="stat" id="stat"></span>
+    </div>
+    <nav id="nav"></nav>
+  </header>
+
+  <div id="out"></div>
+
+  <footer>
+    加一条：在文件底部 <code>&lt;script id="data"&gt;</code> 里找到对应模块，<b>复制一整行</b>改字即可（字段之间是 Tab）。<br>
+    对应 world01 v0.30.11 · 共 <b id="total"></b> 条
+  </footer>
+</div>
+
+<script id="data" type="text/plain">
+world	白色荒原世界	白地面白天空加雾化地平线，走到哪都是一片白	v0.2.0	ok	both	2026-11-13	白色世界,荒原
+world	积木散石高塔	72 块积木、240 颗散石、11 座高塔撑开尺度	v0.3.0	ok	both	2026-11-13	积木,散石,高塔
+world	固定种子布景	每次打开世界的积木和石头位置完全一样	v0.2.0	ok	both	2026-11-13	种子,复现
+world	长投影方向光	一盏方向光拉出长影子，是白世界主要形状线索	v0.2.0	ok	both	2026-11-13	阴影,方向光
+world	地面弱网格	1m 细线 5m 粗线，很淡，远处自动淡掉	v0.11.21	ok	both	2026-11-13	网格,尺度
+world	无限地面跟随	地面每帧跟着角色平移，跑不出边也看不到边	v0.11.18	ok	both	2026-11-13	地面,无限
+world	郊区主屋	一层坡屋顶加山墙挑檐的房子，在出生点正前方	v0.11.34	ok	both	2026-11-13	房子,主屋,坡屋顶
+world	车库与卷帘门	贴主屋东墙的车库，卷帘门带四条分板横槽	v0.11.34	ok	both	2026-11-13	车库,卷帘门
+world	门廊与雨棚	台高 0.3m 直接走得上去，单坡雨棚两根柱	v0.11.34	ok	both	2026-11-13	门廊,雨棚
+world	车道穿院	2.5×10.5m 车道从车库门一路穿出院墙	v0.11.34	ok	both	2026-11-13	车道,院子
+world	栅栏小院	0.95m 木栏围出 16×15m 院子，南面留两个缺口	v0.11.34	ok	both	2026-11-13	栅栏,院子
+world	院中两棵树	两层压扁的低多边形树冠，不挡视线	v0.11.34	ok	both	2026-11-13	树,树冠
+world	布景避开院子	散石和积木不会长在院子里或车道上	v0.11.34	ok	both	2026-11-13	摆放过滤,院子
+world	屋面比墙暗一档	屋顶单独浅一档，俯视时能看出坡面	v0.11.34	ok	both	2026-11-13	屋顶,材质
+world	出生点三级台阶	0.3m 三级加 0.9m 平台，直走一级级上去	v0.11.25	ok	both	2026-11-13	台阶,测试
+world	出生点土坡	东边 4.6m 宽、0.85m 高、约 20° 的三角土坡	v0.13.6	ok	both	2026-11-15	土坡,斜坡
+world	树干圆柱碰撞	树干改成圆形，贴着树走四个方向距离一致	v0.13.6	ok	both	2026-11-15	树干,圆柱
+world	碎石有碰撞	矮的自动踩过去，高于一阶的真的挡人	v0.13.6	ok	both	2026-11-15	碎石,碰撞
+world	栅栏逐构件碰撞	40 根柱加 12 条横板各自挡人，不再整段落地盒	v0.11.44	ok	both	2026-11-14	栅栏,逐柱
+world	坡屋顶可站可行走	屋顶按真实坡度解析，能落地也能顺着坡走	v0.11.44	ok	both	2026-11-14	屋顶,支撑
+world	雨棚下会撞头	门廊雨棚补了保守碰撞盒，起跳会顶到	v0.11.44	ok	both	2026-11-14	雨棚,撞头
+world	烟囱门廊柱碰撞	烟囱和门廊两根柱补上真实盒体	v0.12.1	ok	both	2026-11-14	烟囱,门廊柱
+world	全场景碰撞覆盖	看得见的网格都有碰撞，自检遗漏为 0	v0.12.4	ok	both	2026-11-14	碰撞覆盖,自检
+world	碎屑薄板不挡人	小石子能被打中但不挡路，薄地砖等同地面	v0.12.4	ok	both	2026-11-14	碎屑,薄地砖
+world	灌木靶架挡人	灌木和靶架挡人且不许攀爬，站不到灌木顶上	v0.12.4	ok	both	2026-11-14	灌木,靶架
+world	三块靶板留作布景	3 块靶板仍有碰撞，但不再有命中判定	v0.14.0	ok	both	2026-11-15	靶板,布景
+world	深色主题世界	天空雾地面积木房子全部换一套深色配色	v0.11.39	ok	both	2026-11-13	深色,主题
+world	白色世界保留一档	按 T 能切回最初那套纯白世界	v0.11.39	ok	both	2026-11-13	浅色,主题
+world	便利店街角关卡	黄昏日式便利店的整条街用真实几何搬进来	v0.23.0	ok	both	2026-11-15	便利店,黄昏
+world	出生空地	一片空场加门前两点暖光，三座门并排立在其中	v0.30.1	ok	both	2026-11-18	出生点,空场,暖光
+world	真门直接走过去	两扇门是真几何，走过去就过门，没有黑屏	v0.23.0	ok	both	2026-11-15	门,过门
+world	区域天光切换	进便利店街道天光转黄昏，走出来回白天或夜晚	v0.23.0	ok	both	2026-11-15	天光,黄昏,雾
+world	关卡天空穹顶	便利店自带跟随相机的天空穹顶，参与淡入	v0.23.0	ok	both	2026-11-15	天空,穹顶
+world	便利店玻璃门可开	两扇玻璃绕铰链向内转开，门洞净宽 1.8m	v0.23.1	ok	both	2026-11-15	玻璃门,开门
+world	进店自动收屋顶	进店收起屋顶顶棚和 18 盏吊灯，出门恢复	v0.23.1	ok	both	2026-11-15	进店,吊灯
+world	门口杂志架挪开	挡路的杂志架藏起来，碰撞体也一起挪走	v0.23.1	ok	both	2026-11-15	杂志架,路线
+world	四个世界分层	出生空地、黄昏便利店、旧测试场、晴日花园各占一层，共用同一套坐标	v0.30.1	ok	both	2026-11-18	世界,分层,四层
+world	门后实时画面	门洞渲染贴图已撤（看着像贴图），改成只透暖光	v0.26.1	removed	both	2026-11-16	传送门,门洞,撤除
+world	玻璃门推动惯性	角色撞上去推开门扇，铰链带惯性与阻尼，两侧门扇同步	v0.30.0	ok	both	2026-11-18	玻璃门,推动,惯性
+world	跨门槛换层	走过门槛只切当前世界，人不挪、朝向不改、镜头不跳	v0.26.0	ok	both	2026-11-16	跨门,不挪人
+world	回程门	便利店和场地世界各立一扇门回出生地	v0.24.0	ok	both	2026-11-16	回程门,返回
+world	门扇豁免碰撞	16 个门扇和门洞平面不挡路，碰撞体共 676	v0.24.0	ok	both	2026-11-16	豁免,碰撞体
+world	两套太阳阴影滞回	门口两套太阳阴影在 0.2/0.9 切换，走边界不闪	v0.23.3	ok	both	2026-11-15	阴影,滞回
+world	关卡阴影减半	手机档便利店太阳阴影图从 2048 降到 1024	v0.23.3	ok	mobile	2026-11-15	阴影,1024
+world	昼夜变化	太阳角度和昼夜变化还在待决策，目前只有两套固定天光	v0.24.0	todo	both	2026-11-16	昼夜,天光
+world	世界边界方案	无限地面还是有限白岛没定，现在只是保证不穿帮	v0.24.0	todo	both	2026-11-16	边界,无限地面
+world	地形起伏	丘陵和坡道这类地形起伏未决定	v0.24.0	todo	both	2026-11-16	地形,丘陵
+world	二维横版世界	最初的白底横版世界，已归档成 flat.html	v0.2.0	removed	both	2026-11-13	2D,横版
+world	远景视差建筑带	2D 时代的地平线刻度线和低矮建筑带	v0.2.0	removed	both	2026-11-13	视差,2D
+world	正交俯视档	38° 正交俯视那一档在 v0.11.29 整块删掉	v0.11.29	removed	both	2026-11-13	俯视,正交
+player	ALS 蒙皮角色	用 ALS 原版 AnimMan 网格，10269 顶点 68 根骨骼	v0.9.1	ok	both	2026-11-13	蒙皮,骨骼
+player	走跑冲刺动画	走、跑、冲刺三档速度各播对应原版动画	v0.9.0	ok	both	2026-11-13	步态,动画
+player	六个动作状态	站立走路跑步跳跃下落落地六态自动切换	v0.9.0	ok	both	2026-11-13	状态机,切换
+player	动作切换混合	换动作时 0.18s 平滑过渡，不硬切	v0.9.0	ok	both	2026-11-13	混合,过渡
+player	步速校准不滑步	原生步速改成 1.5/3.5/6.0，脚贴地不打滑	v0.11.6	ok	both	2026-11-13	步速,滑步
+player	恒定加速度	20 m/s² 匀加速，约 0.22 秒到全速	v0.6.0	ok	both	2026-11-13	加速度
+player	跑步 4.5 m/s	摇杆半推降到走路，满推是跑	v0.5.0	ok	both	2026-11-13	速度,跑步
+player	快跑 6.5 m/s	Shift 或手机按钮进冲刺，播原版冲刺动画	v0.11.5	ok	both	2026-11-13	冲刺,快跑
+player	冲刺动画门槛	速度过 4.2 m/s 才切冲刺，避免起步来回跳	v0.11.5	ok	both	2026-11-13	门槛,动画
+player	起跳按速度分流	普通走跑用走跳，快跑中起跳用跑跳	v0.11.5	ok	both	2026-11-13	起跳,跑跳
+player	跳跃三段结构	起跳→下落→落地三段，空中不再原地踏步	v0.11.0	ok	both	2026-11-13	跳跃,下落
+player	跳跃输入缓冲	落地前 0.14 秒按跳，落地瞬间自动起跳	v0.11.8	ok	both	2026-11-13	缓冲,跳跃
+player	土狼时间	刚走出边缘 0.12 秒内还能补一次起跳	v0.1.0	ok	both	2026-11-13	土狼时间,容错
+player	落地按速度分流	还带着速度落地不插蹲姿，原地落地才播完整缓冲	v0.11.1	ok	both	2026-11-13	落地,滑步
+player	空中操控 16%	空中加速度只剩 16%，阻尼 0.70/s	v0.12.1	ok	both	2026-11-14	空中,操控
+player	边缘保留速度	走出大落差保留 55% 水平速度	v0.12.1	ok	both	2026-11-14	边缘,惯性
+player	落地吸收惯性	落地按垂直速度分级吸收水平惯性，最低留 25%	v0.12.1	ok	both	2026-11-14	落地,惯性
+player	加速度倾斜	起步前压、急停后仰、转弯侧倾	v0.6.0	ok	both	2026-11-13	倾斜,Lean
+player	转身惯性	转向插值随速度从 12 降到 8，冲刺带弧线	v0.11.8	ok	both	2026-11-13	转身,惯性
+player	减速动画滞后	松 Shift 后仍播冲刺，接近跑速才切跑	v0.11.8	ok	both	2026-11-13	减速,动画
+player	圆柱碰撞	角色当半径 0.36 的圆，撞墙沿最短方向推出	v0.11.22	ok	both	2026-11-13	碰撞,圆柱
+player	自动迈小台阶	落差 0.35m 以内直接走上去，不用跳	v0.11.22	ok	both	2026-11-13	台阶,迈步
+player	站到方块顶上	跳上去以方块顶面为地面，走出边缘会掉	v0.11.22	ok	both	2026-11-13	站立,支撑
+player	台阶升降限速	上台阶 3.6、下台阶 2.8 m/s，不单帧跳 0.3m	v0.11.44	ok	both	2026-11-14	台阶,限速
+player	台阶圆形支撑	支撑半径 0.375 略大于身体，连续上阶不卡边	v0.12.1	ok	both	2026-11-14	台阶,卡边
+player	贴墙摩擦	30° 以内撞墙基本顶死，更斜才滑得动	v0.11.26	ok	both	2026-11-13	贴墙,摩擦
+player	斜向加速方向正确	按向量长度加速，贴墙站定不再慢慢漂走	v0.11.22	ok	both	2026-11-13	加速度,漂移
+player	朝向由输入决定	第三和自由视角身体朝移动方向，顶墙也能转回来	v0.11.43	ok	both	2026-11-14	朝向,转身
+player	第一人称跟随视线	第一人称走动方向永远朝视线，身体同步	v0.11.19	ok	both	2026-11-13	第一人称,朝向
+player	1m 矮墙攀爬	面前 0.45–1.25m 的沿按跳就撑上去	v0.11.40	ok	both	2026-11-13	攀爬,矮墙
+player	2m 高墙攀爬	1.30–2.35m 的墙播 2m 动作，落差大时腿略不贴面	v0.12.5	wip	both	2026-11-14	高墙,缺口
+player	高墙必须按空格	1.3–2.35m 的墙要站墙前按空格，不再自动抓	v0.12.7	ok	both	2026-11-14	手动攀爬,空格
+player	攀爬位移跟动画	位移由动画根骨曲线驱动，身体和脚同相位	v0.12.6	ok	both	2026-11-14	根骨,位移
+player	攀爬时长压缩	2m 攀爬从 2.08 秒收到 1.55 秒，1m 约 1.06 秒	v0.12.7	ok	both	2026-11-14	时长,硬直
+player	攀爬两段防穿模	先撑起到墙外再翻上，全程不穿棱柱侧面	v0.11.41	ok	both	2026-11-13	穿模,轨迹
+player	可攀墙不再弹回	顶面 0.40–2.35m 的墙只干净停住，不踉跄	v0.12.7	ok	both	2026-11-14	停住,攀爬
+player	空中抓近沿	空中按跳或前进，前方近沿能自动抓住	v0.11.44	ok	both	2026-11-14	空中抓沿
+player	跑撞自动攀爬	跑起来实撞速度够快会直接转入撑上	v0.11.44	ok	both	2026-11-14	冲刺,自动攀
+player	撞墙轻踉跄	撞不可攀的墙短促后退减速一次，不长期锁输入	v0.11.44	ok	both	2026-11-14	踉跄,撞墙
+player	翻栅栏到另一侧	按跳越过栏杆，落点是另一侧地面不是窄顶	v0.12.1	ok	both	2026-11-14	翻越,栅栏
+player	攀爬冻结物理	攀爬中速度和重力归零，结束稳稳站到顶面	v0.11.40	ok	both	2026-11-13	冻结,攀爬
+player	体宽推半径	移动半径由骨骼体宽推出来，贴墙间隙约 0.25m	v0.12.5	ok	both	2026-11-14	半径,体宽
+player	逐腿两骨脚 IK	每条腿单独解，两只脚都真的踩在坡面上	v0.13.3	ok	both	2026-11-14	脚IK,斜坡
+player	脚掌顺坡倾斜	鞋底按地面法线倾斜，坡上不再插进屋顶	v0.13.3	ok	both	2026-11-14	脚掌,贴坡
+player	走动不粘坡	走动时贴坡量按速度衰减，不会像滑步	v0.13.3	ok	both	2026-11-14	滑步,贴坡
+player	骨盆补公共落差	两脚一起浮时整体下沉，差异交给腿 IK	v0.13.3	ok	both	2026-11-14	骨盆,补偿
+player	原地转身 90°	站定视线差 60° 以上播真转身，脚下会碾一下	v0.13.2	ok	both	2026-11-14	原地转身,碾脚
+player	转身角度自适应	只需转 70° 就转到够用即收，不会过冲	v0.13.2	ok	both	2026-11-14	角度,自适应
+player	视线稳定才转身	视线停稳 0.12 秒才触发，甩视角不跟着乱转	v0.13.2	ok	both	2026-11-14	触发,稳定
+player	转身可被打断	中途推方向键先把已转角度结算再切移动	v0.13.2	ok	both	2026-11-14	打断,结算
+player	转身冷却 0.3 秒	贴墙滑行时不再反复触发转身抖动	v0.13.4	ok	both	2026-11-14	冷却,抖动
+player	头部视线跟随	边走边转视角，头先转过去看，身体照走	v0.13.4	ok	both	2026-11-14	头看,HeadLook
+player	头转上限 66°	颈 45% 头 55% 分担，超过就整个身体转	v0.13.4	ok	both	2026-11-14	上限,颈头
+player	第一人称不转头	第一人称关掉头部跟随，免得头转进镜头里	v0.13.4	ok	both	2026-11-14	第一人称,头部
+player	站定身体跟视线	站定时身体正对视线，拆枪后不再侧身 29°	v0.14.0	ok	both	2026-11-15	站姿,朝向
+player	角色哑光材质	粗糙度 0.74 金属度 0.03，从缎面改成哑光	v0.12.7	ok	both	2026-11-14	材质,哑光
+player	角色蓝灰配色	主体深蓝灰，深浅两套主题各配一档色	v0.12.5	ok	both	2026-11-14	配色,蓝灰
+player	站立呼吸起伏	站着不动有极轻微起伏，脚仍钉在地上	v0.13.3	ok	both	2026-11-14	呼吸,待机
+player	右臂自然下垂	拆枪后右手回到身体侧，走动会自然摆	v0.14.0	ok	both	2026-11-15	手臂,姿态
+player	第一人称无手臂	拆枪后第一人称是纯眼睛视角，素材里没有空手手臂	v0.14.0	wip	both	2026-11-15	第一人称,缺口
+player	武器与射击系统	手枪准星弹药弹壳弹孔整块删除，不要找	v0.14.0	removed	both	2026-11-15	武器,射击
+player	8 方向步态	侧走后退仍是整个人转过去，缺五个方向素材	v0.24.0	todo	both	2026-11-16	八方向,素材
+player	180° 转身与翻滚	180° 转身要连演两段 90°，落地翻滚还没有	v0.24.0	todo	both	2026-11-16	180度,翻滚
+player	手掌抓沿 IK	沿口 5cm 内只是看着像抓住，还没做手掌 IK	v0.12.7	wip	both	2026-11-14	手掌IK,缺口
+player	蹲推抓等动作	蹲下、推东西、抓取这些动作还没做	v0.24.0	todo	both	2026-11-16	蹲,推,抓
+player	2D 剪影角色	最初的侧视剪影小人，带走路和跳跃	v0.2.0	removed	both	2026-11-13	2D,剪影
+player	分节骨骼小人	髋膝踝肩肘分段加鼻凸的几何角色	v0.9.1	removed	both	2026-11-13	几何角色,分节
+player	白模风格角色	UE Mannequin 风格的哑光灰分块角色	v0.8.0	removed	both	2026-11-13	白模,Mannequin
+player	刚性绑定 15 块	网格切 15 块各挂关节，弯一处就露缝	v0.9.1	removed	both	2026-11-13	刚性绑定,接缝
+player	比例校准	按参考模型顶点数据重排胸胯小腿的宽厚	v0.8.0	removed	both	2026-11-13	比例,校准
+camera	球面轨道相机	以角色为圆心 360° 环绕，俯仰 3°–57°	v0.3.0	ok	both	2026-11-13	轨道,环绕
+camera	四档视角循环	等距、第一、第三、自由四档，V 键或手机键循环	v0.17.0	ok	both	2026-11-15	四档,切换
+camera	第一人称视角	眼睛高度 1.62m，独立俯仰 ±66°，身体跟着视线	v0.11.19	ok	both	2026-11-13	第一人称
+camera	第一人称藏自身	切第一人称隐藏自身网格，免得看到头内部	v0.11.19	ok	both	2026-11-13	隐藏,自身
+camera	第三人称肩点枢轴	枢轴抬到肩上 1.42m，贴近看也不卡在肚子	v0.11.27	ok	both	2026-11-13	枢轴,肩点
+camera	第三人称防穿模	被挡住把相机拉近到遮挡前，最近 0.9m	v0.11.17	ok	both	2026-11-13	防穿模,拉近
+camera	冲刺镜头	冲刺时 FOV 加 4°、相机拉远 0.7m，松开回落	v0.11.8	ok	both	2026-11-13	FOV,冲刺
+camera	落地镜头微沉	落地相机下沉再弹回，约 6cm 两帧平滑	v0.11.9	ok	both	2026-11-13	落地,微沉
+camera	自由视角	俯仰能翻到头顶脚底，距离 1.5–60m 自己缩	v0.11.29	ok	both	2026-11-13	自由,轨道
+camera	自由视角全景落点	进自由视角先给 38° 俯角、横屏 23m 竖屏 20m	v0.11.33	ok	both	2026-11-13	全景,落点
+camera	自由视角遮挡半透明	挡住视线的东西变半透明，机距一动不动	v0.11.32	ok	both	2026-11-13	遮挡,半透明
+camera	自由视角方向统一	下拖镜头抬高低头看，三档手势同一个方向	v0.11.31	ok	both	2026-11-13	方向,手势
+camera	45° 锁定取景	锁定后俯角 45°、水平也定住，只剩缩放可用	v0.11.37	ok	both	2026-11-13	锁定,45度
+camera	锁定跨视角保留	切到别的视角转一圈回来仍回到锁定朝向	v0.11.37	ok	both	2026-11-13	锁定,保留
+camera	三档连续过渡	视角之间按权重连续过渡，镜头一路滑过去不硬切	v0.11.21	ok	both	2026-11-13	过渡,权重
+camera	相机跟随平滑	相机平滑跟着角色走，冲刺也不会脱离	v0.11.19	ok	both	2026-11-13	跟随,平滑
+camera	等距正交投影	第 4 档换成正交相机，远处近处一样大	v0.15.0	ok	both	2026-11-15	等距,正交
+camera	等距俯角 36°	俯角固定 36°、方位 45°，与真等距 35.264° 相差 0.7°	v0.30.0	ok	both	2026-11-18	俯角,36度,等距
+camera	等距默认取景 20m	按纵向覆盖 20m 定默认视野，滚轮/双指可改	v0.27.1	ok	both	2026-11-16	取景,20m
+camera	等距缩放 6–90m	滚轮或双指改画面覆盖多少米，不改方位	v0.15.0	ok	both	2026-11-15	缩放,覆盖
+camera	等距缩放零延迟	滚轮和捏合直接落位，没有拖尾缓动	v0.22.0	ok	both	2026-11-15	零延迟,跟手
+camera	等距遮挡不拉近	挡住的人或房子变半透明，机距只决定缩放	v0.15.0	ok	both	2026-11-15	遮挡,半透明
+camera	等距进档不抽动	从当前实机距推进等距，不先钻进去再退出来	v0.15.0	ok	both	2026-11-15	进档,过渡
+camera	默认等距开局	打开页面第一眼就是等距全景，没有开场旋转	v0.17.0	ok	both	2026-11-15	默认,等距
+camera	15° 细档	Q/E 轻按转 15° 一格，24 格环绕	v0.18.0	ok	both	2026-11-15	细档,15度
+camera	90° 粗档	按住 Shift 再按 Q/E，一次转 90°	v0.18.0	ok	both	2026-11-15	粗档,90度
+camera	细档地砖拉长	非方正方位两轴比 0.775，已知取舍不是 bug	v0.18.0	wip	both	2026-11-15	细档,拉长
+camera	固定模式完全不转	固定档拖动和 Q/E 都不动，机位焊死在方正方位	v0.21.0	ok	both	2026-11-15	固定,锁定
+camera	自由模式连续拖	自由档拖动跟手，松手停在哪就是哪	v0.21.0	ok	both	2026-11-15	自由,拖动
+camera	切回固定自动吸附	切回固定时吸到最近的方正方位（45°+k·90°）	v0.21.0	ok	both	2026-11-15	吸附,方正
+camera	V 进等距按模式吸附	固定档落到 90° 档，自由档落到 15° 格	v0.21.0	ok	both	2026-11-15	进场,吸附
+camera	横竖屏分别取景	竖屏横屏各配一档 FOV 和相机距离	v0.2.0	ok	both	2026-11-13	横竖屏,FOV
+camera	转屏机距跟随	没自己缩过时机距跟转屏走，缩过就锁住	v0.11.34	ok	both	2026-11-13	转屏,机距
+camera	横竖屏按窗口判定	侧栏把画布变窄，也不会把窗口误判成竖屏	v0.22.0	ok	both	2026-11-15	判定,视口
+camera	相机自动回正	松手后要不要慢慢回到角色背后还没定	v0.24.0	todo	both	2026-11-16	回正,待定
+camera	越肩横向偏移	镜头右移让角色落画面 42%，后来整块删掉	v0.11.29	removed	both	2026-11-13	越肩,偏移
+camera	自由视角正交开关	自由视角里透视⇄正交那个开关，后面整块删了	v0.11.39	removed	both	2026-11-13	正交,开关
+camera	等距跳格拖动	80px 一格跳 90° 的拖动，语义作废整块删除	v0.21.0	removed	both	2026-11-15	跳格,80px
+input	相机相对移动	WASD 和摇杆方向按当前镜头算，转完视角不迷路	v0.3.0	ok	both	2026-11-13	相对,移动
+input	双端移动输入	键盘 WASD 方向键加左半屏浮动摇杆	v0.1.0	ok	both	2026-11-13	键盘,摇杆
+input	摇杆落指即生成	左半屏按哪里哪里就是摇杆原点，不固定位置	v0.2.0	ok	mobile	2026-11-13	摇杆,浮动
+input	摇杆幅度控速	推得越远走得越快，半推就是走路	v0.2.0	ok	mobile	2026-11-13	摇杆,速度
+input	右半屏拖动转视角	右半屏按住拖动就是转视角	v0.3.0	ok	mobile	2026-11-13	转视角,触屏
+input	拖动与轻点判定	移动超 11px 算拖动，280ms 内没动算轻点跳	v0.3.0	ok	mobile	2026-11-13	手势,判定
+input	手机快跑按钮	右下圆形按钮点亮即冲刺，再点熄灭回普通跑	v0.11.6	ok	mobile	2026-11-13	快跑按钮,触屏
+input	左半屏归摇杆	左半屏永远给摇杆，不参与捏合判定	v0.11.31	ok	mobile	2026-11-13	分区,捏合
+input	右半屏双指缩放	右半屏凑够两根手指才缩放，摇杆手指照常走	v0.11.31	ok	mobile	2026-11-13	双指,缩放
+input	边走边转边缩	左手走、右手单指转视角、右手两指缩放同时成立	v0.11.31	ok	mobile	2026-11-13	并行,手势
+input	捏合抬手继续拖	捏合抬起一根后，剩下那根继续当转视角用	v0.11.30	ok	mobile	2026-11-13	手势连续
+input	桌面指针锁定	点画面锁住指针隐藏光标，移动即转视角，Esc 退	v0.11.41	ok	desktop	2026-11-13	指针锁,鼠标
+input	未锁定拖动兜底	浏览器拒绝锁指针时仍能按住拖动转视角	v0.11.41	ok	desktop	2026-11-13	兜底,拖动
+input	Q/E 转视角	不用鼠标时的键盘备选转向	v0.3.0	ok	desktop	2026-11-13	QE,键盘
+input	Shift 快跑	按住 Shift 移动即 6.5 m/s 冲刺	v0.11.5	ok	desktop	2026-11-13	Shift,冲刺
+input	Ctrl 慢走	按住 Ctrl 慢速走，倍率可在设置里调	v0.12.3	ok	desktop	2026-11-14	慢走,Ctrl
+input	M 显示隐藏鼠标	单独一个键控制鼠标显示，不动设置面板	v0.12.3	ok	desktop	2026-11-14	鼠标,M键
+input	V 切视角	V 键或手机视角键四档循环	v0.11.19	ok	both	2026-11-13	视角键,循环
+input	G 切固定自由	等距下 G 键或按钮切固定/自由两种拖动	v0.19.0	ok	both	2026-11-15	固定自由,G
+input	H 操作说明开关	桌面按 H 展开收起说明，右上常驻一个小 H	v0.11.38	ok	desktop	2026-11-13	说明,H键
+input	L 锁 45°	桌面按 L 锁或解自由视角的 45° 取景	v0.11.35	ok	desktop	2026-11-13	锁定,L键
+input	T 切主题	T 键或手机主题按钮切深色和白色	v0.11.39	ok	both	2026-11-13	主题,T键
+input	C 碰撞模式	C 键或手机碰撞按钮打开碰撞线框	v0.11.41	ok	both	2026-11-13	碰撞线框,C键
+input	设置期间屏蔽画面	面板打开时画面按下、移动、滚轮都不生效	v0.11.45	ok	both	2026-11-14	面板,屏蔽
+input	面板不吞键盘	开设置不清 WASD 和游戏快捷键	v0.12.1	ok	both	2026-11-14	键盘,面板
+input	失焦清理输入	切后台或失焦清键鼠摇杆手势和待跳，回来不继承	v0.11.45	ok	both	2026-11-14	失焦,清理
+input	取消触摸不算跳	取消触摸不再被当成一次轻点起跳	v0.11.45	ok	mobile	2026-11-14	触摸取消
+input	设置打开清手势	开面板时清掉触摸拖动、捏合和鼠标按下残留	v0.12.2	ok	both	2026-11-14	残留,手势
+input	灵敏度各自记住	鼠标 0.10–2.00、触屏 0.20–2.00 分开存	v0.11.43	ok	both	2026-11-14	灵敏度
+input	鼠标灵敏度减半	PC 默认灵敏度从 1 降到 0.5	v0.11.42	ok	desktop	2026-11-14	灵敏度,PC
+input	过门清输入	传送时清掉输入和动画状态，不会带着冲过去	v0.24.0	ok	both	2026-11-16	传送,清状态
+input	手机 15° 微调	Q/E 是键盘专属，触屏还没有细调角度的手段	v0.24.0	todo	mobile	2026-11-16	微调,触屏
+input	固定档 Q/E 是否可用	固定模式现在完全不能转，要不要放开还没定	v0.24.0	todo	desktop	2026-11-16	固定,QE
+input	摇杆推满自动冲刺	推满 0.5 秒自动进冲刺，被按钮方案取代后删掉	v0.11.7	removed	mobile	2026-11-13	自动冲刺,删除
+ui	左上角 FPS	小灰字半秒刷一次，不挡操作	v0.11.10	ok	both	2026-11-13	FPS,帧率
+ui	长帧卡顿提示	FPS 后面显示长帧数和最近一次卡在哪个动作	v0.11.14	ok	both	2026-11-13	长帧,卡顿
+ui	起跳分段计时	FPS 行显示起跳的动画、音效、采样各花几毫秒	v0.11.15	ok	both	2026-11-13	计时,起跳
+ui	待机状态文案	待机时 FPS 显示「待机 · 已停渲染」	v0.20.0	ok	both	2026-11-15	待机,文案
+ui	操作说明 H 徽标	桌面右上常驻一个小 H，点开才有说明	v0.11.38	ok	desktop	2026-11-13	说明,徽标
+ui	手机说明自动淡出	手机开局摊开说明，9 秒后自己淡掉	v0.11.38	ok	mobile	2026-11-13	说明,淡出
+ui	手机药丸按钮	右上按钮统一 51×34 药丸，面积不到原来一半	v0.11.33	ok	mobile	2026-11-13	按钮,药丸
+ui	视角键写当前档名	视角按钮直接写第一/第三/自由/等距，不点亮	v0.11.33	ok	mobile	2026-11-13	视角按钮
+ui	主题按钮	右上显示当前深浅，点亮表示现在是深色	v0.11.39	ok	mobile	2026-11-13	主题按钮
+ui	碰撞按钮	手机右上第四枚，点亮就开碰撞线框	v0.11.41	ok	mobile	2026-11-13	碰撞按钮
+ui	等距专属按钮槽	等距里 45° 键隐藏，固定/自由键占同一个槽位	v0.19.0	ok	mobile	2026-11-15	槽位,互斥
+ui	设置面板	F2 或设置按钮打开，Esc 和关闭按钮退出	v0.11.43	ok	both	2026-11-14	设置,面板
+ui	设置面板整套样式	右上卡片，滑条下拉复选按钮两套主题都配齐	v0.20.0	ok	both	2026-11-15	样式,面板
+ui	关闭键吸底	内容超长时页脚吸底，「关闭」滚到哪都看得见	v0.20.0	ok	both	2026-11-15	吸底,关闭
+ui	桌面并行侧边栏	宽 ≥700 时面板变右缘 300px 全高栏，画面缩窄让位	v0.22.0	ok	desktop	2026-11-15	侧栏,并行
+ui	窄屏覆盖式面板	竖屏手机宽度不够，仍是覆盖式卡片	v0.22.0	ok	mobile	2026-11-15	窄屏,覆盖
+ui	速度加速度设置	走跑快跑速度、加速度、慢走倍率、跟随视角都可调	v0.12.3	ok	both	2026-11-14	速度,设置
+ui	模拟倍速	0.25–2.0 倍速，物理动画一起缩放，界面按真实时间	v0.12.1	ok	both	2026-11-14	倍速,慢放
+ui	设置自动保存	灵敏度、主题、速度都存本浏览器，刷新还在	v0.11.43	ok	both	2026-11-14	存储,持久化
+ui	恢复默认	一键恢复深色主题和默认灵敏度速度	v0.12.1	ok	both	2026-11-14	默认,重置
+ui	碰撞统计行	面板显示网格合计、已覆盖、豁免、遗漏	v0.12.4	ok	both	2026-11-14	统计,覆盖
+ui	肢体接触诊断	显示接触了几段肢体、最深埋进多少、在哪个部位	v0.12.5	ok	both	2026-11-14	接触,诊断
+ui	碰撞线框配色	绿实体、橙栅栏、粉坡面、金黄补齐、蓝树冠	v0.11.44	ok	both	2026-11-14	配色,线框
+ui	骨骼近似盒显示	13 个跟随骨骼的盒子只做显示，不参与阻挡	v0.11.44	ok	both	2026-11-14	骨骼盒
+ui	玩家胶囊显示	碰撞模式里画蓝色角色胶囊，能看有没有插进盒子	v0.11.41	ok	both	2026-11-13	胶囊,调试
+ui	显存丢失提示	图形上下文丢了就在屏幕上说原因，让人刷新页面	v0.11.18	ok	both	2026-11-13	显存,黑屏
+ui	启动自检提示	引擎、WebGL、渲染器、首帧四种失败都在屏幕中央说明	v0.2.1	ok	both	2026-11-13	自检,白屏
+ui	声音被挡提示条	声音起不来时右下角出现「点这里开声音」	v0.11.2	ok	both	2026-11-13	声音,提示
+ui	静音徽标	左下角写着静音，点一下开声音再点回去，会记住	v0.13.5	ok	both	2026-11-15	静音,徽标
+ui	页面版本号	页面底部写版本号，用来确认手机跑的是新文件	v0.11.1	ok	both	2026-11-13	版本号
+ui	门口淡提示	走到便利店门前浮一行很淡的「按 E 开门」	v0.23.1	ok	both	2026-11-15	提示,开门
+ui	手机开门按钮	摇杆右边一个小按钮，只在触屏出现，等于按 E	v0.23.1	ok	mobile	2026-11-15	开门按钮
+ui	门传送提示	走到门前 2.4m 内出现淡提示，手机上配按钮	v0.24.0	ok	both	2026-11-16	传送提示,E
+ui	全视改名自由	档位名字从「全视」改成「自由」，更直白	v0.11.29	ok	both	2026-11-13	改名,自由
+ui	提示版本同步	操作说明里的版本号不再停在旧版	v0.11.45	ok	both	2026-11-14	版本,提示
+ui	游戏内测试清单	右侧可折叠清单侧栏，v0.16.0 整块删除	v0.16.0	removed	both	2026-11-15	清单,侧栏
+ui	清单四态按钮	通过、不通过、待办、取消加三段进度条，已删	v0.16.0	removed	both	2026-11-15	四态,进度条
+ui	清单一键复制	把勾选和反馈拼成文本复制到剪贴板，已删	v0.16.0	removed	both	2026-11-15	复制,反馈
+audio	脚步音效	踩到动画触地帧才响，随机换变体和音高	v0.11.4	ok	both	2026-11-13	脚步,触地
+audio	冲刺脚步区分	冲刺用同一批录音，音高加 6%、力度 1.12	v0.11.17	ok	both	2026-11-13	冲刺,音高
+audio	跳跃音效	起跳瞬间响一声，用混凝土脚步录音	v0.11.4	ok	both	2026-11-13	跳跃
+audio	落地音效	触地那一下响，冲击越大越响越长	v0.11.4	ok	both	2026-11-13	落地
+audio	转身碾脚声	跑动中把方向拧过约 120° 会碾一下脚	v0.13.1	ok	both	2026-11-14	转身,pivot
+audio	界面点击音	点按钮有一声轻响，点画面不会响	v0.13.1	ok	both	2026-11-14	UI音,点击
+audio	环境音循环	风声带鸟叫，9.3 秒无缝循环，默认关	v0.13.1	ok	both	2026-11-14	环境音,风,鸟
+audio	环境音开关	F2 里单独一格，开了 4 秒慢慢淡进来	v0.13.6	ok	both	2026-11-15	环境音,开关
+audio	默认静音	打开页面不出声，静音时连音频上下文都不建	v0.13.5	ok	both	2026-11-15	静音,默认
+audio	手势解锁音频	第一次点屏幕或按键才建上下文并解锁	v0.11.2	ok	both	2026-11-13	解锁,手势
+audio	微信内解锁	微信内置浏览器等 bridge 就绪后再恢复音频	v0.11.1	ok	mobile	2026-11-13	微信,解锁
+audio	iOS 播放会话	声明成播放会话，侧边静音拨片不再掐掉声音	v0.11.1	ok	mobile	2026-11-13	iOS,会话
+audio	坏上下文重建	连续两轮手势还没 running 就关掉重建	v0.11.2	ok	both	2026-11-13	重建,容错
+audio	音频备用链路	WebAudio 被拦就切离线渲染的音频元素播放	v0.11.3	ok	both	2026-11-13	备用链路
+audio	音频改 Blob 地址	音频元素用 Blob 地址，不再每次播放重解析	v0.11.15	ok	both	2026-11-13	Blob,延迟
+audio	音效排在渲染后	起跳落地音效等渲染完再播，不和渲染抢帧	v0.11.14	ok	both	2026-11-13	排期,掉帧
+audio	手势只解锁一次	一次轻点五个手势事件只解锁一次，跳跃掉帧修好	v0.11.11	ok	both	2026-11-13	早退,手势
+audio	无设备静默降级	没有音频设备或窗口失焦就静默跳过，不报错	v0.10.0	ok	both	2026-11-13	降级,静默
+audio	合成音效	最初用噪声和正弦实时合成三种音效，已被录音替换	v0.11.4	removed	both	2026-11-13	合成,噪声
+audio	枪声与机械声	三层合成枪声和干击退匣声，随武器一起删	v0.14.0	removed	both	2026-11-15	枪声,删除
+perf	手机档判定	UA 加触点数、粗指针、短边一起判，小窗桌面不误判	v0.13.0	ok	both	2026-11-14	手机判定
+perf	手机档关抗锯齿	手机档关 MSAA，桌面保留	v0.13.0	ok	mobile	2026-11-14	抗锯齿
+perf	手机渲染倍数	手机画布按设备像素封顶 2.5 倍，开局从 0.8 起步	v0.23.3	ok	mobile	2026-11-15	像素比,清晰度
+perf	手机阴影 1024	手机阴影图 1024 走硬阴影，桌面 2048 软阴影	v0.13.0	ok	mobile	2026-11-14	阴影,分辨率
+perf	自适应分辨率	帧率低于 50 就降档，稳回来才升，下限 0.55	v0.23.3	ok	both	2026-11-15	自适应,降档
+perf	降档不来回闪	降过的档位 60 秒内不回去，避免两档之间抖	v0.23.3	ok	both	2026-11-15	抖动,冷却
+perf	手机省两盏补光	手机档把关卡两盏装饰补光强度归零	v0.23.3	ok	mobile	2026-11-15	补光,省电
+perf	切后台停渲染	标签页不可见就停整个循环，回来重置时间基准	v0.11.17	ok	both	2026-11-13	后台,暂停
+perf	前台待机停渲染	30 秒无输入且角色静止就停渲染，一碰立刻回	v0.20.0	ok	both	2026-11-15	待机,省电
+perf	待机不误触发	走路中、转身攀爬中、面板开着都不进待机	v0.20.0	ok	both	2026-11-15	待机,条件
+perf	待机时环境音继续	停了渲染风声鸟叫还在，几乎不耗	v0.20.0	ok	both	2026-11-15	待机,环境音
+perf	房子合批	栅栏门廊树干灌木合成实例网格，draw call 190→62	v0.11.36	ok	both	2026-11-13	合批,drawcall
+perf	门窗不投阴影	贴墙薄面片关掉投影，背后就是墙看不见	v0.11.36	ok	both	2026-11-13	阴影,合批
+perf	碰撞体不建网格	碰撞只登记位置和旋转，不再造空 Mesh	v0.11.36	ok	both	2026-11-13	碰撞,开销
+perf	动画采样降频	采样从 120Hz 物理循环挪到 60Hz 渲染帧	v0.11.12	ok	both	2026-11-13	采样,降频
+perf	姿态数据复用	动画切换不再重建 64 个四元数，消掉 GC 尖峰	v0.11.13	ok	both	2026-11-13	GC,复用
+eng	单文件自包含	引擎和素材全内联进一个 html，双击即开零外部请求	v0.2.1	ok	both	2026-11-13	单文件,内联
+eng	孤立目录测试	空目录只放一个 html 跑截图，验证没有外部依赖	v0.2.1	ok	both	2026-11-13	孤立目录,验证
+eng	碰撞自检	建完场景逐个网格查覆盖，没覆盖的自动补盒再复核	v0.12.4	ok	both	2026-11-14	自检,补盒
+eng	碰撞分类登记	实体、栅栏、坡面、碎屑、薄板、树叶分门别类	v0.12.4	ok	both	2026-11-14	分类,kind
+eng	碰撞豁免表	地面、角色、门扇这些不挡路的登记豁免，数量可核对	v0.24.0	ok	both	2026-11-16	豁免,核对
+eng	诊断接口	后台暴露位置、速度、碰撞、相机等一堆只读接口	v0.11.22	ok	both	2026-11-13	诊断,接口
+eng	待机诊断口	能读待机状态和空闲时长，也能改阈值来测试	v0.20.0	ok	both	2026-11-15	待机,诊断
+eng	动画烘焙工具链	从 FBX 提骨骼权重和动画，产出 rig 和动作数据	v0.9.1	ok	both	2026-11-13	烘焙,FBX
+eng	动作注入工具	一条命令把动画数据注回单文件	v0.12.6	ok	both	2026-11-14	注入,工具
+eng	骨骼端点诊断	能读骨盆、头、双手双脚的世界坐标	v0.12.7	ok	both	2026-11-14	坐标,穿模
+eng	自动化测试套件	16 套共 425 项回归，改交互语义先看测试	v0.24.0	ok	both	2026-11-16	回归,测试
+eng	发版快照	一条命令出快照和备份，附带版本号校验	v0.11.10	ok	desktop	2026-11-13	发版,快照
+eng	版本号预检	html 里找不到当前版本号就拒绝发版	v0.11.10	ok	desktop	2026-11-13	预检,版本
+eng	清单只在文档	测试清单只在文档一份，游戏里不再重复存	v0.16.0	ok	both	2026-11-15	清单,文档
+eng	ES5 降级	便利店那段代码用本地 tsc 一次性降成 ES5	v0.23.0	ok	both	2026-11-15	ES5,兼容
+eng	主文件改名	index.html 改成 world01.html，备份页另改名	v0.11.33	ok	both	2026-11-13	改名,入口
+eng	快照预检 CHANGELOG	CHANGELOG 没更新就警告，还没得到确认	v0.24.0	todo	desktop	2026-11-16	预检,CHANGELOG
+world	门板碰撞随开合切换	开着才挡人、关着不生效；门前不再有隐形挡板	v0.27.8	ok	both	2026-11-16	门板,碰撞,开关联动
+ui	门按钮并入药丸	开关门按钮和慢走/快跑同一套形状、底色、字号，开门时用按下态	v0.30.2	ok	both	2026-11-18	门按钮,药丸,统一
+ui	触屏不提示 E 键	手机只留「开门」按钮，不再显示「按 E 开门」误导	v0.30.2	ok	mobile	2026-11-18	触屏,E键,提示
+world	虚空原野	出生世界撤掉地面与暖光，背景近黑、天光只够勾出门的轮廓	v0.30.3	ok	both	2026-11-18	虚空,原野,门
+audio	按世界切背景音乐	花园与旧测试场各有程序合成循环曲，切层自动换	v0.30.1	ok	both	2026-11-18	音乐,程序合成,切层
+audio	便利店音乐预留	有真录音就优先播录音；为空时走合成的那支乡村民谣	v0.30.4	ok	both	2026-11-18	便利店,录音,回退
+ui	碰撞线框按世界分层	按 C 只画当前世界的碰撞盒，跨门后重建	v0.27.6	ok	both	2026-11-16	碰撞线框,调试,分层
+world	门整体放大 1.25 倍	门洞 1.20×2.88、门框 1.68×3.18，与人身高比 1.60	v0.27.5	ok	both	2026-11-16	门尺寸,放大,比例
+world	木门扇已移除	四座门改成石材拱门与玻璃门，木门扇与它的铰链参数一并撤掉	v0.30.0	removed	both	2026-11-18	木门,撤除,拱门
+world	门洞实时渲染	门洞里直接看到目标世界的实时画面，不是贴图也不是预录	v0.28.0	ok	both	2026-11-18	门洞,实时,渲染
+world	身体过门才换层	物理跨过门平面且身体在门洞内才切世界，位置速度动画相机全保留	v0.28.0	ok	both	2026-11-18	过门,换层,判定
+world	原路立刻折返	过门后马上回身能穿回去，不会卡在门槛或被推回	v0.28.0	ok	both	2026-11-18	折返,门槛
+world	回程门反向摆放	三个世界的回程门相对出生区门反向，出门即面向来时方向	v0.29.6	ok	both	2026-11-18	回程门,朝向
+world	蝶语花园接入	花园作为第四层接入，两端花藤拱门常开，可实时看见另一层	v0.29.0	ok	both	2026-11-18	花园,第四层
+world	花园外栅栏碰撞	外栅栏按五段连续登记碰撞，保留外门开口、招牌抬到能走过	v0.29.0	ok	both	2026-11-18	花园,栅栏,碰撞
+world	花园底座与渐变天	花园恢复原底座，浅蓝到奶白渐变背景，园内隐藏公共网格	v0.29.1	ok	both	2026-11-18	花园,底座,渐变天
+world	三座门并排	出生区三座门沿同一直线并排，门面与对应场景同步对齐	v0.29.2	ok	both	2026-11-18	并排,三门
+world	巨石门常开	初始之地两端为常开巨石拱门，没有门板也没有台阶	v0.29.8	ok	both	2026-11-18	巨石门,常开
+world	凉亭补台阶	凉亭三处开口补低台阶，挡住入口的长凳移往后侧	v0.29.10	ok	both	2026-11-18	凉亭,台阶
+world	凉亭柱脚对位	六根柱脚与六角台基、地板、屋顶严格对应	v0.29.11	ok	both	2026-11-18	凉亭,柱脚,对位
+world	原野花海石屋	v0.30.0 加的花海、草叶、远山、石屋，v0.30.1 按需求整块撤回	v0.30.1	removed	both	2026-11-18	花海,石屋,撤回
+world	浮空柱廊遗迹	v0.30.0 的苔石柱廊与浮空岩层，v0.30.1 撤回、旧测试场回归	v0.30.1	removed	both	2026-11-18	柱廊,浮空,撤回
+world	花园外圈树荫	v0.30.0 在花园外围加九棵树与苔石，v0.30.1 撤回	v0.30.1	removed	both	2026-11-18	花园,树荫,撤回
+world	黄昏便利店配色	蓝灰暮空配杏色夕照，压掉原来的紫色偏染	v0.30.0	ok	both	2026-11-18	便利店,暮色,配色
+world	门洞黑缝修补	花园拱门画面加宽到柱内沿，原野侧门洞的黑边缝消失	v0.30.0	ok	both	2026-11-18	门洞,黑缝,修补
+world	岛外跌落回入口	浮空层掉到 −8 以下自动回到该层入口，不会掉进虚空	v0.30.0	ok	both	2026-11-18	跌落,回入口,浮空
+world	花海实例合批	v0.30.0 用实例化画几千株花与草，随场景撤回一起移除	v0.30.1	removed	both	2026-11-18	实例化,合批,撤回
+world	每层自己的天穹	便利店与花园各有天穹；出生空地与旧测试场用主题雾和公共地面	v0.30.1	ok	both	2026-11-18	天穹,雾,分层
+camera	门槛坐标共用	门洞预览、角色切片、速度与相机共用同一套门槛变换	v0.29.7	ok	both	2026-11-18	门槛,变换,共用
+camera	固定等距跨门只平移	固定等距下跨门镜头只平移不旋转，世界换而机位不动	v0.29.8	ok	both	2026-11-18	固定,平移,不转
+camera	拱门分侧绘制	角色按门平面两侧分别绘制，两只脚各查所在空间的地面	v0.29.12	ok	both	2026-11-18	分侧,裁切,双地面
+camera	拱门单面激活	花园拱门只在单面激活穿越绘制，但仍可双向往返	v0.29.14	ok	both	2026-11-18	单面,拱门,往返
+camera	换景 1.9 秒	跨层时固定同一台相机做 1.9 秒融合过渡，不是硬切	v0.30.0	ok	both	2026-11-18	过渡,1.9秒,融合
+camera	进店隐侧墙	便利店室内隐掉相机侧墙，视线不被挡住	v0.29.3	ok	both	2026-11-18	室内,隐墙
+world	跨层蝴蝶	三只蝴蝶沿各自航线往返原野与花园，过门槛按两侧裁切	v0.29.13	ok	both	2026-11-18	蝴蝶,跨层,裁切
+input	手机慢走按钮	触屏快跑旁新增慢走切换，慢走与快跑互斥	v0.29.10	ok	mobile	2026-11-18	慢走,触屏
+ui	世界名题字	进入某一层时画面顶部浮出「原野／初始之地／蝶语花园／黄昏便利店」	v0.29.0	ok	both	2026-11-18	题字,世界名
+world	场景回退到上一版	出生空地、旧测试场、晴日花园回到 v0.29.14 原貌；便利店保持新版	v0.30.1	ok	both	2026-11-18	回退,场景
+world	旧测试场道具回归	房子、院子、栅栏、三块靶板、散石连同碰撞一起回来（1075 个碰撞体）	v0.30.1	ok	both	2026-11-18	旧测试场,道具,碰撞
+world	花园描边恢复	凉亭屋顶与花园物件外沿的黑描边随场景一起回到 v0.29.14	v0.30.1	ok	both	2026-11-18	描边,花园
+camera	虚空流动天幕	反面球壳上三层慢速扰动＋漂移带，上下层次被折射弯掉	v0.30.4	ok	both	2026-11-18	天幕,扰动,虚空
+world	虚空灰烬	140 片不规则碎片，缓慢下坠、各自自转，普通混合不发亮	v0.30.5	ok	both	2026-11-18	灰烬,碎片,下坠
+world	悬空雾团（已撤）	试过用朝镜头的雾片代替贴地薄雾，用户选了原来那版，已移除	v0.30.9	removed	both	2026-11-18	雾团,撤回
+fx	石门过渡方块（已撤）	穿门迸方块特效，用户要求撤回，已移除	v0.30.10	removed	both	2026-11-19	门,特效,撤回
+fx	玻璃门过渡繁体字（已撤）	穿门漂繁体字特效，用户要求撤回，已移除	v0.30.10	removed	both	2026-11-19	门,特效,撤回
+fx	花园门蝴蝶（沿用）	花园拱门的过渡动画就是常驻蝴蝶（buildGateButterflies），从未加迸散	v0.30.10	ok	both	2026-11-19	门,蝴蝶
+fix	门铰链单侧钳制（回退）	单侧硬止点让半开门叶卡人（portal 17/20），恢复 ±2.05 双向弹回	v0.30.11	removed	both	2026-11-19	门,物理,回退
+world	贴地薄雾	一块贴地水平面，径向渐变缓慢推移；用户认可这一版的观感	v0.30.9	ok	both	2026-11-18	薄雾,贴地
+world	远景剪影（已删）	曾试图用 18~30m 外的暗色轮廓给虚空尺度，看着像凭空几座黑山	v0.30.6	removed	both	2026-11-18	剪影,撤回
+	160 个光点缓慢上浮、左右微摆、近大远小，不参与碰撞	v0.30.4	ok	both	2026-11-18	尘点,上浮
+camera	天幕消色带	极暗渐变加半级抖动，避免同心条纹	v0.30.4	ok	both	2026-11-18	抖动,色带
+audio	便利店乡村民谣	原创 92BPM / G–D–Em–C / 10.43 秒：分解和弦＋低音＋稀疏旋律（听感优先）	v0.30.6	ok	both	2026-11-18	乡村,民谣,循环
+camera	虚空光照参数	背景 0x05060a、环境光 0.30×、太阳 0.38×、雾 6/90，集中在四个常量	v0.30.3	ok	both	2026-11-18	虚空,光照,参数
+camera	原野不投阴影	虚空没有地面可落影，太阳阴影在出生世界关闭	v0.30.3	ok	both	2026-11-18	阴影,虚空,性能
+camera	两档视角	v0.30.0 起视角只剩自由与等距两档，V 键来回切	v0.30.0	ok	both	2026-11-18	视角,两档
+eng	美术检查脚本	一条命令跑出四个世界的对照截图，附带碰撞审计与外部请求检查	v0.30.0	ok	both	2026-11-18	美术,截图,脚本
+eng	碰撞审计归零	collisionAudit 逐网格核对覆盖，当前 1246 个网格、未识别 0 个	v0.30.0	ok	both	2026-11-18	碰撞,审计,覆盖
+eng	门物理测试	tests/door-physics.mjs 专测玻璃门推动、门扇碰撞与穿门判定	v0.30.0	ok	both	2026-11-18	门,物理,测试
+eng	2D 原型归档	最早的 2D 版本归档成 flat.html，不再维护	v0.2.0	removed	both	2026-11-13	归档,2D
+world	两扇门并排	两扇旧木门并排立在房子车道口，门面朝房子，间距 2m	v0.27.0	ok	both	2026-11-16	并排,车道口,朝房子
+world	出生世界清空	石板路、石灯笼、枯树、立石、苔整块删除，只剩两扇门	v0.27.0	ok	both	2026-11-16	空场,删布景
+world	世界锚在门上	跨门只换世界层：便利店关整体平移到门口，人不动	v0.27.0	ok	both	2026-11-16	锚定,多维度,不挪人
+world	门洞只透光	曾经只透一层暖光、没有画面；已被 v0.28.0 的实时渲染取代	v0.26.1	removed	both	2026-11-18	门后,暖光,取代
+camera	一个世界一套光	天光只在跨门时按世界切换，不再按玩家位置混算	v0.27.0	ok	both	2026-11-16	光照,按世界
+input	门前 E 归开门	站在门前按 E 是开门，离开门前 E 才是转视角	v0.27.0	ok	both	2026-11-16	E,按键冲突
+input	开门范围放宽	横向 0.8 → 1.15m，站在两门中间也能开门	v0.27.0	ok	both	2026-11-16	交互范围
+
+</script>
+
+<script>
+(function(){
+  var MODS = [
+    ['world','世界与关卡','地形、房子、街区、门、物件、光照'],
+    ['player','角色与移动','速度、跳跃、攀爬、贴脚、转身、动画'],
+    ['camera','视角与相机','四档视角、等距、缩放、遮挡'],
+    ['input','操作与输入','键鼠、摇杆、手势、快捷键'],
+    ['ui','界面与设置','面板、按钮、提示、HUD'],
+    ['audio','声音','脚步、环境音、界面音、解锁'],
+    ['perf','性能与省电','自适应分辨率、待机、后台'],
+    ['eng','工程与验证','单文件、自检、测试、发版']
+  ];
+  var STATUS = {ok:'能用', wip:'缺一块', todo:'没做', removed:'已删'};
+  var PLAT = {both:'双端', desktop:'桌面', mobile:'手机'};
+
+  var raw = document.getElementById('data').textContent.trim().split('\n');
+  var rows = [];
+  for (var i=0;i<raw.length;i++){
+    var t = raw[i].trim();
+    if(!t) continue;
+    var p = t.split('\t');
+    if(p.length < 8) continue;
+    rows.push({m:p[0].trim(), f:p[1].trim(), d:p[2].trim(), v:p[3].trim(),
+               s:p[4].trim(), plat:p[5].trim(), date:p[6].trim(), kw:p[7].trim()});
+  }
+  document.getElementById('total').textContent = rows.length;
+  document.getElementById('total').textContent = rows.length;
+
+  // 模块导航
+  var nav = document.getElementById('nav');
+  var counts = {};
+  for (var i=0;i<rows.length;i++) counts[rows[i].m] = (counts[rows[i].m]||0)+1;
+  for (var i=0;i<MODS.length;i++){
+    var a = document.createElement('a');
+    a.href = '#m-' + MODS[i][0];
+    a.innerHTML = MODS[i][1] + ' <b>' + (counts[MODS[i][0]]||0) + '</b>';
+    nav.appendChild(a);
+  }
+
+  var state = {f:'all', q:''};
+
+  function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function hl(s, q){
+    s = esc(s);
+    if(!q) return s;
+    try{
+      var re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')','gi');
+      return s.replace(re,'<mark>$1</mark>');
+    }catch(e){ return s; }
+  }
+
+  function render(){
+    var q = state.q.toLowerCase();
+    var out = document.getElementById('out');
+    var html = '', shown = 0;
+
+    for (var i=0;i<MODS.length;i++){
+      var id = MODS[i][0];
+      var list = [];
+      for (var j=0;j<rows.length;j++){
+        var r = rows[j];
+        if (r.m !== id) continue;
+        if (state.f !== 'all'){
+          if (state.f === 'desktop' || state.f === 'mobile'){ if (r.plat !== state.f) continue; }
+          else if (r.s !== state.f) continue;
+        }
+        if (q){
+          var hay = (r.f + ' ' + r.d + ' ' + r.kw + ' ' + r.v).toLowerCase();
+          if (hay.indexOf(q) < 0) continue;
+        }
+        list.push(r);
+      }
+      if (!list.length) continue;
+      shown += list.length;
+
+      html += '<h2 id="m-'+id+'">' + MODS[i][1] + '<span>' + MODS[i][2] + ' · ' + list.length + ' 条</span></h2>';
+      html += '<table><thead><tr><th style="width:150px">功能</th><th>说明</th>'
+            + '<th style="width:88px">版本</th><th style="width:64px">平台</th>'
+            + '<th style="width:76px">状态</th></tr></thead><tbody>';
+      for (var k=0;k<list.length;k++){
+        var r = list[k];
+        html += '<tr><td class="f">' + hl(r.f,q) + '</td>'
+              + '<td class="d">' + hl(r.d,q) + '</td>'
+              + '<td class="v">' + r.v + '</td>'
+              + '<td class="p">' + (PLAT[r.plat]||r.plat) + '</td>'
+              + '<td class="s"><span class="pill ' + r.s + '">' + (STATUS[r.s]||r.s) + '</span></td></tr>';
+      }
+      html += '</tbody></table>';
+    }
+
+    out.innerHTML = html || '<p class="empty">没有匹配的条目</p>';
+    document.getElementById('stat').textContent = shown + ' / ' + rows.length + ' 条';
+  }
+
+  var chips = document.querySelectorAll('.chip');
+  for (var i=0;i<chips.length;i++){
+    chips[i].onclick = function(){
+      for (var j=0;j<chips.length;j++) chips[j].classList.remove('on');
+      this.classList.add('on');
+      state.f = this.dataset.f;
+      render();
+      window.scrollTo({top:0, behavior:'smooth'});
+    };
+  }
+  document.getElementById('q').oninput = function(){ state.q = this.value.trim(); render(); };
+
+  render();
+})();
+</script>
+<p>v0.30.12：第四扇古代石门、时之神殿遗迹、青蓝光环过渡、双向返回。</p><p>v0.30.13：PC 优先沉浸菜单，Tab 展开功能，E 场景交互独立。</p><p>v0.31.0：第四扇门接入真正的 land 哈特诺风车山谷（26 房屋、溪流、田地、风车、第一人称探索、E 返回）。旧神殿粗模移除。</p><p>手机启动状态、land 低密度草与 1.0 像素比；PC 保持完整画面。</p></body>
+</html>
