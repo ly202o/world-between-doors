@@ -322,16 +322,13 @@
   <pre id="debugInfo"></pre>
   <div id="settingsFoot">
   <div id="settingsStatus">设置修改后自动保存到本浏览器</div>
-  <button id="fullscreenBtn" type="button">全屏</button>
-  <button id="updateGameBtn" type="button">更新游戏</button>
-  <div id="displayStatus" role="status" style="font-size:11px;line-height:1.5;margin:8px 0;color:var(--ink-dim)"></div>
   <button id="settingsReset" type="button">恢复默认</button>
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
 <div id="worldLocation" role="status" aria-atomic="true"></div>
 <div id="worldLocationHud" aria-hidden="true"></div>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.30.9</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.30.10</div>
 <script>
 /**
  * @license
@@ -1761,7 +1758,6 @@ document.addEventListener('visibilitychange', function () {
   if (document.hidden) {
     /* 切后台：停掉渲染循环省电，回来时重置时间基准，避免卡一大跳 */
     renderPaused = true;
-    pauseSceneMusic();
     resetInput();
   } else {
     renderPaused = false;
@@ -3478,7 +3474,6 @@ var storeMusicRecording = 'data:audio/ogg; codecs=opus;base64,' +
   '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';
 var musicContext, musicWorld, musicSource, musicGain, musicPanner;
-var musicStartedAt = 0, musicOffset = 0, musicPausedBuffer = null;
 var musicBuffers = {};
 var musicDirection = new THREE.Vector3();
 var musicPosition = new THREE.Vector3();
@@ -3560,7 +3555,6 @@ function makeKonbiniMusic() {
 
 function updateSceneMusic() {
   if (!AC || AC.state !== 'running' || SOUND.muted) return;
-  if (idleMode || document.hidden) return;
   if (musicContext !== AC) {
     musicContext = AC; musicWorld = null; musicSource = null; musicBuffers = {};
     musicGain = AC.createGain(); musicGain.connect(AM);
@@ -3571,7 +3565,6 @@ function updateSceneMusic() {
   }
   if (musicWorld !== curWorld) {
     if (musicSource) { musicSource.stop(); musicSource.disconnect(); musicSource = null; }
-    musicOffset = 0; musicPausedBuffer = null;
     musicWorld = curWorld;
     musicPanner.refDistance = curWorld === 'konbini' ? 2 : 3;
     musicPanner.rolloffFactor = curWorld === 'konbini' ? 1.6 : 0.85;
@@ -3584,20 +3577,13 @@ function updateSceneMusic() {
         fetch(storeMusicRecording).then(function (response) { return response.arrayBuffer(); })
           .then(function (bytes) { return context.decodeAudioData(bytes); })
           .then(function (buffer) {
-            if (context === AC && musicWorld === 'konbini' && !musicSource) {
-              if (idleMode || document.hidden) musicPausedBuffer = buffer;
-              else playSceneMusic(buffer);
-            }
+            if (context === AC && musicWorld === 'konbini' && !musicSource) playSceneMusic(buffer);
           }).catch(function (error) { console.warn('便利店音源读取失败', error); });
       } else {
         var bed = musicBuffers.konbini || (musicBuffers.konbini = makeKonbiniMusic());
         playSceneMusic(bed);
       }
     }
-  }
-  if (!musicSource && musicPausedBuffer) {
-    var pausedBuffer = musicPausedBuffer; musicPausedBuffer = null;
-    playSceneMusic(pausedBuffer, musicOffset);
   }
   if (!musicSource) return;
   activeCam.getWorldDirection(musicDirection);
@@ -3616,21 +3602,13 @@ function updateSceneMusic() {
   musicPanner.setPosition(musicPosition.x, musicPosition.y, musicPosition.z);
 }
 
-function pauseSceneMusic() {
-  if (!musicSource || !AC) return;
-  musicPausedBuffer = musicSource.buffer;
-  musicOffset = (musicOffset + AC.currentTime - musicStartedAt) % musicPausedBuffer.duration;
-  musicSource.stop(); musicSource.disconnect(); musicSource = null;
-}
-
-function playSceneMusic(buffer, offset) {
+function playSceneMusic(buffer) {
   musicSource = AC.createBufferSource(); musicSource.buffer = buffer;
   musicSource.loop = true; musicSource.connect(musicPanner);
   musicGain.gain.setValueAtTime(0, AC.currentTime);
   var vol = musicWorld === 'field' ? 0.14 : (musicWorld === 'konbini' ? 0.12 : 0.28);
   musicGain.gain.setTargetAtTime(vol, AC.currentTime, 0.25);
-  musicOffset = offset || 0; musicStartedAt = AC.currentTime;
-  musicSource.start(0, musicOffset);
+  musicSource.start();
 }
 
 
@@ -3903,32 +3881,6 @@ settingsPanel.addEventListener('pointerdown', function (e) { e.stopPropagation()
 settingsPanel.addEventListener('wheel', function (e) { e.stopPropagation(); });
 document.getElementById('settingsBtn').addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); showSettings(!settingsOpen); });
 document.getElementById('settingsClose').onclick = function () { showSettings(false); };
-var fullscreenBtn = document.getElementById('fullscreenBtn');
-var displayStatus = document.getElementById('displayStatus');
-function syncFullscreenButton() {
-  fullscreenBtn.textContent = (document.fullscreenElement || document.webkitFullscreenElement) ? '退出全屏' : '全屏';
-}
-fullscreenBtn.onclick = function () {
-  var active = document.fullscreenElement || document.webkitFullscreenElement;
-  var action = active ? (document.exitFullscreen || document.webkitExitFullscreen) :
-    (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
-  if (!action) {
-    displayStatus.textContent = '此浏览器请使用“分享”→“添加到主屏幕”，再从桌面打开。';
-    return;
-  }
-  try {
-    var result = action.call(active ? document : document.documentElement);
-    if (result && result.catch) result.catch(function () { displayStatus.textContent = '无法进入全屏，请在浏览器菜单中尝试。'; });
-  } catch (error) { displayStatus.textContent = '无法进入全屏，请在浏览器菜单中尝试。'; }
-};
-document.addEventListener('fullscreenchange', syncFullscreenButton);
-document.addEventListener('webkitfullscreenchange', syncFullscreenButton);
-document.getElementById('updateGameBtn').onclick = function () {
-  try { sessionStorage.setItem('world01.updatePosition', JSON.stringify({ world: curWorld, x: P.pos.x, y: P.pos.y, z: P.pos.z, face: P.face })); } catch (error) {}
-  var url = new URL(location.href);
-  if (url.protocol === 'http:' || url.protocol === 'https:') url.searchParams.set('_update', Date.now());
-  location.replace(url.href);
-};
 
 document.getElementById('timeScale').oninput = function () { settings.timeScale = Math.max(0.25, Math.min(2, +this.value)); syncSettings(); saveSettings(); };
 document.getElementById('mouseSensitivity').oninput = function () { settings.mouse = +this.value; syncSettings(); saveSettings(); };
@@ -4139,11 +4091,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第三人称/等距视角 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.30.9';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第三人称/等距视角 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.30.10';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第三人称/等距视角） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.30.9';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第三人称/等距视角） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.30.10';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -9315,6 +9267,117 @@ function buildPortalDoors() {
   for (var i = 0; i < portalDoors.length; i++) portalDoors[i].frontOnly = true;
   connectOffsetDoors(doorF, doorRF, 0);
   connectOffsetDoors(doorRF, doorF, 0);
+  /* v0.30.10 门过渡特效按门型区分：石门=不规则立体方块，玻璃门=随机繁体字，
+     花园拱门不加（它的过渡动画就是常驻蝴蝶）。 */
+  doorK.fx = doorRK.fx = 'glyph';
+  doorF.fx = doorRF.fx = 'stone';
+}
+
+/* ---------------- 门过渡迸散特效（v0.30.10） ----------------
+   穿门瞬间从门面上迸出一阵粒子：
+   - 石门：22 块不规则小方块（随机缩放/旋转/转速），带重力抛散，1.2s 内淡出；
+   - 玻璃门：14 张随机繁体字 sprite（字池 33 个，每次随机取，随机大小/转速），
+     缓慢漂散，1.6s 内淡出——「门里漏出来的字」。用户原话：『进门过渡动画，
+     花园用蝴蝶。石门就用立体的方块，不规则。玻璃门用随机繁体中文不规则』。
+   对象池常驻，粒子挂在 scene 根上（两个世界的层都渲染得到），colExempt 防审计误报。 */
+var portalFx = [];                  /* 活动粒子 {obj, vel, spin, grav, life, max} */
+var portalFxStone = [], portalFxGlyphs = [];
+var GLYPH_CHARS = '門風雲光夢影夜雨雪星海山川城燈火聲時無邊幻覺醒歸途遠離別逢';
+var glyphTexCache = {};
+var _fxPos = new THREE.Vector3(), _fxQuat = new THREE.Quaternion(), _fxLocal = new THREE.Vector3();
+
+function makeGlyphTexture(ch) {
+  if (glyphTexCache[ch]) return glyphTexCache[ch];
+  var canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 128;
+  var g = canvas.getContext('2d');
+  g.fillStyle = '#fff3dc';
+  g.font = '600 92px "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(ch, 64, 68);
+  var tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  glyphTexCache[ch] = tex;
+  return tex;
+}
+function initPortalFx() {
+  var geo = new THREE.BoxGeometry(1, 1, 1);
+  var cols = [0x697680, 0x78818a, 0x5d6a74, 0x8a939c];
+  for (var i = 0; i < 26; i++) {
+    var m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+      color: cols[i % cols.length], transparent: true, opacity: 0 }));
+    m.visible = false;
+    m.userData.colExempt = '门过渡方块特效（v0.30.10）';
+    scene.add(m);
+    portalFxStone.push(m);
+  }
+  for (var j = 0; j < 18; j++) {
+    var sp = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: makeGlyphTexture(GLYPH_CHARS[(j * 7 + 3) % GLYPH_CHARS.length]),
+      transparent: true, opacity: 0, depthWrite: false }));
+    sp.visible = false;
+    scene.add(sp);
+    portalFxGlyphs.push(sp);
+  }
+}
+function fxSpawn(pool, count, spread, vel, spinMag, grav, lifeBase, lifeVar, baseScale) {
+  for (var i = 0; i < count; i++) {
+    var obj = pool[i % pool.length];
+    obj.visible = true;
+    _fxLocal.set((Math.random() * 2 - 1) * spread[0],
+      spread[1] + Math.random() * (spread[2] - spread[1]), 0);
+    obj.position.copy(_fxLocal).applyQuaternion(_fxQuat).add(_fxPos);
+    var n = (Math.random() < 0.5 ? -1 : 1);
+    _fxLocal.set((Math.random() * 2 - 1) * 0.5, 0.25 + Math.random() * 0.9, n).applyQuaternion(_fxQuat);
+    var speed = vel[0] + Math.random() * (vel[1] - vel[0]);
+    var rec = { obj: obj,
+      vel: _fxLocal.multiplyScalar(speed),
+      spin: { x: (Math.random() * 2 - 1) * spinMag, y: (Math.random() * 2 - 1) * spinMag, z: (Math.random() * 2 - 1) * spinMag },
+      grav: grav, life: lifeBase + Math.random() * lifeVar, max: 0 };
+    rec.max = rec.life;
+    if (obj.isMesh) {
+      obj.scale.set(baseScale * (0.5 + Math.random()), baseScale * (0.5 + Math.random()), baseScale * (0.4 + Math.random() * 0.8));
+      obj.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+    } else {
+      obj.scale.setScalar(baseScale * (0.55 + Math.random() * 1.3));
+      obj.material.rotation = Math.random() * Math.PI * 2;
+    }
+    portalFx.push(rec);
+  }
+}
+function portalCrossBurst(door) {
+  if (!door || !door.fx) return;
+  door.plane.getWorldPosition(_fxPos);
+  door.plane.getWorldQuaternion(_fxQuat);
+  if (door.fx === 'stone') {
+    fxSpawn(portalFxStone, 22, [0.55, 0.15, 2.4], [0.7, 1.7], 4.2, 2.4, 0.85, 0.55, 0.085);
+  } else {
+    /* 每次从字池随机取字：临时换 sprite 贴图，池大小 18 够一次迸散 */
+    var pool = portalFxGlyphs;
+    for (var i = 0; i < pool.length; i++) {
+      var ch = GLYPH_CHARS[(Math.random() * GLYPH_CHARS.length) | 0];
+      pool[i].material.map = makeGlyphTexture(ch);
+    }
+    fxSpawn(pool, 14, [0.95, 0.3, 2.75], [0.22, 0.5], 0.9, 0, 1.15, 0.6, 0.30);
+  }
+}
+function portalFxUpdate(dt) {
+  for (var i = portalFx.length - 1; i >= 0; i--) {
+    var p = portalFx[i];
+    p.life -= dt;
+    if (p.life <= 0) { p.obj.visible = false; p.obj.material.opacity = 0; portalFx.splice(i, 1); continue; }
+    p.obj.position.addScaledVector(p.vel, dt);
+    if (p.grav) p.vel.y -= p.grav * dt;
+    if (p.obj.isMesh) {
+      p.obj.rotation.x += p.spin.x * dt;
+      p.obj.rotation.y += p.spin.y * dt;
+      p.obj.rotation.z += p.spin.z * dt;
+    } else {
+      p.obj.material.rotation += p.spin.x * dt;
+    }
+    p.obj.material.opacity = Math.min(1, (p.life / p.max) * 1.6);
+  }
 }
 
 /* ---------------- 门的提示 / 手机按钮 ---------------- */
@@ -9500,9 +9563,9 @@ function updatePortals(dt) {
       av *= Math.exp(-(d.servo ? 10 : 2.8) * stepDoor);
       av = THREE.MathUtils.clamp(av, -3.6, 3.6);
       d.angle += av * stepDoor;
-      // 门只向铰链允许的一侧打开，闭合位置和最大开启角都是硬止点。
-      if (d.angle > 0) { d.angle = 0; if (av > 0) av = 0; }
-      if (d.angle < DOOR_OPEN_ANGLE) { d.angle = DOOR_OPEN_ANGLE; if (av < 0) av = 0; }
+      /* v0.30.10 回退单侧硬止点：半开的门叶被角色推时正方向被焊死，人卡在门口
+         （portal 测试 17/20 石锤，旧版 ±2.05 弹回可推门而过）。其余改动保留。 */
+      if (Math.abs(d.angle) > 2.05) { d.angle = Math.sign(d.angle) * 2.05; av *= -0.12; }
       if (d.servo && Math.abs(d.angle - d.target) < .002 && Math.abs(av) < .02) {d.angle=d.target;av=0;}
       d.angularVelocity = av; d.open = Math.abs(d.angle) > .12 || !!(d.servo && d.target !== 0);
       d.arrive.angle = d.angle; d.arrive.angularVelocity = av; d.arrive.open = d.open;
@@ -9787,6 +9850,8 @@ function beginPortalBlend(from, to, returnDoor) {
   portalBlendDoor = returnDoor;
   portalBlendFixed = isoMode && !isoFreeDrag && !!(returnDoor && returnDoor.through);
   portalBlendFresh = true;
+  /* v0.30.10：穿门的那个门面（returnDoor 是对面的到达门，arrive 回指）迸特效 */
+  portalCrossBurst(returnDoor && returnDoor.arrive ? returnDoor.arrive : null);
 }
 
 var portalSliceBody = new THREE.Vector3();
@@ -10325,20 +10390,8 @@ function updateStoreDoor(dt) {
   }
 }
 initStoreDoor();
+initPortalFx();
 initPortals();
-try {
-  var updatePosition = JSON.parse(sessionStorage.getItem('world01.updatePosition') || 'null');
-  sessionStorage.removeItem('world01.updatePosition');
-  if (updatePosition && ['spawn', 'field', 'garden', 'konbini'].indexOf(updatePosition.world) >= 0 &&
-      isFinite(updatePosition.x) && isFinite(updatePosition.y) && isFinite(updatePosition.z) && isFinite(updatePosition.face)) {
-    curWorld = updatePosition.world;
-    P.pos.set(updatePosition.x, updatePosition.y, updatePosition.z);
-    P.face = P.faceTarget = updatePosition.face;
-    follow.set(P.pos.x, P.pos.y * 0.4, P.pos.z);
-    portalPreviousPosition.copy(P.pos);
-    setWorldVisible(curWorld); applyWorldLighting(curWorld);
-  }
-} catch (error) {}
 
 /* ---------------- 主循环 ---------------- */
 var last = performance.now();
@@ -10358,7 +10411,7 @@ var idleTxtT = 0;
 var lastInputT = (typeof performance !== 'undefined' ? performance.now() : Date.now());
 function markInput() {
   lastInputT = performance.now();
-  if (idleMode) { idleMode = false; fpsN = 0; fpsT0 = lastInputT; updateSceneMusic(); }
+  if (idleMode) { idleMode = false; fpsN = 0; fpsT0 = lastInputT; }
 }
 /* 捕获阶段挂，保证别处 stopPropagation 也不影响计时（这只是一个时间戳） */
 ['keydown', 'pointerdown', 'mousedown', 'wheel', 'touchstart'].forEach(function (ev) {
@@ -10417,7 +10470,7 @@ function loop(t) {
     (t - lastInputT) > IDLE_MS &&
     Math.hypot(vel.x, vel.z) < 0.05 && P.onGround;
   if (idleNow) {
-    if (!idleMode) { idleMode = true; idleTxtT = 0; pauseSceneMusic(); }
+    if (!idleMode) { idleMode = true; idleTxtT = 0; }
     last = t; acc = 0;                 /* 时间基准跟着走，回来时不会卡一大跳 */
     if (t - idleTxtT > 1000) {
       idleTxtT = t;
@@ -10462,6 +10515,7 @@ function loop(t) {
   if (colVizOn && playerViz) playerViz.position.set(P.pos.x, P.pos.y + 0.93, P.pos.z);
 
   updateStoreDoor(dt);
+  portalFxUpdate(dt);
   updatePortals(dt);
   if (portalVizDirty) { refreshColViz(); portalVizDirty = false; }
   if (curWorld === 'garden' || curWorld === 'spawn' || portalBlendWorld === 'garden' || portalBlendWorld === 'spawn') {
@@ -10492,7 +10546,7 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.30.9';
+window.__worldVersion = 'v0.30.10';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
@@ -10552,6 +10606,12 @@ targets: targets,
     return { cur: curWorld, focus: portalFocusDoor ? portalFocusDoor.name : null, doors: out };
   },
   gotoWorld: function (w) { pendingPortalCrossing = null; portalBlendWorld = null; portalMoveYaw = 0; curWorld = w; setWorldVisible(w); applyWorldLighting(w); refreshColViz(); return curWorld; },
+  /* 诊断（v0.30.10）：门过渡特效；burstFx('doorField') 给测试脚本用 */
+  get portalFx() { return { active: portalFx.length, stone: portalFxStone.length, glyphs: portalFxGlyphs.length }; },
+  burstFx: function (name) {
+    for (var i = 0; i < portalDoors.length; i++) if (portalDoors[i].name === name) { portalCrossBurst(portalDoors[i]); return portalFx.length; }
+    return -1;
+  },
   /* 诊断（v0.15.0）：等距视角。renderer 到底在用哪台相机、投影是不是正交、
      视锥半高是否等于机距×tan(FOV/2)（这条不等就说明投影和机位脱节了）。 */
   get activeCamObj() { return activeCam; },

@@ -13,7 +13,7 @@ if [ ! -f "$EDGE" ]; then
 fi
 PROF="$(mktemp -d)/edge_profile"
 "$EDGE" --headless=new --remote-debugging-port=9230 --user-data-dir="$PROF" \
-  --no-first-run --no-default-browser-check --disable-gpu-sandbox \
+  --no-first-run --no-default-browser-check --disable-gpu-sandbox --no-proxy-server \
   --use-angle=swiftshader --enable-unsafe-swiftshader --window-size=1000,700 \
   --mute-audio \
   about:blank >/dev/null 2>&1 &
