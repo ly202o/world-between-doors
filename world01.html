@@ -328,7 +328,7 @@
 </section>
 <div id="worldLocation" role="status" aria-atomic="true"></div>
 <div id="worldLocationHud" aria-hidden="true"></div>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.30.10</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.30.11</div>
 <script>
 /**
  * @license
@@ -4091,11 +4091,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第三人称/等距视角 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.30.10';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第三人称/等距视角 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.30.11';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第三人称/等距视角） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.30.10';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第三人称/等距视角） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.30.11';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -9267,117 +9267,6 @@ function buildPortalDoors() {
   for (var i = 0; i < portalDoors.length; i++) portalDoors[i].frontOnly = true;
   connectOffsetDoors(doorF, doorRF, 0);
   connectOffsetDoors(doorRF, doorF, 0);
-  /* v0.30.10 门过渡特效按门型区分：石门=不规则立体方块，玻璃门=随机繁体字，
-     花园拱门不加（它的过渡动画就是常驻蝴蝶）。 */
-  doorK.fx = doorRK.fx = 'glyph';
-  doorF.fx = doorRF.fx = 'stone';
-}
-
-/* ---------------- 门过渡迸散特效（v0.30.10） ----------------
-   穿门瞬间从门面上迸出一阵粒子：
-   - 石门：22 块不规则小方块（随机缩放/旋转/转速），带重力抛散，1.2s 内淡出；
-   - 玻璃门：14 张随机繁体字 sprite（字池 33 个，每次随机取，随机大小/转速），
-     缓慢漂散，1.6s 内淡出——「门里漏出来的字」。用户原话：『进门过渡动画，
-     花园用蝴蝶。石门就用立体的方块，不规则。玻璃门用随机繁体中文不规则』。
-   对象池常驻，粒子挂在 scene 根上（两个世界的层都渲染得到），colExempt 防审计误报。 */
-var portalFx = [];                  /* 活动粒子 {obj, vel, spin, grav, life, max} */
-var portalFxStone = [], portalFxGlyphs = [];
-var GLYPH_CHARS = '門風雲光夢影夜雨雪星海山川城燈火聲時無邊幻覺醒歸途遠離別逢';
-var glyphTexCache = {};
-var _fxPos = new THREE.Vector3(), _fxQuat = new THREE.Quaternion(), _fxLocal = new THREE.Vector3();
-
-function makeGlyphTexture(ch) {
-  if (glyphTexCache[ch]) return glyphTexCache[ch];
-  var canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 128;
-  var g = canvas.getContext('2d');
-  g.fillStyle = '#fff3dc';
-  g.font = '600 92px "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", serif';
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText(ch, 64, 68);
-  var tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  glyphTexCache[ch] = tex;
-  return tex;
-}
-function initPortalFx() {
-  var geo = new THREE.BoxGeometry(1, 1, 1);
-  var cols = [0x697680, 0x78818a, 0x5d6a74, 0x8a939c];
-  for (var i = 0; i < 26; i++) {
-    var m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-      color: cols[i % cols.length], transparent: true, opacity: 0 }));
-    m.visible = false;
-    m.userData.colExempt = '门过渡方块特效（v0.30.10）';
-    scene.add(m);
-    portalFxStone.push(m);
-  }
-  for (var j = 0; j < 18; j++) {
-    var sp = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: makeGlyphTexture(GLYPH_CHARS[(j * 7 + 3) % GLYPH_CHARS.length]),
-      transparent: true, opacity: 0, depthWrite: false }));
-    sp.visible = false;
-    scene.add(sp);
-    portalFxGlyphs.push(sp);
-  }
-}
-function fxSpawn(pool, count, spread, vel, spinMag, grav, lifeBase, lifeVar, baseScale) {
-  for (var i = 0; i < count; i++) {
-    var obj = pool[i % pool.length];
-    obj.visible = true;
-    _fxLocal.set((Math.random() * 2 - 1) * spread[0],
-      spread[1] + Math.random() * (spread[2] - spread[1]), 0);
-    obj.position.copy(_fxLocal).applyQuaternion(_fxQuat).add(_fxPos);
-    var n = (Math.random() < 0.5 ? -1 : 1);
-    _fxLocal.set((Math.random() * 2 - 1) * 0.5, 0.25 + Math.random() * 0.9, n).applyQuaternion(_fxQuat);
-    var speed = vel[0] + Math.random() * (vel[1] - vel[0]);
-    var rec = { obj: obj,
-      vel: _fxLocal.multiplyScalar(speed),
-      spin: { x: (Math.random() * 2 - 1) * spinMag, y: (Math.random() * 2 - 1) * spinMag, z: (Math.random() * 2 - 1) * spinMag },
-      grav: grav, life: lifeBase + Math.random() * lifeVar, max: 0 };
-    rec.max = rec.life;
-    if (obj.isMesh) {
-      obj.scale.set(baseScale * (0.5 + Math.random()), baseScale * (0.5 + Math.random()), baseScale * (0.4 + Math.random() * 0.8));
-      obj.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
-    } else {
-      obj.scale.setScalar(baseScale * (0.55 + Math.random() * 1.3));
-      obj.material.rotation = Math.random() * Math.PI * 2;
-    }
-    portalFx.push(rec);
-  }
-}
-function portalCrossBurst(door) {
-  if (!door || !door.fx) return;
-  door.plane.getWorldPosition(_fxPos);
-  door.plane.getWorldQuaternion(_fxQuat);
-  if (door.fx === 'stone') {
-    fxSpawn(portalFxStone, 22, [0.55, 0.15, 2.4], [0.7, 1.7], 4.2, 2.4, 0.85, 0.55, 0.085);
-  } else {
-    /* 每次从字池随机取字：临时换 sprite 贴图，池大小 18 够一次迸散 */
-    var pool = portalFxGlyphs;
-    for (var i = 0; i < pool.length; i++) {
-      var ch = GLYPH_CHARS[(Math.random() * GLYPH_CHARS.length) | 0];
-      pool[i].material.map = makeGlyphTexture(ch);
-    }
-    fxSpawn(pool, 14, [0.95, 0.3, 2.75], [0.22, 0.5], 0.9, 0, 1.15, 0.6, 0.30);
-  }
-}
-function portalFxUpdate(dt) {
-  for (var i = portalFx.length - 1; i >= 0; i--) {
-    var p = portalFx[i];
-    p.life -= dt;
-    if (p.life <= 0) { p.obj.visible = false; p.obj.material.opacity = 0; portalFx.splice(i, 1); continue; }
-    p.obj.position.addScaledVector(p.vel, dt);
-    if (p.grav) p.vel.y -= p.grav * dt;
-    if (p.obj.isMesh) {
-      p.obj.rotation.x += p.spin.x * dt;
-      p.obj.rotation.y += p.spin.y * dt;
-      p.obj.rotation.z += p.spin.z * dt;
-    } else {
-      p.obj.material.rotation += p.spin.x * dt;
-    }
-    p.obj.material.opacity = Math.min(1, (p.life / p.max) * 1.6);
-  }
 }
 
 /* ---------------- 门的提示 / 手机按钮 ---------------- */
@@ -9850,8 +9739,6 @@ function beginPortalBlend(from, to, returnDoor) {
   portalBlendDoor = returnDoor;
   portalBlendFixed = isoMode && !isoFreeDrag && !!(returnDoor && returnDoor.through);
   portalBlendFresh = true;
-  /* v0.30.10：穿门的那个门面（returnDoor 是对面的到达门，arrive 回指）迸特效 */
-  portalCrossBurst(returnDoor && returnDoor.arrive ? returnDoor.arrive : null);
 }
 
 var portalSliceBody = new THREE.Vector3();
@@ -10390,7 +10277,6 @@ function updateStoreDoor(dt) {
   }
 }
 initStoreDoor();
-initPortalFx();
 initPortals();
 
 /* ---------------- 主循环 ---------------- */
@@ -10515,7 +10401,6 @@ function loop(t) {
   if (colVizOn && playerViz) playerViz.position.set(P.pos.x, P.pos.y + 0.93, P.pos.z);
 
   updateStoreDoor(dt);
-  portalFxUpdate(dt);
   updatePortals(dt);
   if (portalVizDirty) { refreshColViz(); portalVizDirty = false; }
   if (curWorld === 'garden' || curWorld === 'spawn' || portalBlendWorld === 'garden' || portalBlendWorld === 'spawn') {
@@ -10546,7 +10431,7 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.30.10';
+window.__worldVersion = 'v0.30.11';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
@@ -10606,12 +10491,6 @@ targets: targets,
     return { cur: curWorld, focus: portalFocusDoor ? portalFocusDoor.name : null, doors: out };
   },
   gotoWorld: function (w) { pendingPortalCrossing = null; portalBlendWorld = null; portalMoveYaw = 0; curWorld = w; setWorldVisible(w); applyWorldLighting(w); refreshColViz(); return curWorld; },
-  /* 诊断（v0.30.10）：门过渡特效；burstFx('doorField') 给测试脚本用 */
-  get portalFx() { return { active: portalFx.length, stone: portalFxStone.length, glyphs: portalFxGlyphs.length }; },
-  burstFx: function (name) {
-    for (var i = 0; i < portalDoors.length; i++) if (portalDoors[i].name === name) { portalCrossBurst(portalDoors[i]); return portalFx.length; }
-    return -1;
-  },
   /* 诊断（v0.15.0）：等距视角。renderer 到底在用哪台相机、投影是不是正交、
      视锥半高是否等于机距×tan(FOV/2)（这条不等就说明投影和机位脱节了）。 */
   get activeCamObj() { return activeCam; },
