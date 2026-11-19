@@ -9168,6 +9168,10 @@ function applyWorldLighting(w) {
   }
 }
 
+/* 拉远镜头时将雾区随观察距离后移，默认近景雾保持原值。 */
+var unzoomedWorldLighting=applyWorldLighting;
+applyWorldLighting=function(w){unzoomedWorldLighting(w);if(!scene.fog||!P)return;var zoomCamera=isoMode?orthoCam:camera;var fogShift=Math.max(0,zoomCamera.position.distanceTo(P.pos)-40);scene.fog.near+=fogShift;scene.fog.far+=fogShift;};
+
 /* ---------------- 一扇独立的旧木门（天气之子那种） ---------------- */
 var DOOR_W = 0.96, DOOR_H = 2.30;
 /* v0.27.8：整扇门等比放大。门洞 0.96×2.30 → 1.20×2.88，门框外沿 1.34×2.54 → 1.68×3.18。
@@ -10516,8 +10520,8 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.32.1';
-window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
+window.__worldVersion = 'v0.32.2';
+window.__world = { get fog(){return {near:scene.fog.near,far:scene.fog.far};}, P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
   get bones() { return boneByName; },
@@ -10722,7 +10726,7 @@ setTimeout(function () {
 
 
 
-<script>window.__resourceManifest={"gameBytes":9431637,"totalBytes":12485763,"cacheBytes":0};</script><script>(function(){var m=window.__resourceManifest;var el=document.getElementById('resourceInfo');if(!el)return;function mb(n){return(n/1048576).toFixed(1)+' MiB';}el.textContent='游戏文件：'+mb(m.gameBytes)+' · 已载入 '+mb(m.gameBytes)+'\n发布文件夹：'+mb(m.totalBytes)+(m.cacheBytes?'\n预构建缓存（压缩）：'+mb(m.cacheBytes):'');el.style.whiteSpace='pre-line';})();</script><script>
+<script>window.__resourceManifest={"gameBytes":9432067,"totalBytes":12486193,"cacheBytes":0};</script><script>(function(){var m=window.__resourceManifest;var el=document.getElementById('resourceInfo');if(!el)return;function mb(n){return(n/1048576).toFixed(1)+' MiB';}el.textContent='游戏文件：'+mb(m.gameBytes)+' · 已载入 '+mb(m.gameBytes)+'\n发布文件夹：'+mb(m.totalBytes)+(m.cacheBytes?'\n预构建缓存（压缩）：'+mb(m.cacheBytes):'');el.style.whiteSpace='pre-line';})();</script><script>
 (function(){var panel=document.getElementById('settingsPanel'),close=document.getElementById('settingsClose'),saved=document.getElementById('settingsStatus');var header=document.createElement('header');header.className='settingsHeader';header.innerHTML='<div><h2 id="settingsHeading">设置</h2><p>更改自动保存 · Esc 返回</p></div>';close.textContent='×';close.setAttribute('aria-label','关闭设置');header.appendChild(close);
 var tabs=document.createElement('nav');tabs.className='settingsTabs';tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','设置分类');var scroll=document.createElement('div');scroll.className='settingsScroll';var pages={},buttons={},current='common';
 [['common','常用'],['controls','操作'],['advanced','高级'],['resources','资源']].forEach(function(item){var id=item[0],b=document.createElement('button');b.type='button';b.id='settingsTab-'+id;b.textContent=item[1];b.setAttribute('role','tab');b.setAttribute('aria-controls','settingsPage-'+id);b.onclick=function(){select(id);};tabs.appendChild(b);buttons[id]=b;var page=document.createElement('div');page.id='settingsPage-'+id;page.setAttribute('role','tabpanel');page.setAttribute('aria-labelledby',b.id);scroll.appendChild(page);pages[id]=page;});
