@@ -226,7 +226,7 @@
   font: 500 clamp(24px, 3vw, 36px)/1.4 "Songti SC", "SimSun", serif;
   letter-spacing: 0.22em;
   text-shadow: 0 2px 9px #151416, 0 1px 2px #151416;
-  background: radial-gradient(ellipse, #171a228c, transparent 72%);
+  background: none;
   opacity: 0;
 }
 #worldLocation::after {
@@ -264,6 +264,25 @@
     bottom: auto;
   }
 }
+
+/* v0.30.13 · 沉浸式功能入口，场景交互独立呈现 */
+#worldMenuToggle {position:fixed;right:20px;top:20px;width:36px;height:36px;border:1px solid rgba(220,232,227,.14);border-radius:50%;background:rgba(20,28,29,.18);color:#e1e9e4;opacity:.34;z-index:260;cursor:pointer;transition:opacity .2s,background .2s;font:20px Georgia}
+#worldMenuToggle:hover,#worldMenuToggle:focus-visible,#worldMenuToggle[aria-expanded="true"]{opacity:1;background:rgba(25,35,35,.88)}
+#worldMenu {position:fixed;right:20px;top:66px;width:264px;max-height:calc(100dvh - 90px);overflow:auto;box-sizing:border-box;padding:20px;background:rgba(20,29,29,.94);backdrop-filter:blur(18px);border:1px solid rgba(226,235,221,.16);border-radius:14px;z-index:250;color:#e2e9df;box-shadow:0 16px 60px #0004;font:12px/1.6 system-ui}
+#worldMenu[hidden]{display:none!important} #worldMenu h2{font-size:14px;font-weight:500;margin:0 0 16px;letter-spacing:.15em} #worldMenu h3{font-size:10px;font-weight:400;letter-spacing:.15em;color:#95a79f;margin:16px 0 7px}
+#worldMenu .menuGrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#worldMenu .pill,#worldMenu #snd,#worldMenu #helpBadge{position:static!important;inset:auto!important;transform:none!important;box-sizing:border-box;min-width:0;width:100%;height:36px;margin:0;padding:0 10px;border-radius:6px;border:1px solid #dce9d318;background:#dce9d309;box-shadow:none;color:#dce5dd;text-align:left;font:12px/36px system-ui;cursor:pointer;opacity:1}
+#worldMenu .pill{display:block!important}
+#worldMenu .pill:hover,#worldMenu #snd:hover,#worldMenu #helpBadge:hover{background:#dce9d31c} #worldMenu .pill.on{background:#dce9d327}
+#worldMenu #snd{font-size:11px;height:auto;line-height:1.6;padding:8px;grid-column:1/-1}
+#worldMenu #helpBadge{display:block!important;font-size:12px} #worldMenu #fps{position:static!important;color:#81938c;font:10px/1.6 system-ui;margin:16px 0 0;opacity:.7;display:block!important}
+#worldMenu .menuHint{color:#82978e;font-size:10px;margin:14px 0 0}
+#portalTip,#doorTip{bottom:64px!important;border-radius:4px!important;border:1px solid #e4eadb28;background:rgba(18,27,28,.8)!important;color:#f0f1e5!important;padding:10px 18px!important;font:13px/1.4 system-ui!important;box-shadow:none!important;letter-spacing:.12em!important}
+#portalTip:before,#doorTip:before{content:'E';display:inline-grid;place-items:center;width:24px;height:24px;margin-right:12px;border:1px solid #f0f1e5aa;border-radius:3px;font:14px Georgia;vertical-align:middle}
+#portalBtn,#doorBtn{right:24px!important;bottom:100px!important;border-radius:6px!important;border:1px solid #eee8!important;background:#152222c9!important;color:#f1f0de!important;box-shadow:none!important}
+#settingsPanel{z-index:270} #tip{max-width:calc(100vw - 40px);box-sizing:border-box}
+@media(pointer:coarse){#worldMenuToggle{width:42px;height:42px;right:16px;top:16px;opacity:.5}#worldMenu{right:16px;top:66px}#portalTip:before,#doorTip:before{display:none}}
+
 </style>
 </head>
 <body>
@@ -322,16 +341,14 @@
   <pre id="debugInfo"></pre>
   <div id="settingsFoot">
   <div id="settingsStatus">设置修改后自动保存到本浏览器</div>
-  <button id="fullscreenBtn" type="button">全屏</button>
-  <button id="updateGameBtn" type="button">更新游戏</button>
-  <div id="displayStatus" role="status" style="font-size:11px;line-height:1.5;margin:8px 0;color:var(--ink-dim)"></div>
-  <button id="settingsReset" type="button">恢复默认</button>
+  <button id="fullscreenBtn" type="button">全屏</button><button id="updateGameBtn" type="button">更新游戏</button><div id="displayStatus" role="status"></div>
+<button id="settingsReset" type="button">恢复默认</button>
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
 <div id="worldLocation" role="status" aria-atomic="true"></div>
 <div id="worldLocationHud" aria-hidden="true"></div>
-<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.30.9</div>
+<div id="tip">WASD / ← ↑ ↓ → 移动　·　Shift 快跑　·　Ctrl 切换慢走　·　空格 跳/攀　·　V 切视角　·　M 显示/隐藏鼠标　·　H 显示说明　｜　左侧拖动 移动　·　右侧轻点 跳/攀　·　v0.30.11</div>
 <script>
 /**
  * @license
@@ -678,6 +695,7 @@ function addMeshCollider(localBox, matrix, mesh, res) {
 function worldOfMesh(m) {
   var p = m;
   while (p) {
+    if (templeLevel && p === templeLevel.host) return 'temple';
     if (p === spawnRoot) return 'spawn';
     if (sunnyGarden && p === sunnyGarden.host) return 'garden';
     if (p === fieldRoot) return 'field';
@@ -1761,7 +1779,6 @@ document.addEventListener('visibilitychange', function () {
   if (document.hidden) {
     /* 切后台：停掉渲染循环省电，回来时重置时间基准，避免卡一大跳 */
     renderPaused = true;
-    pauseSceneMusic();
     resetInput();
   } else {
     renderPaused = false;
@@ -3478,7 +3495,6 @@ var storeMusicRecording = 'data:audio/ogg; codecs=opus;base64,' +
   '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';
 var musicContext, musicWorld, musicSource, musicGain, musicPanner;
-var musicStartedAt = 0, musicOffset = 0, musicPausedBuffer = null;
 var musicBuffers = {};
 var musicDirection = new THREE.Vector3();
 var musicPosition = new THREE.Vector3();
@@ -3560,7 +3576,6 @@ function makeKonbiniMusic() {
 
 function updateSceneMusic() {
   if (!AC || AC.state !== 'running' || SOUND.muted) return;
-  if (idleMode || document.hidden) return;
   if (musicContext !== AC) {
     musicContext = AC; musicWorld = null; musicSource = null; musicBuffers = {};
     musicGain = AC.createGain(); musicGain.connect(AM);
@@ -3571,7 +3586,6 @@ function updateSceneMusic() {
   }
   if (musicWorld !== curWorld) {
     if (musicSource) { musicSource.stop(); musicSource.disconnect(); musicSource = null; }
-    musicOffset = 0; musicPausedBuffer = null;
     musicWorld = curWorld;
     musicPanner.refDistance = curWorld === 'konbini' ? 2 : 3;
     musicPanner.rolloffFactor = curWorld === 'konbini' ? 1.6 : 0.85;
@@ -3584,20 +3598,13 @@ function updateSceneMusic() {
         fetch(storeMusicRecording).then(function (response) { return response.arrayBuffer(); })
           .then(function (bytes) { return context.decodeAudioData(bytes); })
           .then(function (buffer) {
-            if (context === AC && musicWorld === 'konbini' && !musicSource) {
-              if (idleMode || document.hidden) musicPausedBuffer = buffer;
-              else playSceneMusic(buffer);
-            }
+            if (context === AC && musicWorld === 'konbini' && !musicSource) playSceneMusic(buffer);
           }).catch(function (error) { console.warn('便利店音源读取失败', error); });
       } else {
         var bed = musicBuffers.konbini || (musicBuffers.konbini = makeKonbiniMusic());
         playSceneMusic(bed);
       }
     }
-  }
-  if (!musicSource && musicPausedBuffer) {
-    var pausedBuffer = musicPausedBuffer; musicPausedBuffer = null;
-    playSceneMusic(pausedBuffer, musicOffset);
   }
   if (!musicSource) return;
   activeCam.getWorldDirection(musicDirection);
@@ -3616,21 +3623,13 @@ function updateSceneMusic() {
   musicPanner.setPosition(musicPosition.x, musicPosition.y, musicPosition.z);
 }
 
-function pauseSceneMusic() {
-  if (!musicSource || !AC) return;
-  musicPausedBuffer = musicSource.buffer;
-  musicOffset = (musicOffset + AC.currentTime - musicStartedAt) % musicPausedBuffer.duration;
-  musicSource.stop(); musicSource.disconnect(); musicSource = null;
-}
-
-function playSceneMusic(buffer, offset) {
+function playSceneMusic(buffer) {
   musicSource = AC.createBufferSource(); musicSource.buffer = buffer;
   musicSource.loop = true; musicSource.connect(musicPanner);
   musicGain.gain.setValueAtTime(0, AC.currentTime);
   var vol = musicWorld === 'field' ? 0.14 : (musicWorld === 'konbini' ? 0.12 : 0.28);
   musicGain.gain.setTargetAtTime(vol, AC.currentTime, 0.25);
-  musicOffset = offset || 0; musicStartedAt = AC.currentTime;
-  musicSource.start(0, musicOffset);
+  musicSource.start();
 }
 
 
@@ -3903,6 +3902,7 @@ settingsPanel.addEventListener('pointerdown', function (e) { e.stopPropagation()
 settingsPanel.addEventListener('wheel', function (e) { e.stopPropagation(); });
 document.getElementById('settingsBtn').addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); showSettings(!settingsOpen); });
 document.getElementById('settingsClose').onclick = function () { showSettings(false); };
+
 var fullscreenBtn = document.getElementById('fullscreenBtn');
 var displayStatus = document.getElementById('displayStatus');
 function syncFullscreenButton() {
@@ -4139,11 +4139,11 @@ function hideTip() {
 if (TOUCH_UI) {
   tipEl.style.opacity = '1';
   setTimeout(hideTip, 9000);
-  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第三人称/等距视角 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.30.9';
+  tipEl.textContent = '左侧拖动 移动 · 快跑键 冲刺 · 视角键 切 第三人称/等距视角 · 右侧拖动 转视角 · 轻点 跳/攀 · 自由与等距里双指缩放、45°键锁死视角 · 等距里固定键切 固定（不转）/自由旋转　·　v0.30.11';
 } else {
   tipEl.style.transition = 'opacity .18s ease';   /* 手动切换要利落，别用触屏那 1s 淡出 */
   helpBadge.style.display = 'block';
-  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第三人称/等距视角） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.30.9';
+  tipEl.textContent = 'WASD 移动 · Shift 快跑 · 空格 跳/攀 · 点画面锁定鼠标 转视角（Esc 退出） · V 切视角（第三人称/等距视角） · 等距固定=不转，G 切自由后拖动旋转、Q/E 微调 15°（Shift 90°） · F2 设置 · T 切主题 · C 看碰撞体 · H 显示/隐藏本说明　·　v0.30.11';
 }
 
 window.addEventListener('keydown', function (e) {
@@ -8996,7 +8996,7 @@ var fieldRoot = new THREE.Group(); fieldRoot.name = 'fieldWorld';
 scene.add(spawnRoot); scene.add(fieldRoot);
 var curWorld = 'spawn';
 var WORLD_LOCATION_NAMES = {
-  spawn: '原野', konbini: '黄昏便利店', field: '初始之地', garden: '蝶语花园'
+  spawn: '原野', konbini: '黄昏便利店', field: '初始之地', garden: '蝶语花园', temple: '时之神殿遗迹'
 };
 var WORLD_LOCATION_COLORS = { spawn: '#9eaa87', konbini: '#edb385', field: '#b8b29c', garden: '#a0c481' };
 var shownWorldLocation = null;
@@ -9072,6 +9072,7 @@ function splitWorlds() {
 }
 
 function setWorldVisible(w) {
+  if (templeLevel) templeLevel.host.visible = (w === 'temple');
   spawnRoot.visible = (w === 'spawn');
   fieldRoot.visible = (w === 'field');
   duskLevel.host.visible = (w === 'konbini');
@@ -9092,12 +9093,17 @@ var VOID_FOG_NEAR = 6, VOID_FOG_FAR = 90;
 var VOID_HAZE = 1.0;
 
 function worldBackground(w, theme) {
-  return w === 'spawn' ? VOID_BG : theme.sky;
+  return w === 'spawn' ? VOID_BG : w === 'temple' ? 0xb8dae2 : theme.sky;
 }
 
 function applyWorldLighting(w) {
   var th = THEMES[themeName];
   if (scene.background) scene.background.setHex(worldBackground(w, th));
+  if (w === 'temple') {
+    hemi.intensity=1.65; sun.intensity=2.1; sun.castShadow=true;
+
+    duskLevel.sky.visible=false; scene.fog.color.setHex(0xb8dae2); scene.fog.near=30; scene.fog.far=115; return;
+  }
   if (w === 'garden') {
     hemi.intensity = 0; sun.intensity = 0; sun.castShadow = false;
     duskLevel.sky.visible = false;
@@ -9201,7 +9207,7 @@ function makeKonbiniPortalDoor(parent, x, z, ry, name) {
 }
 
 /* ---------------- 建三组世界的门并互相链接 ---------------- */
-var doorK, doorF, doorRK, doorRF, doorG, doorRG;
+var doorK, doorF, doorRK, doorRF, doorG, doorRG, doorT, doorRT;
 function makeStonePortal(parent, x, z, yaw, name, world, dest) {
   var frame = new THREE.Group();
   frame.name = name;
@@ -9311,7 +9317,12 @@ function buildPortalDoors() {
   doorRK.dest = 'spawn';  doorRK.world = 'konbini'; doorRK.arrive = doorK;
   doorRF.arrive = doorF;
   connectGardenArch();
-  portalDoors = [doorK, doorF, doorRK, doorRF, doorG, doorRG];
+  doorT=makeAncientGate(spawnRoot,1.65,-11.4,DOOR_FACE,'doorTemple','spawn','temple');
+  doorRT=makeAncientGate(templeLevel.host,0,8,0,'returnTemple','temple','spawn');
+  doorT.arrive=doorRT; doorRT.arrive=doorT;
+  portalDoors = [doorK, doorF, doorRK, doorRF, doorG, doorRG, doorT, doorRT];
+  connectOffsetDoors(doorT,doorRT,-DOOR_FACE+Math.PI);
+  connectOffsetDoors(doorRT,doorT,DOOR_FACE-Math.PI);
   for (var i = 0; i < portalDoors.length; i++) portalDoors[i].frontOnly = true;
   connectOffsetDoors(doorF, doorRF, 0);
   connectOffsetDoors(doorRF, doorF, 0);
@@ -9500,9 +9511,9 @@ function updatePortals(dt) {
       av *= Math.exp(-(d.servo ? 10 : 2.8) * stepDoor);
       av = THREE.MathUtils.clamp(av, -3.6, 3.6);
       d.angle += av * stepDoor;
-      // 门只向铰链允许的一侧打开，闭合位置和最大开启角都是硬止点。
-      if (d.angle > 0) { d.angle = 0; if (av > 0) av = 0; }
-      if (d.angle < DOOR_OPEN_ANGLE) { d.angle = DOOR_OPEN_ANGLE; if (av < 0) av = 0; }
+      /* v0.30.10 回退单侧硬止点：半开的门叶被角色推时正方向被焊死，人卡在门口
+         （portal 测试 17/20 石锤，旧版 ±2.05 弹回可推门而过）。其余改动保留。 */
+      if (Math.abs(d.angle) > 2.05) { d.angle = Math.sign(d.angle) * 2.05; av *= -0.12; }
       if (d.servo && Math.abs(d.angle - d.target) < .002 && Math.abs(av) < .02) {d.angle=d.target;av=0;}
       d.angularVelocity = av; d.open = Math.abs(d.angle) > .12 || !!(d.servo && d.target !== 0);
       d.arrive.angle = d.angle; d.arrive.angularVelocity = av; d.arrive.open = d.open;
@@ -9860,7 +9871,9 @@ function drawPortalSource() {
   }
 }
 
+var ancientBlend = { value: false };
 function drawPortalWorld(dt) {
+  ancientBlend.value = !!(portalBlendDoor && (portalBlendDoor === doorT || portalBlendDoor === doorRT));
   var duration = PORTAL_BLEND_TIME;
   if (portalBlendWorld && !portalBlendFresh) portalBlendAge += Math.min(dt, 0.05);
   portalBlendFresh = false;
@@ -9887,9 +9900,11 @@ function drawPortalWorld(dt) {
       portalBlendMaterial.onBeforeCompile = function (shader) {
         shader.uniforms.gardenBlendMask = gardenBlendMask;
         shader.uniforms.gardenBlendWings = gardenBlendWings;
+        shader.uniforms.ancientBlend = ancientBlend;
         shader.fragmentShader = [
           'uniform vec4 gardenBlendMask;',
           'uniform bool gardenBlendWings;',
+          'uniform bool ancientBlend;',
           'float wingRandom(vec2 cell) {',
           '  return fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453);',
           '}',
@@ -9922,7 +9937,14 @@ function drawPortalWorld(dt) {
             'if (gardenBlendMask.z >= 0.0) {',
             '  vec2 offset = vMapUv - gardenBlendMask.xy;',
             '  offset.x *= gardenBlendMask.w;',
-            '  if (gardenBlendWings) {',
+            '  if (ancientBlend) {',
+            '    float radius = length(offset);',
+            '    float ring = abs(radius - gardenBlendMask.z);',
+            '    float angle = atan(offset.y, offset.x);',
+            '    float rays = pow(max(0.0, cos(angle * 18.0 + radius * 70.0)), 12.0);',
+            '    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.35, 0.95, 1.0), (1.0 - smoothstep(0.0, 0.045, ring)) * 0.8);',
+            '    diffuseColor.a *= smoothstep(gardenBlendMask.z - 0.035, gardenBlendMask.z + 0.02, radius + rays * 0.025);',
+            '  } else if (gardenBlendWings) {',
             '    diffuseColor.a *= 1.0 - wingReveal(offset, gardenBlendMask.z);',
             '  } else {',
             '    vec2 cell = floor(offset * 255.0);',
@@ -10179,10 +10201,108 @@ function buildVoidHaze() {
 
 }
 
+
+/* 参数场景：初始台地 · 时之神殿。固定种子、规则散布，纯几何。 */
+var templeLevel;
+function buildTempleLevel() {
+  var root = new THREE.Group(); root.name = 'templePlateau'; scene.add(root);
+  var seed = 1947, grass;
+  function random() { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
+  var pal = { stone: 0xb6b49b, edge: 0xd2cdb6, dark: 0x737e70, grass: 0x83a74e, blue: 0x54d9dd };
+  function material(c) { return new THREE.MeshToonMaterial({color:c,flatShading:true}); }
+  var stone=material(pal.stone), edge=material(pal.edge), dark=material(pal.dark);
+  function mesh(geo,mat,x,y,z,decor) {
+    var m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true;
+    if(decor) m.userData.colExempt='台地环境：植被、远景与地面'; root.add(m); return m;
+  }
+  function box(w,h,d,x,y,z,mat,decor) { return mesh(new THREE.BoxGeometry(w,h,d),mat||stone,x,y,z,decor); }
+  box(90,0.1,90,0,-0.05,-12,material(pal.grass),true);
+  /* 道路以分段石板引向神殿，入口区域保持平整。 */
+  for(var i=0;i<19;i++) for(var j=-1;j<=1;j++) box(0.85,0.025,0.85,j*0.93,0.013,5-i*0.92,random()>.15?stone:edge,true);
+  function arch(cx,z,width,height) {
+    var half=width/2, spring=height-half;
+    box(.46,spring,.65,cx-half-.23,spring/2,z,edge);
+    box(.46,spring,.65,cx+half+.23,spring/2,z,edge);
+    for(var a=0;a<11;a++) {
+      var angle=(a+.5)*Math.PI/11;
+      var b=box(.46,.55,.65,cx+Math.cos(angle)*(half+.22),spring+Math.sin(angle)*(half+.22),z,edge);
+      b.rotation.z=angle-Math.PI/2;
+    }
+  }
+  /* 三段立面、开放中殿、断墙与钟楼，门窗均为真实几何空洞。 */
+  arch(0,-12,3.2,5.6);
+  for(var side=-1;side<=1;side+=2) {
+    box(2.5,4.2,.8,side*3.3,2.1,-12);
+    box(1,7.4,1.3,side*4.6,3.7,-12,edge);
+    mesh(new THREE.ConeGeometry(.8,2.3,4),dark,side*4.6,8.5,-12);
+    for(var k=0;k<4;k++) {
+      var z=-14-k*2.7; arch(side*4.5,z,1.1,4.5);
+      box(.65,1.1,2.65,side*4.5,.55,z-1.3,dark);
+      box(.95,5.2,.8,side*4.5,2.6,z-1.2,stone);
+    }
+    box(3.2,.35,8,side*3.2,5.7,-16, dark);
+    for(var k=0;k<6;k++) box(.7,.8,.8,side*(5.4+random()*2),.4,-12-random()*12,dark);
+  }
+  box(3.4,.5,1,0,5.95,-12,edge);
+  /* 主拱洞保持通透。 */
+  /* 上层钟楼位于正门之上，内留空。 */
+  for(var side=-1;side<=1;side+=2) box(.6,3.3,1.8,side*1.4,7.8,-12,edge);
+  box(3.5,.45,2.4,0,9.65,-12,edge);
+  mesh(new THREE.ConeGeometry(2.1,3,4),dark,0,11.3,-12).rotation.y=Math.PI/4;
+  box(8.7,2,.7,0,1,-24,dark);
+  /* 女神像：石翼、披袍与低头轮廓。 */
+  mesh(new THREE.CylinderGeometry(.8,1,.35,10),edge,0,.175,-22);
+  mesh(new THREE.ConeGeometry(.65,1.8,9),stone,0,1.2,-22);
+  mesh(new THREE.SphereGeometry(.32,10,7),edge,0,2.25,-22);
+  for(var side=-1;side<=1;side+=2) {
+    var wing=mesh(new THREE.SphereGeometry(.7,8,5),edge,side*.65,1.7,-22.15); wing.scale.set(1,.4,.2); wing.rotation.z=side*.65;
+  }
+  /* 外围起伏：入口和神殿间保持可行走平地。 */
+  for(var hill=0;hill<15;hill++) {
+    var hx=(hill%2?-1:1)*(15+random()*16), hz=-34+random()*52;
+    var mound=mesh(new THREE.SphereGeometry(7+random()*6,12,6),material(hill%2?0x87a958:0x789c50),hx,-1,hz,true); mound.scale.y=.22+random()*.16;
+  }
+  /* 多批实例草，避开道路与中殿；顶点着色分出亮尖和暗根。 */
+  var geo=new THREE.BufferGeometry(), pos=[], colors=[];
+  for(var i=0;i<6500;i++) {
+    var x=(random()-.5)*65,z=random()*65-43;
+    if((Math.abs(x)<1.7&&z<7&&z>-13)||(Math.abs(x)<5.2&&z<-11&&z>-25)) continue;
+    var h=.18+random()*.42,w=.045+random()*.06;
+    pos.push(x-w,0,z,x+w,0,z,x+.08,h,z);
+    colors.push(.22,.36,.12,.3,.43,.15,.65,.76,.32);
+  }
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3)); geo.computeVertexNormals();
+  grass=mesh(geo,new THREE.MeshToonMaterial({vertexColors:true,side:THREE.DoubleSide}),0,.015,0,true);
+  for(var i=0;i<30;i++) {
+    var a=random()*6.28,r=17+random()*18,x=Math.cos(a)*r,z=-14+Math.sin(a)*r;
+    if(Math.abs(x)<6) continue;
+    var trunk=mesh(new THREE.CylinderGeometry(.16,.3,3,7),dark,x,1.5,z);
+    for(var k=0;k<3;k++) mesh(new THREE.ConeGeometry(1.7-k*.3,3,7),material(k%2?0x496b45:0x587a48),x,3+k*.85,z,true);
+  }
+  for(var i=0;i<26;i++) {
+    var a=i/26*6.28, r=65+random()*20;
+    var mountain=mesh(new THREE.ConeGeometry(11+random()*12,15+random()*24,5),material(i%2?0x8daeb0:0x789d9c),Math.cos(a)*r,4,-15+Math.sin(a)*r,true);
+  }
+  root.position.set(1.65,0,-14);
+  return {host:root,grass:grass};
+}
+function makeAncientGate(parent,x,z,yaw,name,world,dest) {
+  var d=makeStonePortal(parent,x,z,yaw,name,world,dest);
+  var glow=new THREE.MeshBasicMaterial({color:0x6be4e6});
+  for(var side=-1;side<=1;side+=2) for(var i=0;i<7;i++) {
+    var rune=new THREE.Mesh(new THREE.BoxGeometry(.045,.15,.025),glow);
+    rune.position.set(side*.85,.35+i*.31,.34); rune.rotation.z=(i%2?1:-1)*.45; rune.userData.colExempt='古代门光纹'; d.group.add(rune);
+  }
+  var crest=new THREE.Mesh(new THREE.TorusGeometry(.24,.035,5,24),glow);
+  crest.position.set(0,3,.34); crest.userData.colExempt='古代门徽'; d.group.add(crest);
+  return d;
+}
+
 function initPortalWorlds() {
   splitWorlds();
   buildVoidHaze();
   tuneKonbiniArt();
+  templeLevel = buildTempleLevel();
   buildPortalDoors();
   buildGateButterflies();
   registerGardenFence();
@@ -10326,19 +10446,6 @@ function updateStoreDoor(dt) {
 }
 initStoreDoor();
 initPortals();
-try {
-  var updatePosition = JSON.parse(sessionStorage.getItem('world01.updatePosition') || 'null');
-  sessionStorage.removeItem('world01.updatePosition');
-  if (updatePosition && ['spawn', 'field', 'garden', 'konbini'].indexOf(updatePosition.world) >= 0 &&
-      isFinite(updatePosition.x) && isFinite(updatePosition.y) && isFinite(updatePosition.z) && isFinite(updatePosition.face)) {
-    curWorld = updatePosition.world;
-    P.pos.set(updatePosition.x, updatePosition.y, updatePosition.z);
-    P.face = P.faceTarget = updatePosition.face;
-    follow.set(P.pos.x, P.pos.y * 0.4, P.pos.z);
-    portalPreviousPosition.copy(P.pos);
-    setWorldVisible(curWorld); applyWorldLighting(curWorld);
-  }
-} catch (error) {}
 
 /* ---------------- 主循环 ---------------- */
 var last = performance.now();
@@ -10358,7 +10465,7 @@ var idleTxtT = 0;
 var lastInputT = (typeof performance !== 'undefined' ? performance.now() : Date.now());
 function markInput() {
   lastInputT = performance.now();
-  if (idleMode) { idleMode = false; fpsN = 0; fpsT0 = lastInputT; updateSceneMusic(); }
+  if (idleMode) { idleMode = false; fpsN = 0; fpsT0 = lastInputT; }
 }
 /* 捕获阶段挂，保证别处 stopPropagation 也不影响计时（这只是一个时间戳） */
 ['keydown', 'pointerdown', 'mousedown', 'wheel', 'touchstart'].forEach(function (ev) {
@@ -10417,7 +10524,7 @@ function loop(t) {
     (t - lastInputT) > IDLE_MS &&
     Math.hypot(vel.x, vel.z) < 0.05 && P.onGround;
   if (idleNow) {
-    if (!idleMode) { idleMode = true; idleTxtT = 0; pauseSceneMusic(); }
+    if (!idleMode) { idleMode = true; idleTxtT = 0; }
     last = t; acc = 0;                 /* 时间基准跟着走，回来时不会卡一大跳 */
     if (t - idleTxtT > 1000) {
       idleTxtT = t;
@@ -10492,7 +10599,7 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.30.9';
+window.__worldVersion = 'v0.30.13';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
@@ -10659,5 +10766,29 @@ setTimeout(function () {
 }, 3500);
 })();
 </script>
+
+<script>
+(function () {
+  var toggle=document.createElement('button'); toggle.id='worldMenuToggle';toggle.type='button';toggle.textContent='⋯';toggle.setAttribute('aria-label','展开功能菜单');toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-controls','worldMenu');document.body.appendChild(toggle);
+  var menu=document.createElement('section');menu.id='worldMenu';menu.hidden=true;menu.setAttribute('aria-label','功能菜单');menu.innerHTML='<h2>旅途 · 功能</h2>';document.body.appendChild(menu);
+  function section(title,ids){var h=document.createElement('h3');h.textContent=title;menu.appendChild(h);var grid=document.createElement('div');grid.className='menuGrid';menu.appendChild(grid);ids.forEach(function(id){var el=document.getElementById(id);if(el)grid.appendChild(el);});}
+  section('视角与画面',['viewBtn','snapBtn','lockBtn','mouseBtn','themeBtn']);
+  section('移动',['runBtn','slowBtn']);
+  section('声音与设置',['snd','settingsBtn','colBtn','helpBadge']);
+  var help=document.getElementById('helpBadge');if(help){help.textContent='操作说明 · H';help.setAttribute('role','button');help.tabIndex=0;help.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();help.click();}});}
+  var fps=document.getElementById('fps');if(fps)menu.appendChild(fps);
+  var hint=document.createElement('p');hint.className='menuHint';hint.textContent='Tab 展开 / 收起 · Esc 返回场景';menu.appendChild(hint);
+  function show(on){menu.hidden=!on;toggle.setAttribute('aria-expanded',String(on));toggle.setAttribute('aria-label',on?'收起功能菜单':'展开功能菜单');if(on&&document.pointerLockElement)document.exitPointerLock();}
+  toggle.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();show(menu.hidden);});
+  toggle.addEventListener('click',function(e){if(e.detail===0)show(menu.hidden);});
+  menu.addEventListener('pointerdown',function(e){e.stopPropagation();});menu.addEventListener('wheel',function(e){e.stopPropagation();});
+  document.addEventListener('pointerdown',function(e){if(!menu.hidden&&!menu.contains(e.target)&&e.target!==toggle&&!document.getElementById('settingsPanel').contains(e.target))show(false);},true);
+  window.addEventListener('keydown',function(e){if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if(e.key==='Tab'&&(menu.hidden||e.target===document.body||e.target===toggle)){e.preventDefault();show(menu.hidden);}else if(e.key==='Escape'&&!menu.hidden){show(false);toggle.focus();}},true);
+  /* 将旧提示文本正规化，E 键样式由伪元素统一绘制。 */
+  var observed={};function observeTips(){['portalTip','doorTip'].forEach(function(id){var el=document.getElementById(id);if(!el||observed[id])return;observed[id]=true;function clean(){var t=el.textContent.replace(/^按 E /,'');if(t!==el.textContent)el.textContent=t;}new MutationObserver(clean).observe(el,{childList:true,characterData:true,subtree:true});clean();});}
+  observeTips();new MutationObserver(observeTips).observe(document.body,{childList:true});
+})();
+</script>
+
 </body>
 </html>
