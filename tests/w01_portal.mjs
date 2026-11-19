@@ -63,9 +63,9 @@ await until(async () => (await ev('typeof __world')) === 'object', 12000);
 console.log('\n【1】出生世界');
 const p0 = await portals();
 ok(p0.cur === 'spawn', '出生在空场世界', p0.cur);
-ok(p0.doors.length === 6, '木门、巨石门和花藤拱门各一组', p0.doors.length);
+ok(p0.doors.length === 8, '木门、巨石门和花藤拱门各一组', p0.doors.length);
 ok(p0.doors.every(d => d.open === d.arch), '木门默认关闭，巨石门和花藤拱门常开');
-ok(p0.doors.filter(d => d.world === 'spawn').length === 3, '原野保留三个入口');
+ok(p0.doors.filter(d => d.world === 'spawn').length === 4, '原野保留三个入口');
 const pos0 = JSON.parse(await ev('JSON.stringify([+__world.P.pos.x.toFixed(1), +__world.P.pos.z.toFixed(1)])'));
 ok(pos0[0] > 1.65 && pos0[0] < 8 && pos0[1] > -12 && pos0[1] < 0, '出生在门列正面', pos0);
 
@@ -102,3 +102,4 @@ const errs = await ev('window.__errors ? window.__errors.length : 0');
 ok(errs === 0, '全程无 JS 异常', errs);
 console.log('\n' + (fail === 0 ? '全部通过' : '有 ' + fail + ' 项失败') + '（' + pass + '/' + (pass + fail) + '）');
 process.exit(fail === 0 ? 0 : 1);
+
