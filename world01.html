@@ -10292,10 +10292,10 @@ function makeAncientGate(parent,x,z,yaw,name,world,dest) {
   var glow=new THREE.MeshBasicMaterial({color:0x6be4e6});
   for(var side=-1;side<=1;side+=2) for(var i=0;i<7;i++) {
     var rune=new THREE.Mesh(new THREE.BoxGeometry(.045,.15,.025),glow);
-    rune.position.set(side*.85,.35+i*.31,.34); rune.rotation.z=(i%2?1:-1)*.45; rune.userData.colExempt='古代门光纹'; d.group.add(rune);
+    rune.position.set(side*.85,.35+i*.31,-.39); rune.rotation.z=(i%2?1:-1)*.45; rune.userData.colExempt='古代门光纹'; d.group.add(rune);
   }
   var crest=new THREE.Mesh(new THREE.TorusGeometry(.24,.035,5,24),glow);
-  crest.position.set(0,3,.34); crest.userData.colExempt='古代门徽'; d.group.add(crest);
+  crest.position.set(0,3,-.39); crest.userData.colExempt='古代门徽'; d.group.add(crest);
   return d;
 }
 
@@ -10600,7 +10600,7 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.30.14';
+window.__worldVersion = 'v0.30.15';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
