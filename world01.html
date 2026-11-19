@@ -226,7 +226,7 @@
   font: 500 clamp(24px, 3vw, 36px)/1.4 "Songti SC", "SimSun", serif;
   letter-spacing: 0.22em;
   text-shadow: 0 2px 9px #151416, 0 1px 2px #151416;
-  background: none;
+  background: radial-gradient(ellipse, #171a228c, transparent 72%);
   opacity: 0;
 }
 #worldLocation::after {
@@ -264,62 +264,9 @@
     bottom: auto;
   }
 }
-
-/* v0.30.13 · 沉浸式功能入口，场景交互独立呈现 */
-#worldMenuToggle {position:fixed;right:20px;top:20px;width:36px;height:36px;border:1px solid rgba(220,232,227,.14);border-radius:50%;background:rgba(20,28,29,.18);color:#e1e9e4;opacity:.34;z-index:260;cursor:pointer;transition:opacity .2s,background .2s;font:20px Georgia}
-#worldMenuToggle:hover,#worldMenuToggle:focus-visible,#worldMenuToggle[aria-expanded="true"]{opacity:1;background:rgba(25,35,35,.88)}
-#worldMenu {position:fixed;right:20px;top:66px;width:264px;max-height:calc(100dvh - 90px);overflow:auto;box-sizing:border-box;padding:20px;background:rgba(20,29,29,.94);backdrop-filter:blur(18px);border:1px solid rgba(226,235,221,.16);border-radius:14px;z-index:250;color:#e2e9df;box-shadow:0 16px 60px #0004;font:12px/1.6 system-ui}
-#worldMenu[hidden]{display:none!important} #worldMenu h2{font-size:14px;font-weight:500;margin:0 0 16px;letter-spacing:.15em} #worldMenu h3{font-size:10px;font-weight:400;letter-spacing:.15em;color:#95a79f;margin:16px 0 7px}
-#worldMenu .menuGrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-#worldMenu .pill,#worldMenu #snd,#worldMenu #helpBadge{position:static!important;inset:auto!important;transform:none!important;box-sizing:border-box;min-width:0;width:100%;height:36px;margin:0;padding:0 10px;border-radius:6px;border:1px solid #dce9d318;background:#dce9d309;box-shadow:none;color:#dce5dd;text-align:left;font:12px/36px system-ui;cursor:pointer;opacity:1}
-#worldMenu .pill{display:block!important}
-#worldMenu .pill.menuUnavailable{display:none!important}
-#worldMenu .pill:hover,#worldMenu #snd:hover,#worldMenu #helpBadge:hover{background:#dce9d31c} #worldMenu .pill.on{background:#dce9d327}
-#worldMenu #snd{font-size:11px;height:auto;line-height:1.6;padding:8px;grid-column:1/-1}
-#worldMenu #helpBadge{display:block!important;font-size:12px} #worldMenu #fps{position:static!important;color:#81938c;font:10px/1.6 system-ui;margin:16px 0 0;opacity:.7;display:block!important}
-#worldMenu .menuHint{color:#82978e;font-size:10px;margin:14px 0 0}
-#portalTip,#doorTip{bottom:64px!important;border-radius:4px!important;border:1px solid #e4eadb28;background:rgba(18,27,28,.8)!important;color:#f0f1e5!important;padding:10px 18px!important;font:13px/1.4 system-ui!important;box-shadow:none!important;letter-spacing:.12em!important}
-#portalTip:before,#doorTip:before{content:'E';display:inline-grid;place-items:center;width:24px;height:24px;margin-right:12px;border:1px solid #f0f1e5aa;border-radius:3px;font:14px Georgia;vertical-align:middle}
-#portalBtn,#doorBtn{right:24px!important;bottom:100px!important;border-radius:6px!important;border:1px solid #eee8!important;background:#152222c9!important;color:#f1f0de!important;box-shadow:none!important}
-#settingsPanel{z-index:270} #tip{max-width:calc(100vw - 40px);box-sizing:border-box}
-@media(pointer:coarse){#worldMenuToggle{width:42px;height:42px;right:16px;top:16px;opacity:.5}#worldMenu{right:16px;top:66px}#portalTip:before,#doorTip:before{display:none}}
-
-
-#settingsBackdrop{position:fixed;inset:0;background:#0007;z-index:399;touch-action:none}
-/* v0.32.1 Settings: single scroll region, large controls, separate advanced tools. */
-#settingsPanel{top:24px!important;right:24px!important;bottom:24px!important;left:auto!important;height:calc(100dvh - 48px)!important;width:420px!important;max-width:calc(100vw - 48px)!important;max-height:none!important;padding:0!important;overflow:hidden!important;border:1px solid #b8cbb526;border-radius:18px!important;background:var(--bg)!important;box-shadow:0 16px 64px #0005;display:grid;grid-template-rows:auto auto minmax(0,1fr);z-index:400}
-#settingsPanel[hidden]{display:none!important}body.sideOpen #c{width:100%!important}
-#settingsPanel .settingsHeader{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 12px;gap:12px;border-bottom:0}
-#settingsPanel .settingsHeader h2{margin:0;font:500 20px/1.3 system-ui;letter-spacing:.1em}#settingsPanel .settingsHeader p{margin:4px 0 0;font-size:11px;color:var(--ink-dim)}
-#settingsPanel #settingsClose{width:44px;height:44px;min-height:44px;padding:0;margin:0;border:1px solid var(--shadow);background:transparent;color:var(--ink);border-radius:10px;font-size:24px;font-weight:400}
-#settingsPanel .settingsTabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:0 16px 12px;border-bottom:1px solid var(--shadow)}
-#settingsPanel .settingsTabs button{margin:0;padding:0 6px;min-height:44px;border-radius:8px;background:transparent;color:var(--ink-dim);font-size:13px}
-#settingsPanel .settingsTabs button[aria-selected=true]{background:var(--on-bg);color:var(--on-ink)}
-#settingsPanel .settingsScroll{overflow:auto;overscroll-behavior:contain;min-height:0;padding:8px 20px max(24px,env(safe-area-inset-bottom));touch-action:pan-y;-webkit-overflow-scrolling:touch}
-#settingsPanel [role=tabpanel][hidden]{display:none!important}#settingsPanel [role=tabpanel]{padding-top:6px}
-#settingsPanel label{display:block;padding:12px 0;margin:0;border-bottom:1px solid var(--shadow);font-size:14px;line-height:1.8;min-height:48px;cursor:pointer}
-#settingsPanel output{color:var(--ink);font-size:14px;font-variant-numeric:tabular-nums}#settingsPanel input[type=range]{height:44px;margin:6px 0 0;cursor:ew-resize;touch-action:pan-x}
-#settingsPanel input[type=range]::-webkit-slider-thumb{min-height:24px;min-width:24px}#settingsPanel input[type=checkbox]{width:22px;height:22px;vertical-align:middle;margin-right:10px}
-#settingsPanel select{height:44px;padding:0 12px;font-size:14px;border-radius:8px;margin-top:8px}
-#settingsPanel .settingsActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}#settingsPanel .settingsActions button{min-height:46px;border-radius:8px;margin:0;font-size:13px}
-#settingsPanel .speedPresets{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:8px 0 16px}#settingsPanel .speedPresets button{height:44px;margin:0;padding:0;border-radius:7px;background:transparent;border:1px solid var(--shadow);color:var(--ink);font-size:13px}#settingsPanel .speedPresets button[aria-pressed=true]{background:var(--on-bg);color:var(--on-ink)}
-#settingsPanel .settingsNote{font-size:12px;line-height:1.7;color:var(--ink-dim);margin:14px 0}#settingsPanel details{margin-top:18px}#settingsPanel summary{min-height:44px;line-height:44px;font-size:14px;cursor:pointer}
-#settingsPanel #debugInfo{max-height:none;overflow:visible;font-size:11px}#settingsPanel #resourceInfo{font-size:14px!important;line-height:2!important;opacity:1!important;white-space:pre-line;word-break:break-word;margin:10px 0!important;padding:16px;border:1px solid var(--shadow);border-radius:10px}
-#settingsPanel #settingsReset{min-height:44px;margin-top:18px;font-size:13px;border-radius:8px}#settingsPanel #settingsStatus,#settingsPanel #displayStatus{font-size:12px;line-height:1.7;margin-top:16px}
-#settingsPanel button:focus-visible,#settingsPanel select:focus-visible,#settingsPanel input:focus-visible{outline:2px solid #90bba0;outline-offset:3px}
-@media(max-width:600px){#settingsPanel{top:auto!important;bottom:0!important;left:0!important;right:0!important;width:100%!important;max-width:none!important;height:min(94dvh,850px);max-height:100dvh!important;border-radius:18px 18px 0 0!important;border-bottom:0}#settingsPanel .settingsHeader{padding-top:18px}#settingsPanel .settingsScroll{padding-left:20px;padding-right:20px}}
-@media(max-height:500px){#settingsPanel{top:0!important;bottom:0!important;height:100dvh;max-height:100dvh!important;border-radius:0!important}#settingsPanel .settingsHeader{padding-top:6px;padding-bottom:4px}#settingsPanel .settingsTabs{padding-bottom:4px}}
-@media(pointer:coarse){#settingsPanel .desktopControl{display:none!important}}
-@media(pointer:fine){#settingsPanel .touchControl{display:none!important}}
 </style>
-
 </head>
 <body>
-<div id="worldBoot" role="status" style="position:fixed;inset:0;z-index:9998;background:#101b19;color:#dce6d5;display:flex;align-items:center;justify-content:center;text-align:center;font:14px/1.9 system-ui"><div><div style="font:25px Georgia;letter-spacing:.2em;margin-bottom:16px">世界之门</div><div id="worldBootStage">正在载入世界，请稍候</div><div style="opacity:.5;font-size:11px;margin-top:10px">首次打开需要下载并生成场景</div></div></div>
-<script>
-(function(){var started=Date.now(),timer=setInterval(function(){var el=document.getElementById('worldBoot'),stage=document.getElementById('worldBootStage');if(!el){clearInterval(timer);return;}if(window.__world&&__world.frameCount>1){el.remove();clearInterval(timer);return;}if(Date.now()-started>8000)stage.textContent='仍在准备，手机首次打开可能需要更久';},200);window.addEventListener('error',function(e){var stage=document.getElementById('worldBootStage');if(stage)stage.textContent='启动遇到问题：'+e.message;});})();
-</script>
-
 <div id="gameLock" style="position:fixed;inset:0;z-index:99999;background:#151a20;display:flex;align-items:center;justify-content:center;color:#e6e8e5;font-family:system-ui,sans-serif">
 <form id="gameLockForm" style="width:min(300px,80vw);text-align:center">
 <div style="font-size:24px;letter-spacing:.2em;margin-bottom:12px">世界之门</div>
@@ -357,7 +304,7 @@
 <button id="mouseBtn" class="pill">鼠标</button>
 <section id="settingsPanel" hidden aria-label="运行调试与设置">
   <strong>运行调试 / 设置</strong>
-  <label>模拟倍速 <output id="timeScaleValue"></output><input id="timeScale" type="range" min="0.25" max="10" step="0.05"></label>
+  <label>模拟倍速 <output id="timeScaleValue"></output><input id="timeScale" type="range" min="0.25" max="2" step="0.05"></label>
   <label>鼠标灵敏度 <output id="mouseValue"></output><input id="mouseSensitivity" type="range" min="0.1" max="2" step="0.05"></label>
   <label>触屏灵敏度 <output id="touchValue"></output><input id="touchSensitivity" type="range" min="0.2" max="2" step="0.05"></label>
   <div class="settingGroup"><strong>TPL 轨迹相位运动</strong>
@@ -374,9 +321,8 @@
   <label><input id="settingsAmb" type="checkbox">环境音（风 / 鸟叫，默认关）</label>
   <pre id="debugInfo"></pre>
   <div id="settingsFoot">
-  <div id="resourceInfo" style="font-size:11px;line-height:1.7;opacity:.65;margin:12px 0"></div><div id="settingsStatus">设置修改后自动保存到本浏览器</div>
-  <button id="fullscreenBtn" type="button">全屏</button><button id="updateGameBtn" type="button">更新游戏</button><div id="displayStatus" role="status"></div>
-<button id="settingsReset" type="button">恢复默认</button>
+  <div id="settingsStatus">设置修改后自动保存到本浏览器</div>
+  <button id="settingsReset" type="button">恢复默认</button>
   <button id="settingsClose" type="button">关闭</button>
   </div>
 </section>
@@ -499,12 +445,12 @@ scene.background = new THREE.Color(SKY);
 var FOG = new THREE.Fog(0xf1f5f8, 20, 145);
 scene.fog = FOG;
 
-var camera = new THREE.PerspectiveCamera(48, 1, 0.1, 2400);
+var camera = new THREE.PerspectiveCamera(48, 1, 0.1, 400);
 /* 等距视角（v0.15.0）要的是正交投影，透视相机给不了——所以另开一台，
    每帧跟着透视相机走同一套机位（位置 + 朝向完全复制），只把投影换掉。
    送进 renderer 的那台由 activeCam 决定；第一/第三/自由永远是透视这台，
    等距是正交那台，两台的视锥在枢轴平面上等大，所以切换那一刻不跳。 */
-var orthoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 2400);
+var orthoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
 var activeCam = camera;
 
 /* ---------------- 光 ---------------- */
@@ -3732,7 +3678,7 @@ var freePitch = FREE_PITCH_DEF, freeDist = FREE_DIST_DEF_L;   /* 开局就是默
 var freeIntro = 0;                       /* >0 表示还在往默认落点过渡（秒），用户一动就取消 */
 var freeUserZoom = false;                /* 用户自己缩过没有：没缩过就让默认机距跟着横竖屏走 */
 var freeToPitch = 0, freeToDist = 0;
-var FREE_PITCH = 1.45, FREE_DIST_MIN = 1.5, FREE_DIST_MAX = 400;
+var FREE_PITCH = 1.45, FREE_DIST_MIN = 1.5, FREE_DIST_MAX = 60;
 /* 45° 视角锁定：俯角焊死 π/4，水平角焊死在按下按钮那一刻（lockYaw）。
    僵毁那类等距生存游戏的相机本来就是世界朝向固定的，角色怎么转镜头都不跟。
    注意只在 freeMode 生效——切到第一/第三人称仍然要能正常转视角。 */
@@ -3765,7 +3711,7 @@ var isoDistCur = 0;                             /* 等距的当前机距（每�
    24m 时房子顶部仍被顶出去（等距把前方的东西推到画面上方），30m 完整、28m 刚好压住边。
    横屏竖屏都用 28 —— 角色在两种握法下都是屏幕高度的 6% 上下，看着一样大。 */
 var ISO_VIEW_H_L = 17, ISO_VIEW_H_P = 17;      /* 默认画面取景高度 */
-var ISO_VIEW_H_MIN = 6, ISO_VIEW_H_MAX = 400;
+var ISO_VIEW_H_MIN = 6, ISO_VIEW_H_MAX = 90;
 var isoViewH = ISO_VIEW_H_L;                    /* 画面纵向覆盖的世界高度：滚轮/捏合改它 */
 var isoUserZoom = false;                        /* 用户自己缩过没有：没缩过就让默认高度跟着横竖屏走 */
 var ASPECT = 1;
@@ -3858,7 +3804,7 @@ try {
   if (savedSettings) {
     if (typeof savedSettings.mouse === 'number' && isFinite(savedSettings.mouse)) settings.mouse = Math.max(0.1, Math.min(2, savedSettings.mouse));
     if (typeof savedSettings.touch === 'number' && isFinite(savedSettings.touch)) settings.touch = Math.max(0.2, Math.min(2, savedSettings.touch));
-    if (typeof savedSettings.timeScale === 'number' && isFinite(savedSettings.timeScale)) settings.timeScale = Math.max(0.25, Math.min(10, savedSettings.timeScale));
+    if (typeof savedSettings.timeScale === 'number' && isFinite(savedSettings.timeScale)) settings.timeScale = Math.max(0.25, Math.min(2, savedSettings.timeScale));
     if (typeof savedSettings.walkSpeed === 'number' && isFinite(savedSettings.walkSpeed)) settings.walkSpeed = Math.max(0.5, Math.min(3.5, savedSettings.walkSpeed));
     if (typeof savedSettings.runSpeed === 'number' && isFinite(savedSettings.runSpeed)) settings.runSpeed = Math.max(2, Math.min(6, savedSettings.runSpeed));
     if (typeof savedSettings.sprintSpeed === 'number' && isFinite(savedSettings.sprintSpeed)) settings.sprintSpeed = Math.max(4, Math.min(9, savedSettings.sprintSpeed));
@@ -3936,34 +3882,7 @@ settingsPanel.addEventListener('wheel', function (e) { e.stopPropagation(); });
 document.getElementById('settingsBtn').addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); showSettings(!settingsOpen); });
 document.getElementById('settingsClose').onclick = function () { showSettings(false); };
 
-var fullscreenBtn = document.getElementById('fullscreenBtn');
-var displayStatus = document.getElementById('displayStatus');
-function syncFullscreenButton() {
-  fullscreenBtn.textContent = (document.fullscreenElement || document.webkitFullscreenElement) ? '退出全屏' : '全屏';
-}
-fullscreenBtn.onclick = function () {
-  var active = document.fullscreenElement || document.webkitFullscreenElement;
-  var action = active ? (document.exitFullscreen || document.webkitExitFullscreen) :
-    (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
-  if (!action) {
-    displayStatus.textContent = '此浏览器请使用“分享”→“添加到主屏幕”，再从桌面打开。';
-    return;
-  }
-  try {
-    var result = action.call(active ? document : document.documentElement);
-    if (result && result.catch) result.catch(function () { displayStatus.textContent = '无法进入全屏，请在浏览器菜单中尝试。'; });
-  } catch (error) { displayStatus.textContent = '无法进入全屏，请在浏览器菜单中尝试。'; }
-};
-document.addEventListener('fullscreenchange', syncFullscreenButton);
-document.addEventListener('webkitfullscreenchange', syncFullscreenButton);
-document.getElementById('updateGameBtn').onclick = function () {
-  try { sessionStorage.setItem('world01.updatePosition', JSON.stringify({ world: curWorld, x: P.pos.x, y: P.pos.y, z: P.pos.z, face: P.face })); } catch (error) {}
-  var url = new URL(location.href);
-  if (url.protocol === 'http:' || url.protocol === 'https:') url.searchParams.set('_update', Date.now());
-  location.replace(url.href);
-};
-
-document.getElementById('timeScale').oninput = function () { settings.timeScale = Math.max(0.25, Math.min(10, +this.value)); syncSettings(); saveSettings(); };
+document.getElementById('timeScale').oninput = function () { settings.timeScale = Math.max(0.25, Math.min(2, +this.value)); syncSettings(); saveSettings(); };
 document.getElementById('mouseSensitivity').oninput = function () { settings.mouse = +this.value; syncSettings(); saveSettings(); };
 document.getElementById('touchSensitivity').oninput = function () { settings.touch = +this.value; syncSettings(); saveSettings(); };
 document.getElementById('walkSpeed').oninput = function () { settings.walkSpeed = +this.value; syncSettings(); saveSettings(); };
@@ -4892,7 +4811,6 @@ function collideXZ(dt, tx, tz) {
 
 /* 脚下支撑高度：地面 0 与"覆盖当前位置、且顶面在可迈高度内的盒子"取最高 */
 function supportAt(px, pz, feet, world) {
-
   world = world || curWorld;
   var best = 0;
   if (world === 'garden') best = platformSupport(gardenInverse, 14.5, px, pz);
@@ -9132,7 +9050,6 @@ function worldBackground(w, theme) {
 function applyWorldLighting(w) {
   var th = THEMES[themeName];
   if (scene.background) scene.background.setHex(worldBackground(w, th));
-
   if (w === 'garden') {
     hemi.intensity = 0; sun.intensity = 0; sun.castShadow = false;
     duskLevel.sky.visible = false;
@@ -9167,10 +9084,6 @@ function applyWorldLighting(w) {
     }
   }
 }
-
-/* 拉远镜头时将雾区随观察距离后移，默认近景雾保持原值。 */
-var unzoomedWorldLighting=applyWorldLighting;
-applyWorldLighting=function(w){unzoomedWorldLighting(w);if(!scene.fog||!P)return;var zoomCamera=isoMode?orthoCam:camera;var fogShift=Math.max(0,zoomCamera.position.distanceTo(P.pos)-40);scene.fog.near+=fogShift;scene.fog.far+=fogShift;};
 
 /* ---------------- 一扇独立的旧木门（天气之子那种） ---------------- */
 var DOOR_W = 0.96, DOOR_H = 2.30;
@@ -10218,8 +10131,6 @@ function buildVoidHaze() {
 
 }
 
-
-/* 参数场景：初始台地 · 时之神殿。固定种子、规则散布，纯几何。 */
 function initPortalWorlds() {
   splitWorlds();
   buildVoidHaze();
@@ -10520,8 +10431,8 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.32.2';
-window.__world = { get fog(){return {near:scene.fog.near,far:scene.fog.far};}, P: P, vel: vel, camera: camera, ANIM: ANIM,
+window.__worldVersion = 'v0.30.11';
+window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
   get bones() { return boneByName; },
@@ -10687,60 +10598,5 @@ setTimeout(function () {
 }, 3500);
 })();
 </script>
-
-<script>
-(function () {
-  var toggle=document.createElement('button'); toggle.id='worldMenuToggle';toggle.type='button';toggle.textContent='⋯';toggle.setAttribute('aria-label','展开功能菜单');toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-controls','worldMenu');document.body.appendChild(toggle);
-  var menu=document.createElement('section');menu.id='worldMenu';menu.hidden=true;menu.setAttribute('aria-label','功能菜单');menu.innerHTML='<h2>旅途 · 功能</h2>';document.body.appendChild(menu);
-  function section(title,ids){var h=document.createElement('h3');h.textContent=title;menu.appendChild(h);var grid=document.createElement('div');grid.className='menuGrid';menu.appendChild(grid);ids.forEach(function(id){var el=document.getElementById(id);if(el)grid.appendChild(el);});}
-  section('视角与画面',['viewBtn','snapBtn','lockBtn','mouseBtn','themeBtn']);
-  section('移动',['runBtn','slowBtn']);
-  section('声音与设置',['snd','settingsBtn','colBtn','helpBadge']);
-  var help=document.getElementById('helpBadge');if(help){help.textContent='操作说明 · H';help.setAttribute('role','button');help.tabIndex=0;help.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();help.click();}});}
-  var fps=document.getElementById('fps');if(fps)menu.appendChild(fps);
-  var hint=document.createElement('p');hint.className='menuHint';hint.textContent='Tab 展开 / 收起 · Esc 返回场景';menu.appendChild(hint);
-  function show(on){menu.hidden=!on;toggle.setAttribute('aria-expanded',String(on));toggle.setAttribute('aria-label',on?'收起功能菜单':'展开功能菜单');if(on&&document.pointerLockElement)document.exitPointerLock();}
-  toggle.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();show(menu.hidden);});
-  toggle.addEventListener('click',function(e){if(e.detail===0)show(menu.hidden);});
-  menu.addEventListener('pointerdown',function(e){e.stopPropagation();});menu.addEventListener('wheel',function(e){e.stopPropagation();});
-  document.addEventListener('pointerdown',function(e){if(!menu.hidden&&!menu.contains(e.target)&&e.target!==toggle&&!document.getElementById('settingsPanel').contains(e.target))show(false);},true);
-  window.addEventListener('keydown',function(e){if(!document.getElementById('settingsPanel').hidden)return;if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if(e.key==='Tab'&&(menu.hidden||e.target===document.body||e.target===toggle)){e.preventDefault();show(menu.hidden);}else if(e.key==='Escape'&&!menu.hidden){show(false);toggle.focus();}},true);
-  /* 按真实设备能力与当前视角筛选菜单，不覆盖游戏原有状态。 */
-  function syncMenuAvailability() {
-    var touch = navigator.maxTouchPoints > 0 && window.matchMedia('(pointer: coarse)').matches;
-    var mouse=document.getElementById('mouseBtn');if(mouse)mouse.classList.toggle('menuUnavailable',touch);
-    var view=window.__world ? window.__world.viewMode : 3;
-    document.getElementById('snapBtn').classList.toggle('menuUnavailable',view!==1);
-    document.getElementById('lockBtn').classList.toggle('menuUnavailable',view!==0);
-  }
-  syncMenuAvailability();
-  menu.addEventListener('pointerdown',function(){setTimeout(syncMenuAvailability,0);});
-  window.addEventListener('resize',syncMenuAvailability);
-  toggle.addEventListener('pointerdown',syncMenuAvailability);
-  window.addEventListener('keydown',function(){setTimeout(syncMenuAvailability,0);});
-  /* 将旧提示文本正规化，E 键样式由伪元素统一绘制。 */
-  var observed={};function observeTips(){['portalTip','doorTip'].forEach(function(id){var el=document.getElementById(id);if(!el||observed[id])return;observed[id]=true;function clean(){var t=el.textContent.replace(/^按 E /,'');if(t!==el.textContent)el.textContent=t;}new MutationObserver(clean).observe(el,{childList:true,characterData:true,subtree:true});clean();});}
-  observeTips();new MutationObserver(observeTips).observe(document.body,{childList:true});
-})();
-</script>
-
-
-
-<script>window.__resourceManifest={"gameBytes":9432067,"totalBytes":12486193,"cacheBytes":0};</script><script>(function(){var m=window.__resourceManifest;var el=document.getElementById('resourceInfo');if(!el)return;function mb(n){return(n/1048576).toFixed(1)+' MiB';}el.textContent='游戏文件：'+mb(m.gameBytes)+' · 已载入 '+mb(m.gameBytes)+'\n发布文件夹：'+mb(m.totalBytes)+(m.cacheBytes?'\n预构建缓存（压缩）：'+mb(m.cacheBytes):'');el.style.whiteSpace='pre-line';})();</script><script>
-(function(){var panel=document.getElementById('settingsPanel'),close=document.getElementById('settingsClose'),saved=document.getElementById('settingsStatus');var header=document.createElement('header');header.className='settingsHeader';header.innerHTML='<div><h2 id="settingsHeading">设置</h2><p>更改自动保存 · Esc 返回</p></div>';close.textContent='×';close.setAttribute('aria-label','关闭设置');header.appendChild(close);
-var tabs=document.createElement('nav');tabs.className='settingsTabs';tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','设置分类');var scroll=document.createElement('div');scroll.className='settingsScroll';var pages={},buttons={},current='common';
-[['common','常用'],['controls','操作'],['advanced','高级'],['resources','资源']].forEach(function(item){var id=item[0],b=document.createElement('button');b.type='button';b.id='settingsTab-'+id;b.textContent=item[1];b.setAttribute('role','tab');b.setAttribute('aria-controls','settingsPage-'+id);b.onclick=function(){select(id);};tabs.appendChild(b);buttons[id]=b;var page=document.createElement('div');page.id='settingsPage-'+id;page.setAttribute('role','tabpanel');page.setAttribute('aria-labelledby',b.id);scroll.appendChild(page);pages[id]=page;});
-function move(id,target,label){var el=document.getElementById(id);if(!el)return;target.appendChild(label?el.closest('label'):el);}
-move('timeScale',pages.common,true);var presets=document.createElement('div');presets.className='speedPresets';presets.setAttribute('aria-label','模拟倍速快捷设置');[.5,1,2,5,10].forEach(function(v){var b=document.createElement('button');b.type='button';b.textContent=v+'×';b.dataset.speed=v;b.onclick=function(){var input=document.getElementById('timeScale');input.value=v;input.dispatchEvent(new Event('input',{bubbles:true}));};presets.appendChild(b);});pages.common.appendChild(presets);move('settingsTheme',pages.common,true);move('settingsAmb',pages.common,true);var actions=document.createElement('div');actions.className='settingsActions';move('fullscreenBtn',actions);move('updateGameBtn',actions);pages.common.appendChild(actions);move('displayStatus',pages.common);pages.common.appendChild(saved);
-move('mouseSensitivity',pages.controls,true);pages.controls.querySelector('#mouseSensitivity').closest('label').classList.add('desktopControl');move('touchSensitivity',pages.controls,true);pages.controls.querySelector('#touchSensitivity').closest('label').classList.add('touchControl');move('followView',pages.controls,true);var note=document.createElement('p');note.className='settingsNote';note.textContent='电脑：WASD 移动，Shift 快跑，空格跳跃，V 切换视角。手机：左侧移动，右侧控制视角。';pages.controls.appendChild(note);
-['walkSpeed','runSpeed','sprintSpeed','walkAccel','sprintAccel','slowWalk','settingsCollision'].forEach(function(id){move(id,pages.advanced,true);});var details=document.createElement('details');details.innerHTML='<summary>运行诊断</summary>';move('debugInfo',details);pages.advanced.appendChild(details);move('settingsReset',pages.advanced);move('resourceInfo',pages.resources);var resourceNote=document.createElement('p');resourceNote.className='settingsNote';resourceNote.textContent='发布文件夹包含游戏与总结页面，显示的是发布资源大小。';pages.resources.appendChild(resourceNote);
-while(panel.firstChild)panel.removeChild(panel.firstChild);panel.appendChild(header);panel.appendChild(tabs);panel.appendChild(scroll);panel.setAttribute('aria-labelledby','settingsHeading');
-function select(id){current=id;Object.keys(pages).forEach(function(key){pages[key].hidden=key!==id;buttons[key].setAttribute('aria-selected',String(key===id));buttons[key].tabIndex=key===id?0:-1;});scroll.scrollTop=0;}
-select('common');function syncSpeed(){var value=+document.getElementById('timeScale').value;presets.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed',String(+b.dataset.speed===value));});}document.getElementById('timeScale').addEventListener('input',syncSpeed);syncSpeed();
-tabs.addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;e.preventDefault();e.stopPropagation();var ids=Object.keys(pages),idx=ids.indexOf(current);select(ids[(idx+(e.key==='ArrowRight'?1:3))%4]);buttons[current].focus();});
-panel.addEventListener('keydown',function(e){if(e.key!=='Tab')return;var nodes=Array.prototype.slice.call(panel.querySelectorAll('button:not([tabindex="-1"]),input,select,summary')).filter(function(el){return el.getClientRects().length>0;});if(!nodes.length)return;var first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}});
-var backdrop=document.createElement('div');backdrop.id='settingsBackdrop';backdrop.hidden=true;document.body.appendChild(backdrop);backdrop.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();close.click();});panel.setAttribute('role','dialog');new MutationObserver(function(){if(panel.hidden){backdrop.hidden=true;return;}backdrop.hidden=false;var menu=document.getElementById('worldMenu');if(menu)menu.hidden=true;var toggle=document.getElementById('worldMenuToggle');if(toggle)toggle.setAttribute('aria-expanded','false');syncSpeed();close.focus({preventScroll:true});}).observe(panel,{attributes:true,attributeFilter:['hidden']});
-})();
-</script></body>
+</body>
 </html>
-
