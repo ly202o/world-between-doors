@@ -287,7 +287,7 @@
 
 #settingsBackdrop{position:fixed;inset:0;background:#0007;z-index:399;touch-action:none}
 /* v0.32.1 Settings: single scroll region, large controls, separate advanced tools. */
-#settingsPanel{top:24px!important;right:24px!important;bottom:24px!important;left:auto!important;height:calc(100dvh - 48px)!important;width:420px!important;max-width:calc(100vw - 48px)!important;max-height:none!important;padding:0!important;overflow:hidden!important;border:1px solid #b8cbb526;border-radius:18px!important;background:var(--bg)!important;box-shadow:0 16px 64px #0005;display:grid;grid-template-rows:auto auto minmax(0,1fr);z-index:400}
+#settingsPanel{top:24px!important;right:24px!important;bottom:24px!important;left:auto!important;height:calc(100dvh - 48px)!important;width:420px!important;max-width:calc(100vw - 48px)!important;max-height:none!important;padding:0!important;overflow:hidden!important;border:1px solid #b8cbb526;border-radius:18px!important;background:var(--bg)!important;box-shadow:0 16px 64px #0005;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;z-index:400}
 #settingsPanel[hidden]{display:none!important}body.sideOpen #c{width:100%!important}
 #settingsPanel .settingsHeader{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 12px;gap:12px;border-bottom:0}
 #settingsPanel .settingsHeader h2{margin:0;font:500 20px/1.3 system-ui;letter-spacing:.1em}#settingsPanel .settingsHeader p{margin:4px 0 0;font-size:11px;color:var(--ink-dim)}
@@ -311,14 +311,13 @@
 @media(max-height:500px){#settingsPanel{top:0!important;bottom:0!important;height:100dvh;max-height:100dvh!important;border-radius:0!important}#settingsPanel .settingsHeader{padding-top:6px;padding-bottom:4px}#settingsPanel .settingsTabs{padding-bottom:4px}}
 @media(pointer:coarse){#settingsPanel .desktopControl{display:none!important}}
 @media(pointer:fine){#settingsPanel .touchControl{display:none!important}}
+#settingsPanel .settingsCommit{padding:10px 20px max(14px,env(safe-area-inset-bottom));border-top:1px solid var(--shadow);background:var(--bg)}#settingsPanel .settingsCommit div{display:grid;grid-template-columns:1.2fr 1fr .8fr;gap:8px}#settingsPanel .settingsCommit button{height:46px;border-radius:8px;padding:0 6px;margin:0;font-size:13px}#settingsPanel #settingsLoadArchive,#settingsPanel #settingsCancelDraft{background:transparent;color:var(--ink);border:1px solid var(--shadow)}#settingsPanel #settingsStatus{display:none}#settingsArchiveStatus{font-size:11px;line-height:1.5;color:var(--ink-dim);margin:0 0 8px;min-height:17px}
+@media(pointer:coarse){#settingsPanel{left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100%!important;max-width:none!important;height:min(94dvh,850px)!important}}@media(pointer:coarse) and (max-height:500px){#settingsPanel{top:0!important;height:100dvh!important;border-radius:0!important}}
 </style>
 
 </head>
 <body>
-<div id="worldBoot" role="status" style="position:fixed;inset:0;z-index:9998;background:#101b19;color:#dce6d5;display:flex;align-items:center;justify-content:center;text-align:center;font:14px/1.9 system-ui"><div><div style="font:25px Georgia;letter-spacing:.2em;margin-bottom:16px">世界之门</div><div id="worldBootStage">正在载入世界，请稍候</div><div style="opacity:.5;font-size:11px;margin-top:10px">首次打开需要下载并生成场景</div></div></div>
-<script>
-(function(){var started=Date.now(),timer=setInterval(function(){var el=document.getElementById('worldBoot'),stage=document.getElementById('worldBootStage');if(!el){clearInterval(timer);return;}if(window.__world&&__world.frameCount>1){el.remove();clearInterval(timer);return;}if(Date.now()-started>8000)stage.textContent='仍在准备，手机首次打开可能需要更久';},200);window.addEventListener('error',function(e){var stage=document.getElementById('worldBootStage');if(stage)stage.textContent='启动遇到问题：'+e.message;});})();
-</script>
+
 
 <div id="gameLock" style="position:fixed;inset:0;z-index:99999;background:#151a20;display:flex;align-items:center;justify-content:center;color:#e6e8e5;font-family:system-ui,sans-serif">
 <form id="gameLockForm" style="width:min(300px,80vw);text-align:center">
@@ -357,7 +356,7 @@
 <button id="mouseBtn" class="pill">鼠标</button>
 <section id="settingsPanel" hidden aria-label="运行调试与设置">
   <strong>运行调试 / 设置</strong>
-  <label>模拟倍速 <output id="timeScaleValue"></output><input id="timeScale" type="range" min="0.25" max="10" step="0.05"></label>
+  <label>模拟倍速（影响移动与动画） <output id="timeScaleValue"></output><input id="timeScale" type="range" min="0.25" max="10" step="0.05"></label>
   <label>鼠标灵敏度 <output id="mouseValue"></output><input id="mouseSensitivity" type="range" min="0.1" max="2" step="0.05"></label>
   <label>触屏灵敏度 <output id="touchValue"></output><input id="touchSensitivity" type="range" min="0.2" max="2" step="0.05"></label>
   <div class="settingGroup"><strong>TPL 轨迹相位运动</strong>
@@ -2006,7 +2005,7 @@ function startAmbient() {
 }
 function setAmb(v) {
   SOUND.amb = !!v;
-  try { localStorage.setItem('world01.amb.v1', SOUND.amb ? 'on' : 'off'); } catch (_) {}
+  try { if(!settingsOpen)localStorage.setItem('world01.amb.v1', SOUND.amb ? 'on' : 'off'); } catch (_) {}
   if (!SOUND.amb && AMB_SRC) {
     try { AMB_SRC.stop(); } catch (_) {}
     AMB_SRC = null; AMB_GAIN = null;
@@ -3854,7 +3853,8 @@ var settings = { mouse: 0.5, touch: 1, theme: 'dark', timeScale: 1, walkSpeed: 1
 var settingsOpen = false;
 var settingsPanel = document.getElementById('settingsPanel');
 try {
-  var savedSettings = JSON.parse(localStorage.getItem('world01.settings.v1') || 'null');
+  var restoredSettingsArchive=JSON.parse(localStorage.getItem('world01.settings.archive.v1')||'null');
+  var savedSettings=restoredSettingsArchive&&restoredSettingsArchive.settings || JSON.parse(localStorage.getItem('world01.settings.v1')||'null');
   if (savedSettings) {
     if (typeof savedSettings.mouse === 'number' && isFinite(savedSettings.mouse)) settings.mouse = Math.max(0.1, Math.min(2, savedSettings.mouse));
     if (typeof savedSettings.touch === 'number' && isFinite(savedSettings.touch)) settings.touch = Math.max(0.2, Math.min(2, savedSettings.touch));
@@ -3869,14 +3869,13 @@ try {
     if (savedSettings.theme === 'light') settings.theme = 'light';
   }
 } catch (_) {}
-function saveSettings() {
-  try {
-    localStorage.setItem('world01.settings.v1', JSON.stringify(settings));
-    document.getElementById('settingsStatus').textContent = '已保存到本浏览器';
-  } catch (_) {
-    document.getElementById('settingsStatus').textContent = '浏览器禁止保存；本次运行仍生效';
-  }
-}
+var settingsDraftBase=null;
+function settingsFeedback(text){var el=document.getElementById('settingsStatus');if(el)el.textContent=text;var footer=document.getElementById('settingsArchiveStatus');if(footer)footer.textContent=text;}
+function captureSettingsSnapshot(){return {settings:JSON.parse(JSON.stringify(settings)),flags:{ambient:SOUND.amb,collisions:colVizOn},savedAt:new Date().toISOString()};}
+function restoreSettingsSnapshot(data){if(!data||!data.settings)throw new Error('设置存档格式不正确');var v=data.settings,bounds={mouse:[.1,2],touch:[.2,2],timeScale:[.25,10],walkSpeed:[.5,3.5],runSpeed:[2,6],sprintSpeed:[4,9],walkAccel:[2,30],sprintAccel:[2,40],slowWalk:[.2,.8]};Object.keys(bounds).forEach(function(k){if(typeof v[k]==='number'&&isFinite(v[k]))settings[k]=Math.max(bounds[k][0],Math.min(bounds[k][1],v[k]));});if(typeof v.followView==='boolean')settings.followView=v.followView;applyTheme(v.theme==='light'?'light':'dark');if(data.flags){if(typeof data.flags.ambient==='boolean')setAmb(data.flags.ambient);if(typeof data.flags.collisions==='boolean')setColViz(data.flags.collisions);}syncSettings();document.getElementById('timeScale').dispatchEvent(new Event('input'));}
+function saveSettings(){if(settingsOpen)settingsFeedback('预览中，点保存设置才会保留');}
+function commitSettingsArchive(){try{var data=captureSettingsSnapshot();delete data.flags.collisions;localStorage.setItem('world01.settings.archive.v1',JSON.stringify(data));settingsDraftBase=captureSettingsSnapshot();settingsFeedback('设置存档已保存');return true;}catch(e){settingsFeedback('保存失败，未写入设置存档');return false;}}
+function loadSettingsArchive(){try{var raw=localStorage.getItem('world01.settings.archive.v1');if(!raw){settingsFeedback('还没有设置存档，请先保存一份');return false;}restoreSettingsSnapshot(JSON.parse(raw));settingsDraftBase=captureSettingsSnapshot();settingsFeedback('已读取设置存档');return true;}catch(e){settingsFeedback('无法读取存档，现有设置未保存');return false;}}
 function syncSettings() {
   document.getElementById('timeScale').value = settings.timeScale;
   document.getElementById('timeScaleValue').textContent = settings.timeScale.toFixed(2) + '×';
@@ -3911,6 +3910,8 @@ function resetInput() {
   jumpBufT = 0;
 }
 function showSettings(on) {
+  if(on&&!settingsOpen){settingsDraftBase=captureSettingsSnapshot();settingsFeedback('调整可预览，未保存时关闭会撤销');}
+  if(!on&&settingsOpen&&settingsDraftBase){restoreSettingsSnapshot(settingsDraftBase);settingsDraftBase=null;settingsFeedback('已关闭，未保存的更改已撤销');}
   settingsOpen = !!on;
   settingsPanel.hidden = !settingsOpen;
   /* v0.22.0：桌面上是**并行侧边栏**——body.sideOpen 让画布缩窄、右缘按钮左移，
@@ -10520,8 +10521,9 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.32.2';
-window.__world = { get fog(){return {near:scene.fog.near,far:scene.fog.far};}, P: P, vel: vel, camera: camera, ANIM: ANIM,
+window.__worldVersion = 'v0.32.3';
+if(restoredSettingsArchive&&restoredSettingsArchive.flags&&typeof restoredSettingsArchive.flags.ambient==='boolean')setAmb(restoredSettingsArchive.flags.ambient);
+window.__world = { saveSettingsArchive:commitSettingsArchive,loadSettingsArchive:loadSettingsArchive, get fog(){return {near:scene.fog.near,far:scene.fog.far};}, P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
   get bones() { return boneByName; },
@@ -10726,8 +10728,8 @@ setTimeout(function () {
 
 
 
-<script>window.__resourceManifest={"gameBytes":9432067,"totalBytes":12486193,"cacheBytes":0};</script><script>(function(){var m=window.__resourceManifest;var el=document.getElementById('resourceInfo');if(!el)return;function mb(n){return(n/1048576).toFixed(1)+' MiB';}el.textContent='游戏文件：'+mb(m.gameBytes)+' · 已载入 '+mb(m.gameBytes)+'\n发布文件夹：'+mb(m.totalBytes)+(m.cacheBytes?'\n预构建缓存（压缩）：'+mb(m.cacheBytes):'');el.style.whiteSpace='pre-line';})();</script><script>
-(function(){var panel=document.getElementById('settingsPanel'),close=document.getElementById('settingsClose'),saved=document.getElementById('settingsStatus');var header=document.createElement('header');header.className='settingsHeader';header.innerHTML='<div><h2 id="settingsHeading">设置</h2><p>更改自动保存 · Esc 返回</p></div>';close.textContent='×';close.setAttribute('aria-label','关闭设置');header.appendChild(close);
+<script>window.__resourceManifest={"gameBytes":9435333,"totalBytes":12489459,"cacheBytes":0};</script><script>(function(){var m=window.__resourceManifest;var el=document.getElementById('resourceInfo');if(!el)return;function mb(n){return(n/1048576).toFixed(1)+' MiB';}el.textContent='游戏文件：'+mb(m.gameBytes)+' · 已载入 '+mb(m.gameBytes)+'\n发布文件夹：'+mb(m.totalBytes)+(m.cacheBytes?'\n预构建缓存（压缩）：'+mb(m.cacheBytes):'');el.style.whiteSpace='pre-line';})();</script><script>
+(function(){var panel=document.getElementById('settingsPanel'),close=document.getElementById('settingsClose'),saved=document.getElementById('settingsStatus');var header=document.createElement('header');header.className='settingsHeader';header.innerHTML='<div><h2 id="settingsHeading">设置</h2><p>调整可预览 · 关闭撤销未保存更改</p></div>';close.textContent='×';close.setAttribute('aria-label','关闭设置');header.appendChild(close);
 var tabs=document.createElement('nav');tabs.className='settingsTabs';tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','设置分类');var scroll=document.createElement('div');scroll.className='settingsScroll';var pages={},buttons={},current='common';
 [['common','常用'],['controls','操作'],['advanced','高级'],['resources','资源']].forEach(function(item){var id=item[0],b=document.createElement('button');b.type='button';b.id='settingsTab-'+id;b.textContent=item[1];b.setAttribute('role','tab');b.setAttribute('aria-controls','settingsPage-'+id);b.onclick=function(){select(id);};tabs.appendChild(b);buttons[id]=b;var page=document.createElement('div');page.id='settingsPage-'+id;page.setAttribute('role','tabpanel');page.setAttribute('aria-labelledby',b.id);scroll.appendChild(page);pages[id]=page;});
 function move(id,target,label){var el=document.getElementById(id);if(!el)return;target.appendChild(label?el.closest('label'):el);}
@@ -10741,6 +10743,6 @@ tabs.addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='Arr
 panel.addEventListener('keydown',function(e){if(e.key!=='Tab')return;var nodes=Array.prototype.slice.call(panel.querySelectorAll('button:not([tabindex="-1"]),input,select,summary')).filter(function(el){return el.getClientRects().length>0;});if(!nodes.length)return;var first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}});
 var backdrop=document.createElement('div');backdrop.id='settingsBackdrop';backdrop.hidden=true;document.body.appendChild(backdrop);backdrop.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();close.click();});panel.setAttribute('role','dialog');new MutationObserver(function(){if(panel.hidden){backdrop.hidden=true;return;}backdrop.hidden=false;var menu=document.getElementById('worldMenu');if(menu)menu.hidden=true;var toggle=document.getElementById('worldMenuToggle');if(toggle)toggle.setAttribute('aria-expanded','false');syncSpeed();close.focus({preventScroll:true});}).observe(panel,{attributes:true,attributeFilter:['hidden']});
 })();
-</script></body>
+</script><script>(function(){var panel=document.getElementById('settingsPanel'),footer=document.createElement('footer');footer.className='settingsCommit';footer.innerHTML='<p id="settingsArchiveStatus" role="status" aria-live="polite">调整可预览，保存后才会保留</p><div><button id="settingsSaveArchive" type="button">保存设置</button><button id="settingsLoadArchive" type="button">读取存档</button><button id="settingsCancelDraft" type="button">取消</button></div>';panel.appendChild(footer);document.getElementById('settingsSaveArchive').onclick=function(){__world.saveSettingsArchive();};document.getElementById('settingsLoadArchive').onclick=function(){__world.loadSettingsArchive();};document.getElementById('settingsCancelDraft').onclick=function(){document.getElementById('settingsClose').click();};})();</script></body>
 </html>
 
