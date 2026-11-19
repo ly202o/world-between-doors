@@ -273,6 +273,7 @@
 #worldMenu .menuGrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 #worldMenu .pill,#worldMenu #snd,#worldMenu #helpBadge{position:static!important;inset:auto!important;transform:none!important;box-sizing:border-box;min-width:0;width:100%;height:36px;margin:0;padding:0 10px;border-radius:6px;border:1px solid #dce9d318;background:#dce9d309;box-shadow:none;color:#dce5dd;text-align:left;font:12px/36px system-ui;cursor:pointer;opacity:1}
 #worldMenu .pill{display:block!important}
+#worldMenu .pill.menuUnavailable{display:none!important}
 #worldMenu .pill:hover,#worldMenu #snd:hover,#worldMenu #helpBadge:hover{background:#dce9d31c} #worldMenu .pill.on{background:#dce9d327}
 #worldMenu #snd{font-size:11px;height:auto;line-height:1.6;padding:8px;grid-column:1/-1}
 #worldMenu #helpBadge{display:block!important;font-size:12px} #worldMenu #fps{position:static!important;color:#81938c;font:10px/1.6 system-ui;margin:16px 0 0;opacity:.7;display:block!important}
@@ -10599,7 +10600,7 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.30.13';
+window.__worldVersion = 'v0.30.14';
 window.__world = { P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
   get mobile() { return IS_MOBILE; },
@@ -10784,6 +10785,19 @@ setTimeout(function () {
   menu.addEventListener('pointerdown',function(e){e.stopPropagation();});menu.addEventListener('wheel',function(e){e.stopPropagation();});
   document.addEventListener('pointerdown',function(e){if(!menu.hidden&&!menu.contains(e.target)&&e.target!==toggle&&!document.getElementById('settingsPanel').contains(e.target))show(false);},true);
   window.addEventListener('keydown',function(e){if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if(e.key==='Tab'&&(menu.hidden||e.target===document.body||e.target===toggle)){e.preventDefault();show(menu.hidden);}else if(e.key==='Escape'&&!menu.hidden){show(false);toggle.focus();}},true);
+  /* 按真实设备能力与当前视角筛选菜单，不覆盖游戏原有状态。 */
+  function syncMenuAvailability() {
+    var touch = navigator.maxTouchPoints > 0 && window.matchMedia('(pointer: coarse)').matches;
+    var mouse=document.getElementById('mouseBtn');if(mouse)mouse.classList.toggle('menuUnavailable',touch);
+    var view=window.__world ? window.__world.viewMode : 3;
+    document.getElementById('snapBtn').classList.toggle('menuUnavailable',view!==1);
+    document.getElementById('lockBtn').classList.toggle('menuUnavailable',view!==0);
+  }
+  syncMenuAvailability();
+  menu.addEventListener('pointerdown',function(){setTimeout(syncMenuAvailability,0);});
+  window.addEventListener('resize',syncMenuAvailability);
+  toggle.addEventListener('pointerdown',syncMenuAvailability);
+  window.addEventListener('keydown',function(){setTimeout(syncMenuAvailability,0);});
   /* 将旧提示文本正规化，E 键样式由伪元素统一绘制。 */
   var observed={};function observeTips(){['portalTip','doorTip'].forEach(function(id){var el=document.getElementById(id);if(!el||observed[id])return;observed[id]=true;function clean(){var t=el.textContent.replace(/^按 E /,'');if(t!==el.textContent)el.textContent=t;}new MutationObserver(clean).observe(el,{childList:true,characterData:true,subtree:true});clean();});}
   observeTips();new MutationObserver(observeTips).observe(document.body,{childList:true});
@@ -10792,3 +10806,4 @@ setTimeout(function () {
 
 </body>
 </html>
+
