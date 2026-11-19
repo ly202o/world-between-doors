@@ -1,0 +1,10 @@
+node_modules/
+dist/
+out/
+__pycache__/
+*.pyc
+.DS_Store
+refs/*.png
+refs/*.jpg
+refs/*.jpeg
+refs/*.webp

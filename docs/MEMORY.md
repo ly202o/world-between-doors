@@ -808,3 +808,5 @@ _最后更新：v0.11.31_
 PC 操作为主，手机兼容为辅。功能使用单个弱显示入口，场景交互独立。每次修改默认提交 Git、推送并公开发布，除非用户明确不上传；当前仓库 remote 为空，需取得本游戏远端地址，不能误用参考项目 ssochi/land。
 
 发布配置已从用户指定聊天找回：.art-check/private-publish 为发布仓库，origin=https://github.com/ly202o/world-between-doors.git，main 推送触发 Pages；公开地址 https://ly202o.github.io/world-between-doors/ 。
+
+用户要求真正使用 land 重做更大塞尔达参考场景，随后输出前面对话总结 HTML。选哈特诺山村，直接集成 land；不得再将借鉴算法描述为已使用生成器。当前 land 中是其第一人称控制，尚非原角色无缝接入。

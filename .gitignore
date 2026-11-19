@@ -19,3 +19,7 @@ _*.js
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Third party dependencies and generated development builds
+node_modules/
+vendor/land/dist/
