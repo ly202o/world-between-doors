@@ -22594,6 +22594,11 @@ function renderPortals(world, baseCamera, splitDoor, shadowDoor) {
       pawn.visible = pawnVisible && view === splitDoor;
       setWorldVisible(view.dest);
       applyWorldLighting(view.dest);
+      /* v0.34.1 修复黑屏：applyWorldLighting 在背景为 null 时会重建主题色背景，
+         而门内渲染依赖「背景为 null → 不 forceClear」的旧约定来保住主画面；
+         背景被重建后每帧把整屏 clear 成 0x0d1116，只剩门洞里有内容。
+         这里在渲染前把背景重新置空，恢复旧约定。 */
+      scene.background = null;
       view.arrive.group.visible = false;
       var otherCamera = portalCamera(baseCamera, view, portalViewOrtho, portalViewPerspective);
       portalCameraPosition.setFromMatrixPosition(otherCamera.matrixWorld);
@@ -23352,7 +23357,7 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.34.0';
+window.__worldVersion = 'v0.34.1';
 if(uiSavedArchive&&uiSavedArchive.flags&&typeof uiSavedArchive.flags.ambient==='boolean')setAmb(uiSavedArchive.flags.ambient);
 window.__world = { get yunagi(){return {built:yunagiLevel.built,train:yunagiLevel.built?{x:yunagiLevel.asset.train.position.x,visible:yunagiLevel.asset.train.visible,children:yunagiLevel.asset.train.children.length}:null,buildMs:yunagiLevel.buildMs,colliders:yunagiLevel.asset?yunagiLevel.asset.obstacles.length:0};}, get yunagiMusic(){return {ready:!!musicBuffers.yunagi,duration:musicBuffers.yunagi?musicBuffers.yunagi.duration:0,playing:musicWorld==='yunagi'&&!!musicSource,muted:SOUND.muted,error:sakuraError};}, saveSettingsArchive:uiSave,loadSettingsArchive:uiLoad, P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
