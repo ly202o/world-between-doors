@@ -58,7 +58,7 @@ const walkThrough = async (startX, z, k, world, isoIndex = 3) => {
 
 await send('Page.navigate', { url: process.env.WORLD_URL || ('http://127.0.0.1:8779/world01.html?s=' + Date.now()) });
 await sleep(1500);
-await until(async () => (await ev('typeof __world')) === 'object', 12000);
+if (!await until(async () => (await ev('typeof __world')) === 'object', 30000)) throw new Error('页面 30s 未就绪（__world 未挂上）');
 /* v0.34.4：便利店/花园/夕凪进原野后才后台加载，测试等全部就绪再跑 */
 await until(async () => { const r = JSON.parse(await ev('JSON.stringify(window.__worldReady())')); return r.konbini && r.garden && r.yunagi && r.spawn && r.field; }, 60000);
 

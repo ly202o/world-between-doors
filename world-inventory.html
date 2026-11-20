@@ -88,11 +88,15 @@
 
   <footer>
     加一条：在文件底部 <code>&lt;script id="data"&gt;</code> 里找到对应模块，<b>复制一整行</b>改字即可（字段之间是 Tab）。<br>
-    对应 world01 v0.34.4 · 共 <b id="total"></b> 条
+    对应 world01 v0.34.5 · 共 <b id="total"></b> 条
   </footer>
 </div>
 
 <script id="data" type="text/plain">
+load	主块前置提速	yunagi_adapter 块挪到主块之后，阻塞字节 3.86MB 降到约 3.06MB，白屏窗口缩短	v0.34.5	ok	both	2026-11-20	加载,白屏,提速
+world	便利店与花园延后 built 标记	finishWorld 补置 duskLevel/sunnyGarden.built，花园蝴蝶动画恢复	v0.34.5	ok	both	2026-11-20	蝴蝶,花园,延后构建
+audio	便利店音源解码兜底	部分设备解不出 ogg/opus 时回退合成底色，时长 >60s 才播录音	v0.34.5	ok	both	2026-11-20	音乐,便利店,兜底
+ui	石门花园门牌上抬	门牌支持 yTop/zBack 参数，石门 3.55 花园 3.72，不再被顶盖吞	v0.34.5	ok	both	2026-11-20	门牌,加载,石门,花园
 world	白色荒原世界	白地面白天空加雾化地平线，走到哪都是一片白	v0.2.0	ok	both	2026-11-13	白色世界,荒原
 world	积木散石高塔	72 块积木、240 颗散石、11 座高塔撑开尺度	v0.3.0	ok	both	2026-11-13	积木,散石,高塔
 world	固定种子布景	每次打开世界的积木和石头位置完全一样	v0.2.0	ok	both	2026-11-13	种子,复现
