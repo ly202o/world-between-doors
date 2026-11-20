@@ -870,7 +870,7 @@ function inDrive(x, z, m) {           /* 车道在院墙外还延伸一截 */
 /* ---------------- v0.23.0 两关的落点：出生点 / 两扇门 / 黄昏那一关 ----------------
    先在这里定义，散石和碎石撒点时要避开。 */
 var DUSK_YAW = Math.PI / 2;            /* 黄昏那一关整体转 90°，街角正对出生点 */
-var DUSK_SPOT = { x: -5.85, z: -5.2 };  /* = DOOR_A.x − 7.5, DOOR_A.z − 2.5：回程门正好落回 DOOR_A */
+var DUSK_SPOT = { x: -11.5, z: 1.55 };  /* v0.35.0：= DOOR_A.x − 7.5, DOOR_A.z − 2.5：回程门正好落回 DOOR_A（跟门列一起后移） */
 var PLAZA = { x0: -42, x1: 14, z0: 6, z1: 40 };
 function inPlaza(x, z, m) {
   return x > PLAZA.x0 - m && x < PLAZA.x1 + m && z > PLAZA.z0 - m && z < PLAZA.z1 + m;
@@ -2247,7 +2247,7 @@ function fireSteps(d, t0, t1) {
 
 /* ---------------- 角色状态 ---------------- */
 var P = {
-  pos: new THREE.Vector3(4.85, 0.03, -8.0),  /* 出生在花园门前 */
+  pos: new THREE.Vector3(0, 0.03, 0),  /* v0.35.0：出生在世界原点，正对身后 4m 的门列 */
   vy: 0,
   onGround: true,
   face: Math.PI / 2,    /* 当前朝向角（弧度）；出生在门前，面朝东（正对门） */
@@ -7911,13 +7911,17 @@ var DOOR_W = 0.96, DOOR_H = 2.30;
 var DOOR_SCALE = 1.25;
 /* 开到位的角度（弧度）。门板碰撞体按这个姿态摆，改角度这里也要改。 */
 var DOOR_OPEN_ANGLE = -2.00, DOOR_PASS_ANGLE = 1.55;
-/* 三座入口沿 Z 轴并排，门槛面沿 X 轴穿过。 */
-var DOOR_A = { x: 1.65, z: -2.7 };
-var DOOR_B = { x: 1.65, z: -5.2 };
+/* 三座入口沿 Z 轴并排，门槛面沿 X 轴穿过。
+   v0.35.0：角色出生点改到世界原点 (0,0)，整列门一起后移到 x=−4.0、沿 Z 居中
+   （z 从 +4.05 到 −4.05）。留 4m 净空的原因：门洞实时画面按正圆 3m 判定，
+   出生时不能落在任何一扇门的范围里，否则开局四个门洞同时开始渗画面。
+   队形不变（间距仍是 2.5 / 2.8 / 2.8），只是整体平移：dx=−5.65，dz=+6.75。 */
+var DOOR_A = { x: -4.0, z: 4.05 };
+var DOOR_B = { x: -4.0, z: 1.55 };
 var DOOR_FACE = 3 * Math.PI / 2;
 var RETURN_DOOR_FACE = DOOR_FACE - Math.PI;
 var FIELD_EXIT = { x: 0.2, z: 1.7, yaw: RETURN_DOOR_FACE };
-var GARDEN_ARCH = { x: 1.65, z: -8.0, halfWidth: 0.715, shoulder: 2.81, crown: 3.30 };
+var GARDEN_ARCH = { x: -4.0, z: -1.25, halfWidth: 0.715, shoulder: 2.81, crown: 3.30 };
 function makeKonbiniPortalDoor(parent, x, z, ry, name) {
   var g = new THREE.Group(); g.name = name;
   g.position.set(x, 0, z); g.rotation.y = ry;
@@ -8082,7 +8086,7 @@ function buildPortalDoors() {
   doorF.arrive = doorRF;
   doorRK.dest = 'spawn';  doorRK.world = 'konbini'; doorRK.arrive = doorK;
   doorRF.arrive = doorF;
-  doorY=makeYunagiDoor(spawnRoot,1.65,-10.8,DOOR_FACE,'doorYunagi');
+  doorY=makeYunagiDoor(spawnRoot,-4.0,-4.05,DOOR_FACE,'doorYunagi');
   doorRY=makeYunagiDoor(yunagiLevel.host,10.65,3.965,0,'returnYunagi');doorRY.group.position.y=.434;doorRY.group.position.y/=1.4;doorRY.group.scale.divideScalar(1.4);
   doorY.world='spawn';doorY.dest='yunagi';doorY.arrive=doorRY;doorRY.world='yunagi';doorRY.dest='spawn';doorRY.arrive=doorY;
   /* v0.34.4：每个门都挂进度牌；便利店/花园延后构建，牌先挂上（花园的拱门建到那步才有，牌随建随挂） */
@@ -8285,15 +8289,15 @@ function updatePortals(dt) {
     var d = portalDoors[i];
     if (d.viewMix === undefined) d.viewMix = 0;
     if (d.world !== curWorld || !d.worldToDoor) { d.focus = false; continue; }
-    /* v0.34.9：椭圆渲染范围（切向沿门列长、法向短——一个门覆盖整条门列，出生点仍在法向范围外）
-       + 长过渡伪加载：目标世界就绪后 mix 才开始推进，画面从底色 2.2s 渐透（蝴蝶/街景随过渡出现，掩盖首帧渲染卡顿）；
+    /* v0.35.0：正圆渲染范围（3m）+ 长过渡伪加载：目标世界就绪后 mix 才开始推进，
+       画面从底色 2.2s 渐透（蝴蝶/街景随过渡出现，掩盖首帧渲染卡顿）；
        未就绪时门洞保持底色（伪加载中），不再出现就绪瞬间画面突现。 */
     var openEnough = !d.hinge || d.previewWhenClosed || Math.abs(d.angle) > 0.08;
     portalEnd.copy(P.pos).applyMatrix4(d.worldToDoor);
-    var exT = portalEnd.x / PORTAL_RANGE_T, ezF = portalEnd.z / PORTAL_RANGE_F;
+    var dd2 = portalEnd.x * portalEnd.x + portalEnd.z * portalEnd.z;
     var step = Math.min(dt, 0.05) / PORTAL_VIEW_FADE;
     d.viewMix = THREE.MathUtils.clamp(d.viewMix + (openEnough && worldReady[d.dest] &&
-      exT * exT + ezF * ezF <= 1 ? step : -step), 0, 1);
+      dd2 <= PORTAL_VIEW_RANGE * PORTAL_VIEW_RANGE ? step : -step), 0, 1);
     if (!d.hinge) continue;
     var stepDoor = Math.min(dt, 0.04), av = d.angularVelocity || 0;
     if (d.servo) av += (d.target - d.angle) * 32 * stepDoor;
@@ -8488,31 +8492,27 @@ function drawGardenShadowRipple(door, camera) {
   renderer.render(gardenRippleScene, camera);
 }
 
-/* v0.34.9：门洞实时画面的渲染范围（椭圆）——切向沿门列 8.5m（门列跨度 8.1m，
-   一个门的范围覆盖四扇门），法向垂直门面 2.6m（出生点 (4.8,-8) 距最近门 3.15m，仍在范围外）。
-   进入范围且目标世界就绪后，门内画面从蒙版底色淡入 PORTAL_VIEW_FADE 秒——伪加载：
-   底色=加载中，画面渐透=加载完成，掩盖进入渲染的首帧卡顿。 */
-var PORTAL_RANGE_T = 8.5, PORTAL_RANGE_F = 2.6, PORTAL_VIEW_FADE = 2.2, portalRangeVizOn = false;
+/* v0.35.0：门洞实时画面的渲染范围（正圆 3m）——用户定稿用正圆：出生点 (4.8,-8) 距最近门 3.15m，
+   天然在范围外；人接近门列时相邻的门在范围内同帧渲染。进入范围且目标世界就绪后，
+   门内画面从蒙版底色淡入 PORTAL_VIEW_FADE 秒——伪加载：底色=加载中，画面渐透=加载完成。 */
+var PORTAL_VIEW_RANGE = 3.0, PORTAL_VIEW_FADE = 2.2, portalRangeVizOn = false;
 
-/* v0.34.9：范围可视化——每门一个贴地椭圆盘+外环（长轴沿门切向），世界坐标直挂 scene，
-   朝向取门世界四元数（各世界 host 变换不一，挂 parent 不可靠），随 setWorldVisible 同步显隐。 */
+/* v0.35.0：范围可视化——每门一个贴地圆盘+外环（半径 3m），世界坐标直挂 scene，
+   随 setWorldVisible 同步显隐。 */
 function setPortalRangeViz(on) {
   portalRangeVizOn = !!on;
   for (var i = 0; i < portalDoors.length; i++) {
     var d = portalDoors[i];
     if (portalRangeVizOn && !d.rangeViz) {
       if (!d.worldToDoor) continue;   /* 延后构建的门还没就位，finishWorld 后会补建 */
-      var diskGeo = new THREE.CircleGeometry(PORTAL_RANGE_F, 40); diskGeo.scale(PORTAL_RANGE_T / PORTAL_RANGE_F, 1, 1);
-      var rimGeo = new THREE.RingGeometry(PORTAL_RANGE_F - 0.06, PORTAL_RANGE_F, 40); rimGeo.scale(PORTAL_RANGE_T / PORTAL_RANGE_F, 1, 1);
-      var g = new THREE.Group();
-      g.add(new THREE.Mesh(diskGeo,
-        new THREE.MeshBasicMaterial({ color: 0x91baa1, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide })));
-      g.add(new THREE.Mesh(rimGeo,
-        new THREE.MeshBasicMaterial({ color: 0x91baa1, transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide })));
       var wp = d.group.getWorldPosition(new THREE.Vector3());
-      var dq = d.group.getWorldQuaternion(new THREE.Quaternion());
+      var g = new THREE.Group();
+      g.add(new THREE.Mesh(new THREE.CircleGeometry(PORTAL_VIEW_RANGE, 40),
+        new THREE.MeshBasicMaterial({ color: 0x91baa1, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide })));
+      g.add(new THREE.Mesh(new THREE.RingGeometry(PORTAL_VIEW_RANGE - 0.06, PORTAL_VIEW_RANGE, 40),
+        new THREE.MeshBasicMaterial({ color: 0x91baa1, transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide })));
       g.position.set(wp.x, wp.y + 0.04, wp.z);
-      g.quaternion.copy(dq).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2));
+      g.rotation.x = -Math.PI / 2;
       g.renderOrder = 5;
       scene.add(g);
       d.rangeViz = g;
@@ -9337,7 +9337,7 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.34.9';
+window.__worldVersion = 'v0.35.0';
 window.__worldReady = function () { return JSON.parse(JSON.stringify(worldReady)); };   /* 诊断：场景就绪状态 */
 window.__worldProgress = function () { return JSON.parse(JSON.stringify(worldProgress)); };   /* 诊断：构建进度 */
 window.__loadDebug = function () {   /* 诊断：世界加载状态 */
@@ -9400,6 +9400,7 @@ targets: targets,
     var out = [];
     for (var i = 0; i < portalDoors.length; i++) { var d = portalDoors[i];
       out.push({ name: d.name, open: d.open, focus: d.focus, world: d.world, dest: d.dest, arch: !d.hinge, mix: Math.round((d.viewMix || 0) * 100) / 100,
+        pos: (function (v) { d.group.getWorldPosition(v); return [+v.x.toFixed(2), +v.z.toFixed(2)]; })(new THREE.Vector3()),
         angle: d.angle || 0, angularVelocity: d.angularVelocity || 0 }); }
     return { cur: curWorld, focus: portalFocusDoor ? portalFocusDoor.name : null, doors: out };
   },

@@ -52,7 +52,7 @@ ok(d0 && d0.focus === false, '出生点不在门的交互范围', d0 && d0.focus
 ok(t0.op === '0' || t0.op === '', '提示不可见', t0.op);
 
 console.log('\n【2】门口：出现「按 E 开门」，E 能开门');
-await tp(-5.3, 0.22, -4.45);
+await tp(-10.95, 0.22, 2.3);
 ok(await waitDoor('focus', true), '走到门口进入交互范围（轮询）');
 await until(async () => (await tip()).op === '1', 4000);
 const t1 = await tip();
@@ -64,7 +64,7 @@ ok(t2.tip === '按 E 关门', '提示变成「按 E 关门」', t2.tip);
 ok(await until(async () => (await door()).angle > 1.5, 4000), '门扇转到位（>1.5rad）');
 
 console.log('\n【3】走进去：屋顶/顶棚收起');
-await tp(-8.6, 0.4, -4.5);
+await tp(-14.25, 0.4, 2.25);
 ok(await waitDoor('inside', true), '门内判定为店内（轮询）');
 ok(await waitDoor('roof', false), '屋顶已收起');
 ok(await waitDoor('ceil', false), '顶棚已收起');
@@ -75,7 +75,7 @@ ok((d3.focus === false && ti3.op === '0') || (d3.focus === true && ti3.tip === '
   '店内提示：深处隐藏 / 门边显示「按 E 关门」', (ti3.tip || '') + ' / op=' + ti3.op);
 
 console.log('\n【4】回到门口：E 关门，屋顶恢复');
-await tp(-5.6, 0.22, -4.45);
+await tp(-11.25, 0.22, 2.3);
 ok(await waitDoor('focus', true), '回到门口（轮询）');
 await key('e');
 ok(await waitDoor('open', false), '再按 E 关门');
@@ -83,7 +83,7 @@ ok(await waitDoor('roof', true), '门口（门外）屋顶恢复到可见');
 ok(await waitDoor('ceil', true), '门口（门外）顶棚恢复到可见');
 
 console.log('\n【5】手机按钮能开关门');
-await tp(-5.3, 0.22, -4.45);
+await tp(-10.95, 0.22, 2.3);
 await waitDoor('focus', true);
 const bp = await ev(`(function(){var b=document.getElementById('doorBtn');
   if(!b) return 'no-btn'; b.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true})); return 'ok';})()`);

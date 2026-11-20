@@ -69,29 +69,31 @@ ok(p0.doors.length === 8, '四组世界入口', p0.doors.length);
 ok(p0.doors.every(d => d.open === d.arch), '木门默认关闭，巨石门和花藤拱门常开');
 ok(p0.doors.filter(d => d.world === 'spawn').length === 4, '原野保留四个入口');
 const pos0 = JSON.parse(await ev('JSON.stringify([+__world.P.pos.x.toFixed(1), +__world.P.pos.z.toFixed(1)])'));
-ok(pos0[0] > 1.65 && pos0[0] < 8 && pos0[1] > -12 && pos0[1] < 0, '出生在门列正面', pos0);
+ok(Math.abs(pos0[0]) < 0.5 && Math.abs(pos0[1]) < 0.5, '出生在世界原点', pos0);
+/* v0.35.0：门列后移到 x=−4.0、沿 z 居中；出生点必须落在所有门洞 3m 范围之外 */
+ok(p0.doors.every(d => d.mix === 0), '出生时没有任何门洞在渲染（mix 全 0）', p0.doors.map(d => d.name + ':' + d.mix).join(' '));
 
 console.log('\n【2】便利店门：提示 + E 开门');
-await ev('__world.P.pos.set(3.15, 0, -2.7)'); await sleep(300);
+await ev('__world.P.pos.set(-2.5, 0, 4.05)'); await sleep(300);
 ok(await until(async () => (await portals()).focus === 'doorKonbini'), '走到门前进入交互范围');
-ok(await until(async () => (await tipText()) === '开门', 4000), '提示「按 E 开门」', await tipText());
+ok(await until(async () => (await tipText()) === '按 E 开门', 4000), '提示「按 E 开门」', await tipText());
 await key('e');
 ok(await until(async () => (await state()).doorKonbini.open === true), 'E 开门');
-ok(await until(async () => (await tipText()) === '关门', 4000), '提示变「按 E 关门」', await tipText());
+ok(await until(async () => (await tipText()) === '按 E 关门', 4000), '提示变「按 E 关门」', await tipText());
 
 console.log('\n【3】穿过门面：进入便利店世界');
-ok(await walkThrough(2.45, -2.7, 'w', 'konbini'), '正常走过门面进入便利店世界', (await portals()).cur);
+ok(await walkThrough(-3.2, 4.05, 'w', 'konbini'), '正常走过门面进入便利店世界', (await portals()).cur);
 ok(await until(async () => (await state()).returnKonbini.open === true), '对侧门同步保持打开');
-ok(await walkThrough(0.6, -2.7, 'w', 'spawn', 15), '原路走回原野', (await portals()).cur);
+ok(await walkThrough(-5.05, 4.05, 'w', 'spawn', 15), '原路走回原野', (await portals()).cur);
 
 console.log('\n【5】场地门：穿过去再穿回来');
 ok((await state()).doorField.open === true, '巨石门无需开门即可通行');
-ok(await walkThrough(2.45, -5.2, 'w', 'field'), '走进旧测试场', (await portals()).cur);
+ok(await walkThrough(-3.2, 1.55, 'w', 'field'), '走进旧测试场', (await portals()).cur);
 ok(await walkThrough(-0.6, 1.7, 'w', 'spawn', 15), '从场地走回原野', (await portals()).cur);
 
 console.log('\n【6】晴日花园：通过第一座花藤拱门往返');
-ok(await walkThrough(2.45, -8, 'w', 'garden'), '走过拱门进入晴日花园', (await portals()).cur);
-ok(await walkThrough(0.6, -8, 'w', 'spawn', 15), '从原场景的花藤拱门走回出生区', (await portals()).cur);
+ok(await walkThrough(-3.2, -1.25, 'w', 'garden'), '走过拱门进入晴日花园', (await portals()).cur);
+ok(await walkThrough(-5.05, -1.25, 'w', 'spawn', 15), '从原场景的花藤拱门走回出生区', (await portals()).cur);
 const auditDetail = JSON.parse(await ev('JSON.stringify(__world.collisionAudit())'));
 console.log('碰撞遗漏', auditDetail.missingNames);
 const gardenAudit = auditDetail.missing;

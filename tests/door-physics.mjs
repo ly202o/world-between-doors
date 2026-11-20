@@ -8,7 +8,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 await send('Page.navigate',{url:'file:///D:/VibeCoding/游戏开发/world01/.art-check/world01.html?physics'});await sleep(2500);
 const first=await ev('({camera:__world.activeCamObj.position.toArray(),player:__world.P.pos.toArray(),look:__world.look.on})');
 if(first.camera[1]<2)throw Error('启动机位贴地');
-await ev('__world.P.pos.set(2.6,0,-2.7);__world.setIso(3);__world.setYaw(Math.PI/2)');
+await ev('__world.P.pos.set(-3.05,0,4.05);__world.setIso(3);__world.setYaw(Math.PI/2)');
 await send('Input.dispatchKeyEvent',{type:'keyDown',key:'w',code:'KeyW',windowsVirtualKeyCode:87});
 let max=0;
 for(let i=0;i<45;i++){await sleep(200);const angle=await ev("__world.portals.doors.find(function(d){return d.name==='doorKonbini';}).angle");max=Math.max(max,Math.abs(angle));if(max>1.1)break;}

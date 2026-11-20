@@ -12,11 +12,11 @@ await send('Page.navigate',{url:'file:///D:/VibeCoding/游戏开发/world01/.art
 for(let i=0;i<60;i++){if(await ev('!!window.__world'))break;await sleep(500);}
 console.log('loaded',await ev('window.__worldVersion'),JSON.stringify(errors));
 for(const world of ['spawn','field','garden','konbini']){
- await ev(`__world.gotoWorld('${world}');__world.setIso(0,${world==='spawn'?24:30});__world.P.pos.set(${world==='spawn'?'0,0,-3':world==='field'?'0,0,-4':'1.65,0,-8'});`);
+ await ev(`__world.gotoWorld('${world}');__world.setIso(0,${world==='spawn'?24:30});__world.P.pos.set(${world==='spawn'?'0,0,0':world==='field'?'0,0,-4':'1.65,0,-8'});`);
  await sleep(1800);
  const shot=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync('.art-check/'+world+'.png',Buffer.from(shot.result.data,'base64'));
 }
-await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await ev("__world.gotoWorld('spawn');__world.P.pos.set(3.85,0,-3.7);__world.setIso(0,17)");await sleep(1200);
+await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await ev("__world.gotoWorld('spawn');__world.P.pos.set(0,0,0);__world.setIso(0,17)");await sleep(1200);
 const shot=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync('.art-check/mobile.png',Buffer.from(shot.result.data,'base64'));
 console.log('audit',await ev('JSON.stringify(__world.collisionAudit())'));console.log('errors',JSON.stringify(errors));console.log('external',requests.filter(x=>/^https?:/.test(x)));console.log('portals',await ev('JSON.stringify(__world.portals)'));ws.close();
 if(errors.length)process.exitCode=1;
