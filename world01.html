@@ -207,6 +207,14 @@
     body.sideOpen #settingsBtn, body.sideOpen #mouseBtn { right: 314px; }
     body.sideOpen #tip { right: 300px; }
   }
+  #loadHint {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+    font: 400 10px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--ink-dim); opacity: 0; letter-spacing: .08em;
+    pointer-events: none; z-index: 150; transition: opacity .5s;
+  }
+  #loadHint.show { opacity: .55; }
   #fps {
     position: fixed; left: 10px; top: 8px;
     font: 400 10px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -318,6 +326,7 @@ body.sideOpen #c{width:100%!important}.settingsHeader{display:flex;align-items:c
 <div id="err"></div>
 <div id="snd">🔇 静音 · 点这里开声音</div>
 <div id="fps">— FPS</div>
+<div id="loadHint" aria-live="polite"></div>
 <div id="helpBadge" title="按 H 显示 / 隐藏操作说明">H</div>
 <button id="runBtn" class="pill">快跑</button>
 <button id="slowBtn" class="pill" aria-pressed="false">慢走</button>
@@ -21929,11 +21938,138 @@ var portalTip = null, portalBtn = null;
    旧广场道具）整体搬进 fieldRoot。 */
 var yunagiLevel={host:new THREE.Group(),built:false,asset:null};
 yunagiLevel.host.name='yunagiWorld';yunagiLevel.host.position.set(60,0,0);yunagiLevel.host.scale.setScalar(1.4);yunagiLevel.host.visible=false;scene.add(yunagiLevel.host);
+/* ---------------- 场景就绪体系（v0.34.3） ----------------
+   旧场景（原野/便利店/花园）启动时已同步构建，天然就绪；
+   夕凪街原本进门前才同步构建（几百 ms 卡帧）。改为分步后台预构建：
+   进游戏后在原野滞留期间悄悄建好，进度显示在门楣 3D 上方与屏幕底部弱提示。
+   门洞实时渲染在目标世界未就绪时跳过（只显示蒙版底色），就绪后自动出现。 */
+var worldReady = { spawn: true, field: true, konbini: true, garden: true, yunagi: false };
+var worldProgress = { yunagi: 0 };
+var doorLoadBadges = {};            /* world -> 门楣进度牌 */
+var loadHintEl = null;
+function loadHint(text) {
+  if (!loadHintEl) loadHintEl = document.getElementById('loadHint');
+  if (!loadHintEl) return;
+  if (text) { loadHintEl.textContent = text; loadHintEl.classList.add('show'); }
+  else { loadHintEl.classList.remove('show'); loadHintEl.textContent = ''; }   /* 连文字一起清，杜绝旧提示残留 */
+}
+/* 门楣加载牌（v0.34.3）：按所在门的风格做成场景内物件——
+   夕凪木门配暖纸木牌：米黄纸底、棕红描边、衬线字，中央一个墨色进度圈
+   （弧线随进度画满），像挂在门楣上的一盏小牌子。轻微呼吸浮动，不抢视线。 */
+function makeDoorLoadBadge(door, label) {
+  var cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
+  var tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  var mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.58),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
+  mesh.position.set(0, DOOR_H + 0.62, -0.18);
+  mesh.rotation.y = Math.PI;
+  mesh.userData.colExempt = '门楣加载提示牌（v0.34.3）';
+  mesh.visible = false;
+  door.group.add(mesh);
+  var baseY = mesh.position.y;
+  return { mesh: mesh, cv: cv, tex: tex, label: label, baseY: baseY,
+    draw: function (p) {
+      this.mesh.visible = true;
+      var g = this.cv.getContext('2d');
+      g.clearRect(0, 0, 256, 256);
+      /* 纸牌底：暖纸渐变 + 深棕描边 + 内侧高光，同门楣标牌的配色语言 */
+      var grad = g.createLinearGradient(0, 0, 0, 256);
+      grad.addColorStop(0, '#e2c9a0'); grad.addColorStop(1, '#c9ad84');
+      g.fillStyle = grad;
+      g.beginPath();
+      if (g.roundRect) { g.roundRect(14, 14, 228, 228, 26); } else { g.rect(14, 14, 228, 228); }
+      g.fill();
+      g.strokeStyle = '#74534a'; g.lineWidth = 7;
+      g.beginPath();
+      if (g.roundRect) { g.roundRect(14, 14, 228, 228, 26); } else { g.rect(14, 14, 228, 228); }
+      g.stroke();
+      g.strokeStyle = 'rgba(255,244,220,.35)'; g.lineWidth = 2;
+      g.beginPath();
+      if (g.roundRect) { g.roundRect(24, 24, 208, 208, 20); } else { g.rect(24, 24, 208, 208); }
+      g.stroke();
+      /* 进度圈：底弧淡棕，进度弧深棕，圆头 */
+      var cx = 128, cy = 112, r = 62;
+      g.lineCap = 'round';
+      g.strokeStyle = 'rgba(116,83,74,.28)'; g.lineWidth = 12;
+      g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
+      g.strokeStyle = '#74534a'; g.lineWidth = 12;
+      g.beginPath(); g.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.02, p)); g.stroke();
+      /* 圈中央：衬线百分比 */
+      g.fillStyle = '#493a36'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = '600 40px serif';
+      g.fillText(Math.round(p * 100) + '%', cx, cy + 2);
+      /* 底部：场景名 */
+      g.font = '28px serif';
+      g.fillText(this.label, cx, 210);
+      this.tex.needsUpdate = true;
+    },
+    done: function () {
+      var self = this;
+      self.doneFading = true;
+      var m = this.mesh;
+      var fade = setInterval(function () {
+        m.material.opacity -= 0.08;
+        if (m.material.opacity <= 0) { m.visible = false; clearInterval(fade); m.material.opacity = 0.85; self.doneFading = false; }
+      }, 50);
+    },
+    float: function (t) {
+      if (!this.mesh.visible || this.doneFading) return;
+      this.mesh.position.y = this.baseY + Math.sin(t * 1.4) * 0.018;
+      this.mesh.material.opacity = 0.72 + Math.sin(t * 0.9) * 0.12;
+    } };
+}
+function updateLoadBadges(t) {
+  for (var k in doorLoadBadges) doorLoadBadges[k].float(t * 0.001);
+}
+function setWorldProgress(w, p) {
+  worldProgress[w] = p;
+  var badge = doorLoadBadges[w];
+  if (badge) {   /* draw() 自带 visible=true，无需前置可见判断（否则牌永远不会出现） */
+    if (p >= 1) badge.done(); else badge.draw(p);
+  }
+  loadHint(p < 1 ? w === 'yunagi' ? '夕凪 · 加载中 ' + Math.round(p * 100) + '%' : w + ' · 加载中 ' + Math.round(p * 100) + '%' : null);
+}
+function yunagiSteps() {
+  return [
+    function () { yunagiLevel.asset = YunagiScene.build(THREE, renderer); setWorldProgress('yunagi', 0.45); },
+    function () { yunagiLevel.host.add(yunagiLevel.asset.model); yunagiLevel.host.updateMatrixWorld(true); setWorldProgress('yunagi', 0.6); },
+    function () { yunagiLevel.asset.init(); setWorldProgress('yunagi', 0.85); },
+    function () {
+      yunagiLevel.asset.obstacles.forEach(function (o) {
+        var p = yunagiLevel.host.localToWorld(new THREE.Vector3(o.x, o.y, o.z));
+        addCollider({ position: p, rotation: { y: 0 } }, o.w * 1.4, o.d * 1.4, o.h * 1.4);
+        var col = colliders[colliders.length - 1]; col.world = 'yunagi'; col.kind = 'solid';
+      });
+      setWorldProgress('yunagi', 1);
+    }
+  ];
+}
+/* 分步后台构建：每步之间让出主线程渲染一帧，避免整段卡死 */
+function buildYunagiAsync() {
+  if (yunagiLevel.built || yunagiLevel.building) return;
+  yunagiLevel.building = true;
+  var started = performance.now();
+  var steps = yunagiSteps();
+  var i = 0;
+  setWorldProgress('yunagi', 0.05);
+  (function next() {
+    if (i >= steps.length) {
+      yunagiLevel.built = true; yunagiLevel.building = false;
+      yunagiLevel.buildMs = performance.now() - started;
+      worldReady.yunagi = true;
+      return;
+    }
+    steps[i++]();
+    setTimeout(next, 80);
+  })();
+}
+/* 同步兜底：玩家在后台构建完成前就穿门进来，一次性跑完（保住进入可靠性） */
 function ensureYunagi(){
   if(yunagiLevel.built)return;
-  var started=performance.now(),asset=YunagiScene.build(THREE,renderer);yunagiLevel.asset=asset;yunagiLevel.host.add(asset.model);yunagiLevel.host.updateMatrixWorld(true);asset.init();
-  asset.obstacles.forEach(function(o){var p=yunagiLevel.host.localToWorld(new THREE.Vector3(o.x,o.y,o.z));addCollider({position:p,rotation:{y:0}},o.w*1.4,o.d*1.4,o.h*1.4);var col=colliders[colliders.length-1];col.world='yunagi';col.kind='solid';});
-  yunagiLevel.built=true;yunagiLevel.buildMs=performance.now()-started;
+  var started=performance.now(),steps=yunagiSteps();
+  for(var i=0;i<steps.length;i++)steps[i]();
+  yunagiLevel.built=true;yunagiLevel.building=false;worldReady.yunagi=true;
+  yunagiLevel.buildMs=performance.now()-started;
 }
 function makeYunagiDoor(parent,x,z,yaw,name){
   var d=makeKonbiniPortalDoor(parent,x,z,yaw,name);d.previewWhenClosed=false;
@@ -22200,6 +22336,7 @@ function buildPortalDoors() {
   doorY=makeYunagiDoor(spawnRoot,1.65,-10.8,DOOR_FACE,'doorYunagi');
   doorRY=makeYunagiDoor(yunagiLevel.host,10.65,3.965,0,'returnYunagi');doorRY.group.position.y=.434;doorRY.group.position.y/=1.4;doorRY.group.scale.divideScalar(1.4);
   doorY.world='spawn';doorY.dest='yunagi';doorY.arrive=doorRY;doorRY.world='yunagi';doorRY.dest='spawn';doorRY.arrive=doorY;
+  doorLoadBadges.yunagi = makeDoorLoadBadge(doorY, '夕凪');   /* v0.34.3：门楣上方进度牌 */
   connectOffsetDoors(doorY,doorRY,-Math.PI/2);connectOffsetDoors(doorRY,doorY,Math.PI/2);
   connectGardenArch();
   portalDoors = [doorK, doorF, doorRK, doorRF, doorG, doorRG, doorY, doorRY];
@@ -22610,6 +22747,7 @@ function renderPortals(world, baseCamera, splitDoor, shadowDoor) {
     scene.background = null;
     for (var j = 0; j < portalViews.length; j++) {
       var view = portalViews[j];
+      if (!worldReady[view.dest]) continue;   /* v0.34.3：目标世界未就绪只显示蒙版底色，就绪后门洞自动出现实时画面 */
       pawn.visible = pawnVisible && view === splitDoor;
       setWorldVisible(view.dest);
       applyWorldLighting(view.dest);
@@ -23355,6 +23493,7 @@ function loop(t) {
   if(yunagiLevel.built&&(curWorld==='yunagi'||(curWorld==='spawn'&&doorY.open)))yunagiLevel.asset.update(dt,curWorld==='yunagi'?P.pos:null);
   voidClock.value = t * 0.001;
   drawPortalWorld(dt);
+  updateLoadBadges(t);
   updateWorldLocation();
   adaptResolution(dt);
   /* 音效在渲染之后播：手机上 <audio> / WebAudio 的调度是同步开销，
@@ -23366,6 +23505,14 @@ function loop(t) {
   ambientTick();
   fpsTick(t);
   if (!window.__worldDrawn) { window.__worldDrawn = true; }
+  /* v0.34.3 原野开局加载提示 + 夕凪后台预构建：进游戏在原野滞留期间悄悄建好，进门不再卡帧
+     （只在开局跑一次——之前误放在 loop 体内每帧执行，导致提示反复跳回） */
+  if (!window.__worldBoot) {
+    window.__worldBoot = true;
+    loadHint('原野 · 加载完成');
+    setTimeout(function () { loadHint(null); }, 1200);   /* 无条件淡出：原野本来就绪，这只是过场提示 */
+    setTimeout(function () { buildYunagiAsync(); }, 2500);
+  }
   rafId = requestAnimationFrame(loop);
 }
 /* 首次绘制前先完成真实机位和角色姿态，不能渲染默认原点相机。 */
@@ -23376,7 +23523,9 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.34.2';
+window.__worldVersion = 'v0.34.3';
+window.__worldReady = function () { return JSON.parse(JSON.stringify(worldReady)); };   /* 诊断：场景就绪状态 */
+window.__worldProgress = function () { return JSON.parse(JSON.stringify(worldProgress)); };   /* 诊断：构建进度 */
 if(uiSavedArchive&&uiSavedArchive.flags&&typeof uiSavedArchive.flags.ambient==='boolean')setAmb(uiSavedArchive.flags.ambient);
 window.__world = { get yunagi(){return {built:yunagiLevel.built,train:yunagiLevel.built?{x:yunagiLevel.asset.train.position.x,visible:yunagiLevel.asset.train.visible,children:yunagiLevel.asset.train.children.length}:null,buildMs:yunagiLevel.buildMs,colliders:yunagiLevel.asset?yunagiLevel.asset.obstacles.length:0};}, get yunagiMusic(){return {ready:!!musicBuffers.yunagi,duration:musicBuffers.yunagi?musicBuffers.yunagi.duration:0,playing:musicWorld==='yunagi'&&!!musicSource,muted:SOUND.muted,error:sakuraError};}, saveSettingsArchive:uiSave,loadSettingsArchive:uiLoad, P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
