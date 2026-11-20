@@ -383,6 +383,7 @@ body.sideOpen #c{width:100%!important}.settingsHeader{display:flex;align-items:c
   <div class="settingGroup"><strong>鼠标</strong><span>显示/隐藏快捷键：M；F2 不会自动显示鼠标</span></div>
   <label>主题 <select id="settingsTheme"><option value="dark">深色</option><option value="light">白色</option></select></label>
   <label><input id="settingsCollision" type="checkbox">实际移动碰撞体</label>
+  <label><input id="settingsPortalRange" type="checkbox">显示门的渲染范围（调试）</label>
   <label><input id="settingsAmb" type="checkbox">环境音（风 / 鸟叫，默认关）</label>
   <label><input id="settingsFps" type="checkbox">显示 FPS（左上角弱显示）</label>
   <div id="settingsLoadState" class="settingsNote">场景加载：检测中…</div>
@@ -420,7 +421,7 @@ move('timeScale',pages.common,true);var presets=make('div');presets.className='s
 var actions=make('div'),full=button('fullscreenBtn','全屏'),update=button('updateGameBtn','更新游戏'),display=make('p','displayStatus');actions.className='settingsActions';actions.appendChild(full);actions.appendChild(update);pages.common.appendChild(actions);pages.common.appendChild(display);
 full.onclick=function(){var on=document.fullscreenElement||document.webkitFullscreenElement,fn=on?(document.exitFullscreen||document.webkitExitFullscreen):(document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen);if(!fn){display.textContent='此浏览器请用分享菜单添加到主屏幕。';return;}try{var result=fn.call(on?document:document.documentElement);if(result&&result.catch)result.catch(function(){display.textContent='浏览器未允许全屏。';});}catch(e){display.textContent='浏览器未允许全屏。';}};function fullText(){full.textContent=(document.fullscreenElement||document.webkitFullscreenElement)?'退出全屏':'全屏';}document.addEventListener('fullscreenchange',fullText);document.addEventListener('webkitfullscreenchange',fullText);update.onclick=function(){location.reload();};
 move('mouseSensitivity',pages.controls,true);byId('mouseSensitivity').closest('label').classList.add('desktopControl');move('touchSensitivity',pages.controls,true);byId('touchSensitivity').closest('label').classList.add('touchControl');move('followView',pages.controls,true);var note=make('p',null,'电脑：WASD 移动，Shift 快跑，空格跳跃，V 切换视角。手机：左侧移动，右侧控制视角。');note.className='settingsNote';pages.controls.appendChild(note);
-['walkSpeed','runSpeed','sprintSpeed','walkAccel','sprintAccel','slowWalk','settingsCollision'].forEach(function(id){move(id,pages.advanced,true);});var details=make('details');details.appendChild(make('summary',null,'运行诊断'));move('debugInfo',details);pages.advanced.appendChild(details);move('settingsReset',pages.advanced);
+['walkSpeed','runSpeed','sprintSpeed','walkAccel','sprintAccel','slowWalk','settingsCollision','settingsPortalRange'].forEach(function(id){move(id,pages.advanced,true);});var details=make('details');details.appendChild(make('summary',null,'运行诊断'));move('debugInfo',details);pages.advanced.appendChild(details);move('settingsReset',pages.advanced);
 var resources=make('div','resourceInfo');resources.textContent='游戏文件：10.2 MiB\n发布文件夹：13.1 MiB';pages.resources.appendChild(resources);var rn=make('p',null,'发布文件夹统计游戏和对话总结，不包含临时对比页。');rn.className='settingsNote';pages.resources.appendChild(rn);var musicCredit=make('p',null,'夕凪配乐：さくらさくら（日语合成歌声，匿名）\n演奏数据：Kanohara · CC BY-SA 3.0 · 未修改原录音');musicCredit.className='settingsNote';pages.resources.appendChild(musicCredit);var musicSourceLink=make('a',null,'音源与署名');musicSourceLink.href='https://commons.wikimedia.org/wiki/File:Sakura_Sakura.song.ogg';musicSourceLink.target='_blank';musicSourceLink.rel='noopener';pages.resources.appendChild(musicSourceLink);var musicLicenseLink=make('a',null,' · CC BY-SA 3.0');musicLicenseLink.href='https://creativecommons.org/licenses/by-sa/3.0/';musicLicenseLink.target='_blank';musicLicenseLink.rel='noopener';pages.resources.appendChild(musicLicenseLink);
 var footer=make('footer'),status=make('p','settingsArchiveStatus','调整可预览 · 保存后保留'),row=make('div'),save=button('settingsSaveArchive','保存设置'),load=button('settingsLoadArchive','读取存档'),cancel=button('settingsCancelDraft','取消');footer.className='settingsCommit';footer.appendChild(status);row.appendChild(save);row.appendChild(load);row.appendChild(cancel);footer.appendChild(row);save.onclick=function(){if(window.__world)__world.saveSettingsArchive();};load.onclick=function(){if(window.__world)__world.loadSettingsArchive();};cancel.onclick=function(){close.click();};
 while(panel.firstChild)panel.removeChild(panel.firstChild);panel.appendChild(header);panel.appendChild(tabs);panel.appendChild(scroll);panel.appendChild(footer);select('common');
@@ -2525,6 +2526,7 @@ document.getElementById('slowWalk').oninput = function () { settings.slowWalk = 
 document.getElementById('followView').onchange = function () { settings.followView = !!this.checked; syncSettings(); saveSettings(); };
 document.getElementById('settingsTheme').onchange = function () { applyTheme(this.value); };
 document.getElementById('settingsCollision').onchange = function () { setColViz(this.checked); };
+document.getElementById('settingsPortalRange').onchange = function () { if (window.__setPortalRangeViz) window.__setPortalRangeViz(this.checked); };
 document.getElementById('settingsAmb').onchange = function () { setAmb(this.checked); };
 
 /* FPS 弱显示开关（v0.34.2）：控制左上角常驻小灰字；偏好独立落盘，PC/手机同一开关。
@@ -3352,7 +3354,8 @@ function collideXZ(dt, tx, tz) {
       var vnR = vel.x * rnx + vel.z * rnz;
       P.pos.x = col.x + rlx; P.pos.z = col.z + rlz;
       motionDebug.wall = col.kind;
-      if (vnR < -0.7 && P.onGround && motionDebug.cooldown <= 0) {
+      var vt2R = vel.x * vel.x + vel.z * vel.z;
+      if (vnR < -0.7 && vnR * vnR > vt2R * 0.55 && P.onGround && motionDebug.cooldown <= 0) {   /* v0.34.8：正撞才踉跄 */
         motionDebug.impact = -vnR;
         motionDebug.stumble = 0.22 + Math.min(0.18, -vnR * 0.025); motionDebug.cooldown = 0.95;
         var recoilR = Math.min(2.5, 0.35 - vnR * 0.30);
@@ -3412,7 +3415,11 @@ function collideXZ(dt, tx, tz) {
       continue;
     }
     motionDebug.wall = col.kind;
-    if (vn < -0.7 && P.onGround && motionDebug.cooldown <= 0) {
+    /* v0.34.8：只有正撞（法向分量占主导，入射角约>40°）才踉跄；擦碰小块角点
+       会把切向滑动变成斜撞，反复触发踉跄——擦碰只滑动减速，不踉跄。 */
+    var vt2All = vel.x * vel.x + vel.z * vel.z;
+    var headOn = vn * vn > vt2All * 0.55;
+    if (vn < -0.7 && headOn && P.onGround && motionDebug.cooldown <= 0) {
       P.face = P.faceTarget = Math.atan2(tx, tz);
       /* 普通行走只回退；达到跑步速度才自动抓沿（只对矮沿）。 */
       if (vn < -2.8 && tryClimb(true)) return;
@@ -7774,6 +7781,7 @@ function finishWorld(w, started) {
   if (w === 'yunagi') { yunagiLevel.built = true; yunagiLevel.buildMs = performance.now() - started; }
   if (w === 'konbini') { duskLevel.built = true; duskLevel.buildMs = performance.now() - started; }   /* v0.34.5: 便利店就地建好也要置 built，蝴蝶/遮罩层等 built 依赖才生效 */
   if (w === 'garden') { sunnyGarden.built = true; sunnyGarden.buildMs = performance.now() - started; }
+  if (portalRangeVizOn) setPortalRangeViz(true);   /* v0.34.8：后建的门补建范围可视化 */
   applyWorldLighting(curWorld);   /* 新世界的灯就位后按当前世界刷新一遍（便利店灯不能漏进原野） */
 }
 /* 分步后台构建：每步之间让出主线程渲染一帧，避免整段卡死 */
@@ -7831,6 +7839,10 @@ function setWorldVisible(w) {
   sunnyGarden.host.visible = (w === 'garden');
   ground.visible = (w === 'field'); // 原野的脚下支撑由 supportAt 提供。
   if (gateButterflies.length && doorG.seam) showGateButterflies(w);
+  for (var vi = 0; vi < portalDoors.length; vi++) {   /* v0.34.8：范围可视化只随当前世界显隐 */
+    var vd = portalDoors[vi];
+    if (vd.rangeViz) vd.rangeViz.visible = portalRangeVizOn && vd.world === w;
+  }
 }
 
 /* 每个世界自己的天光：便利店关用关卡自带的黄昏灯 + 橙雾，另外两个世界用主题灯。 */
@@ -8218,6 +8230,14 @@ function initPortalDoorFrames() {
     d.plane.updateMatrix();
     d.mask.matrix.multiplyMatrices(d.group.matrixWorld, d.plane.matrix);
     portalMaskScene.add(d.mask);
+    /* v0.34.8：淡入过渡层——与 mask 同几何同位姿，门内画面渲完后按 viewMix 叠底色 */
+    d.overlay = new THREE.Mesh(d.plane.geometry, new THREE.MeshBasicMaterial({
+      transparent: true, opacity: 0, depthTest: false, depthWrite: false, toneMapped: false
+    }));
+    d.overlay.matrixAutoUpdate = false;
+    d.overlay.matrix.copy(d.mask.matrix);
+    d.overlay.visible = false;
+    portalMaskScene.add(d.overlay);
     d.mask.material.stencilWrite = true;
     d.mask.material.stencilRef = i + 1;
     d.mask.material.stencilFunc = THREE.AlwaysStencilFunc;
@@ -8263,30 +8283,33 @@ function updatePortals(dt) {
   var best = null, bestDistance = Infinity;
   for (var i = 0; i < portalDoors.length; i++) {
     var d = portalDoors[i];
-    if (!d.hinge) continue;
-    if (d.world === curWorld) {
-      var stepDoor = Math.min(dt, 0.04), av = d.angularVelocity || 0;
-      if (d.servo) av += (d.target - d.angle) * 32 * stepDoor;
-      av *= Math.exp(-(d.servo ? 10 : 2.8) * stepDoor);
-      av = THREE.MathUtils.clamp(av, -3.6, 3.6);
-      d.angle += av * stepDoor;
-      /* v0.30.10 回退单侧硬止点：半开的门叶被角色推时正方向被焊死，人卡在门口
-         （portal 测试 17/20 石锤，旧版 ±2.05 弹回可推门而过）。其余改动保留。 */
-      if (Math.abs(d.angle) > 2.05) { d.angle = Math.sign(d.angle) * 2.05; av *= -0.12; }
-      if (d.servo && Math.abs(d.angle - d.target) < .002 && Math.abs(av) < .02) {d.angle=d.target;av=0;}
-      d.angularVelocity = av; d.open = Math.abs(d.angle) > .12 || !!(d.servo && d.target !== 0);
-      d.arrive.angle = d.angle; d.arrive.angularVelocity = av; d.arrive.open = d.open;
-      d.hinge.rotation.y = d.angle; d.arrive.hinge.rotation.y = d.angle;
-      updatePortalLeaf(d); updatePortalLeaf(d.arrive);
-      if (colVizOn && (av || d.pushContact)) portalVizDirty = true;
-      d.pushContact = false;
-    }
-
-    d.focus = false;
-    if (d.world !== curWorld) continue;
+    if (d.viewMix === undefined) d.viewMix = 0;
+    if (d.world !== curWorld || !d.worldToDoor) { d.focus = false; continue; }
+    /* v0.34.8：渲染范围与淡入——门叶开着（拱门无叶）且角色在范围内才推进 mix，进出各 PORTAL_VIEW_FADE 秒 */
+    var openEnough = !d.hinge || d.previewWhenClosed || Math.abs(d.angle) > 0.08;
     portalEnd.copy(P.pos).applyMatrix4(d.worldToDoor);
+    var dd2 = portalEnd.x * portalEnd.x + portalEnd.z * portalEnd.z;
+    var step = Math.min(dt, 0.05) / PORTAL_VIEW_FADE;
+    d.viewMix = THREE.MathUtils.clamp(d.viewMix + (openEnough && dd2 <= PORTAL_VIEW_RANGE * PORTAL_VIEW_RANGE ? step : -step), 0, 1);
+    if (!d.hinge) continue;
+    var stepDoor = Math.min(dt, 0.04), av = d.angularVelocity || 0;
+    if (d.servo) av += (d.target - d.angle) * 32 * stepDoor;
+    av *= Math.exp(-(d.servo ? 10 : 2.8) * stepDoor);
+    av = THREE.MathUtils.clamp(av, -3.6, 3.6);
+    d.angle += av * stepDoor;
+    /* v0.30.10 回退单侧硬止点：半开的门叶被角色推时正方向被焊死，人卡在门口
+       （portal 测试 17/20 石锤，旧版 ±2.05 弹回可推门而过）。其余改动保留。 */
+    if (Math.abs(d.angle) > 2.05) { d.angle = Math.sign(d.angle) * 2.05; av *= -0.12; }
+    if (d.servo && Math.abs(d.angle - d.target) < .002 && Math.abs(av) < .02) {d.angle=d.target;av=0;}
+    d.angularVelocity = av; d.open = Math.abs(d.angle) > .12 || !!(d.servo && d.target !== 0);
+    d.arrive.angle = d.angle; d.arrive.angularVelocity = av; d.arrive.open = d.open;
+    d.hinge.rotation.y = d.angle; d.arrive.hinge.rotation.y = d.angle;
+    updatePortalLeaf(d); updatePortalLeaf(d.arrive);
+    if (colVizOn && (av || d.pushContact)) portalVizDirty = true;
+    d.pushContact = false;
+
     d.focus = Math.abs(portalEnd.z) < 2.4 && Math.abs(portalEnd.x) < 1.15 && portalEnd.y < DOOR_H;
-    var distance = portalEnd.x * portalEnd.x + portalEnd.z * portalEnd.z;
+    var distance = dd2;
     if (d.focus && distance < bestDistance) { bestDistance = distance; best = d; }
   }
   portalFocusDoor = best;
@@ -8462,6 +8485,34 @@ function drawGardenShadowRipple(door, camera) {
   renderer.render(gardenRippleScene, camera);
 }
 
+/* v0.34.8：门洞实时画面的渲染范围——角色走进范围才渲染门内世界（限制多门同时渲染的开销）。
+   范围 3.0m：门列间距 2.5m，人贴门列时相邻几扇门都能同帧活着；出生点 (4.8,-8) 距最近的花藤拱门
+   3.15m，天然在范围外。进入范围后门内画面从蒙版底色淡入（PORTAL_VIEW_FADE 秒）。 */
+var PORTAL_VIEW_RANGE = 3.0, PORTAL_VIEW_FADE = 0.6, portalRangeVizOn = false;
+
+/* v0.34.8：范围可视化——每门一个贴地圆盘+外环（世界坐标直挂 scene，随 setWorldVisible 同步显隐）。 */
+function setPortalRangeViz(on) {
+  portalRangeVizOn = !!on;
+  for (var i = 0; i < portalDoors.length; i++) {
+    var d = portalDoors[i];
+    if (portalRangeVizOn && !d.rangeViz) {
+      if (!d.worldToDoor) continue;   /* 延后构建的门还没就位，finishWorld 后会补建 */
+      var wp = d.group.getWorldPosition(new THREE.Vector3());
+      var g = new THREE.Group();
+      g.add(new THREE.Mesh(new THREE.CircleGeometry(PORTAL_VIEW_RANGE, 40),
+        new THREE.MeshBasicMaterial({ color: 0x91baa1, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide })));
+      g.add(new THREE.Mesh(new THREE.RingGeometry(PORTAL_VIEW_RANGE - 0.06, PORTAL_VIEW_RANGE, 40),
+        new THREE.MeshBasicMaterial({ color: 0x91baa1, transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide })));
+      g.position.set(wp.x, wp.y + 0.04, wp.z);
+      g.rotation.x = -Math.PI / 2;
+      g.renderOrder = 5;
+      scene.add(g);
+      d.rangeViz = g;
+    }
+    if (d.rangeViz) d.rangeViz.visible = portalRangeVizOn && d.world === curWorld;
+  }
+}
+
 function renderPortals(world, baseCamera, splitDoor, shadowDoor) {
   baseCamera = baseCamera || activeCam;
   baseCamera.updateMatrixWorld();
@@ -8473,9 +8524,10 @@ function renderPortals(world, baseCamera, splitDoor, shadowDoor) {
   for (var i = 0; i < portalDoors.length; i++) {
     var d = portalDoors[i];
     d.mask.visible = d.world === world && (d.previewWhenClosed || !d.hinge || Math.abs(d.angle) > 0.08) &&
-      portalFrustum.intersectsObject(d.mask) && portalFrontVisible(d, baseCamera);
+      d.viewMix > 0 && portalFrustum.intersectsObject(d.mask) && portalFrontVisible(d, baseCamera);
     if (!d.mask.visible) continue;
     d.mask.material.color.setHex(worldBackground(d.dest, THEMES[themeName]));
+    if (d.overlay) d.overlay.material.color.copy(d.mask.material.color);
     portalViews.push(d);
   }
   if (!portalViews.length) return;
@@ -8529,6 +8581,19 @@ function renderPortals(world, baseCamera, splitDoor, shadowDoor) {
         }
       }
       if (view === shadowDoor && pawnVisible) drawGardenShadowRipple(view, baseCamera);
+      /* v0.34.8：淡入过渡——viewMix<1 时在门洞区域上叠加一层蒙版底色，随 mix 增长渐透出实时画面 */
+      if (view.viewMix < 1 && view.overlay) {
+        view.overlay.material.opacity = 1 - view.viewMix;
+        view.overlay.visible = true;
+        var hiddenMasks = null, m3;
+        for (m3 = 0; m3 < portalMaskScene.children.length; m3++) {
+          var ch = portalMaskScene.children[m3];
+          if (ch !== view.overlay && ch.visible) { (hiddenMasks = hiddenMasks || []).push(ch); ch.visible = false; }
+        }
+        renderer.render(portalMaskScene, baseCamera);
+        view.overlay.visible = false;
+        if (hiddenMasks) for (m3 = 0; m3 < hiddenMasks.length; m3++) hiddenMasks[m3].visible = true;
+      }
       view.arrive.group.visible = true;
     }
   } finally {
@@ -8777,10 +8842,11 @@ function fitPortalFrameColliders(door) {
       bounds.expandByPoint(point);
       vertices.push(point.clone());
     }
-    var count = type === 'BoxGeometry' ? 1 : Math.ceil((bounds.max.y - bounds.min.y) * scale / 0.09);
+    var count = type === 'BoxGeometry' ? 1 : Math.min(8, Math.ceil((bounds.max.y - bounds.min.y) * scale / 0.5));   /* v0.34.8：切片 0.09→0.5m 且≤8层——碎块太多时擦碰角点反复触发踉跄 */
     var height = (bounds.max.y - bounds.min.y) / count;
     for (var band = 0; band < count; band++) {
       var low = bounds.min.y + band * height;
+      if (low * scale > 1.9) break;   /* 头顶碰不到的层不生成（顶梁/拱圈上半段） */
       var high = low + height;
       var slice = new THREE.Box3();
       for (var j = 0; j < (index ? index.count : vertices.length); j += 3) {
@@ -9263,12 +9329,13 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.34.7';
+window.__worldVersion = 'v0.34.8';
 window.__worldReady = function () { return JSON.parse(JSON.stringify(worldReady)); };   /* 诊断：场景就绪状态 */
 window.__worldProgress = function () { return JSON.parse(JSON.stringify(worldProgress)); };   /* 诊断：构建进度 */
 window.__loadDebug = function () {   /* 诊断：世界加载状态 */
   return { ready: JSON.parse(JSON.stringify(worldReady)), progress: JSON.parse(JSON.stringify(worldProgress)) };
 };
+window.__setPortalRangeViz = function (v) { setPortalRangeViz(v); return portalRangeVizOn; };   /* 诊断：设置面板开关门的渲染范围显示 */
 if(uiSavedArchive&&uiSavedArchive.flags&&typeof uiSavedArchive.flags.ambient==='boolean')setAmb(uiSavedArchive.flags.ambient);
 window.__world = { get yunagi(){return {built:yunagiLevel.built,train:yunagiLevel.built?{x:yunagiLevel.asset.train.position.x,visible:yunagiLevel.asset.train.visible,children:yunagiLevel.asset.train.children.length}:null,buildMs:yunagiLevel.buildMs,colliders:yunagiLevel.asset?yunagiLevel.asset.obstacles.length:0};}, get yunagiMusic(){return {ready:!!musicBuffers.yunagi,duration:musicBuffers.yunagi?musicBuffers.yunagi.duration:0,playing:musicWorld==='yunagi'&&!!musicSource,muted:SOUND.muted,error:sakuraError};}, saveSettingsArchive:uiSave,loadSettingsArchive:uiLoad, P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
@@ -9324,7 +9391,7 @@ targets: targets,
   get portals() {
     var out = [];
     for (var i = 0; i < portalDoors.length; i++) { var d = portalDoors[i];
-      out.push({ name: d.name, open: d.open, focus: d.focus, world: d.world, dest: d.dest, arch: !d.hinge,
+      out.push({ name: d.name, open: d.open, focus: d.focus, world: d.world, dest: d.dest, arch: !d.hinge, mix: Math.round((d.viewMix || 0) * 100) / 100,
         angle: d.angle || 0, angularVelocity: d.angularVelocity || 0 }); }
     return { cur: curWorld, focus: portalFocusDoor ? portalFocusDoor.name : null, doors: out };
   },
