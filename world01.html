@@ -345,6 +345,7 @@ body.sideOpen #c{width:100%!important}.settingsHeader{display:flex;align-items:c
   <label>主题 <select id="settingsTheme"><option value="dark">深色</option><option value="light">白色</option></select></label>
   <label><input id="settingsCollision" type="checkbox">实际移动碰撞体</label>
   <label><input id="settingsAmb" type="checkbox">环境音（风 / 鸟叫，默认关）</label>
+  <label><input id="settingsFps" type="checkbox">显示 FPS（左上角弱显示）</label>
   <pre id="debugInfo"></pre>
   <div id="settingsFoot">
   <div id="settingsStatus">设置修改后自动保存到本浏览器</div>
@@ -374,7 +375,7 @@ function select(id){active=id;Object.keys(pages).forEach(function(k){pages[k].hi
 [['common','常用'],['controls','操作'],['advanced','高级'],['resources','资源']].forEach(function(item){var id=item[0],b=button('settingsTab-'+id,item[1]),page=make('div','settingsPage-'+id);b.setAttribute('role','tab');b.setAttribute('aria-controls',page.id);page.setAttribute('role','tabpanel');page.setAttribute('aria-labelledby',b.id);b.onclick=function(){select(id);};tabs.appendChild(b);scroll.appendChild(page);pages[id]=page;tabButtons[id]=b;});
 panel.appendChild(scroll);
 function move(id,target,label){var el=byId(id);if(el)target.appendChild(label?el.closest('label'):el);}
-move('timeScale',pages.common,true);var presets=make('div');presets.className='speedPresets';[.5,1,2,5,10].forEach(function(v){var b=button(null,v+'×');b.setAttribute('data-speed',v);b.onclick=function(){var input=byId('timeScale');input.value=v;input.dispatchEvent(new Event('input',{bubbles:true}));refresh();};presets.appendChild(b);});pages.common.appendChild(presets);move('settingsTheme',pages.common,true);move('settingsAmb',pages.common,true);
+move('timeScale',pages.common,true);var presets=make('div');presets.className='speedPresets';[.5,1,2,5,10].forEach(function(v){var b=button(null,v+'×');b.setAttribute('data-speed',v);b.onclick=function(){var input=byId('timeScale');input.value=v;input.dispatchEvent(new Event('input',{bubbles:true}));refresh();};presets.appendChild(b);});pages.common.appendChild(presets);move('settingsTheme',pages.common,true);move('settingsAmb',pages.common,true);move('settingsFps',pages.common,true);
 var actions=make('div'),full=button('fullscreenBtn','全屏'),update=button('updateGameBtn','更新游戏'),display=make('p','displayStatus');actions.className='settingsActions';actions.appendChild(full);actions.appendChild(update);pages.common.appendChild(actions);pages.common.appendChild(display);
 full.onclick=function(){var on=document.fullscreenElement||document.webkitFullscreenElement,fn=on?(document.exitFullscreen||document.webkitExitFullscreen):(document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen);if(!fn){display.textContent='此浏览器请用分享菜单添加到主屏幕。';return;}try{var result=fn.call(on?document:document.documentElement);if(result&&result.catch)result.catch(function(){display.textContent='浏览器未允许全屏。';});}catch(e){display.textContent='浏览器未允许全屏。';}};function fullText(){full.textContent=(document.fullscreenElement||document.webkitFullscreenElement)?'退出全屏':'全屏';}document.addEventListener('fullscreenchange',fullText);document.addEventListener('webkitfullscreenchange',fullText);update.onclick=function(){location.reload();};
 move('mouseSensitivity',pages.controls,true);byId('mouseSensitivity').closest('label').classList.add('desktopControl');move('touchSensitivity',pages.controls,true);byId('touchSensitivity').closest('label').classList.add('touchControl');move('followView',pages.controls,true);var note=make('p',null,'电脑：WASD 移动，Shift 快跑，空格跳跃，V 切换视角。手机：左侧移动，右侧控制视角。');note.className='settingsNote';pages.controls.appendChild(note);
@@ -16701,7 +16702,7 @@ try {
 /* UI settings transactions: no automatic writes, no startup timers. */
 var uiDraft=null;
 function uiMessage(text){var el=document.getElementById('settingsArchiveStatus');if(el)el.textContent=text;}
-function uiSnapshot(){return {settings:JSON.parse(JSON.stringify(settings)),flags:{ambient:!!SOUND.amb,collisions:!!colVizOn},savedAt:new Date().toISOString()};}
+function uiSnapshot(){return {settings:JSON.parse(JSON.stringify(settings)),flags:{ambient:!!SOUND.amb,collisions:!!colVizOn,showFps:settings.showFps!==false},savedAt:new Date().toISOString()};}
 function uiRestore(data){
   if(!data||!data.settings)throw new Error('设置档无效');
   var v=data.settings,limits={mouse:[.1,2],touch:[.2,2],timeScale:[.25,10],walkSpeed:[.5,3.5],runSpeed:[2,6],sprintSpeed:[4,9],walkAccel:[2,30],sprintAccel:[2,40],slowWalk:[.2,.8]};
@@ -16709,6 +16710,7 @@ function uiRestore(data){
   settings.followView=!!v.followView;applyTheme(v.theme==='light'?'light':'dark');
   if(data.flags&&typeof data.flags.ambient==='boolean')setAmb(data.flags.ambient);
   if(data.flags&&typeof data.flags.collisions==='boolean')setColViz(data.flags.collisions);
+  if(data.flags&&typeof data.flags.showFps==='boolean')setFpsVisible(data.flags.showFps);
   syncSettings();if(window.__refreshGameUI)window.__refreshGameUI();
 }
 function saveSettings(){if(settingsOpen)uiMessage('正在预览 · 保存后保留');}
@@ -16737,6 +16739,7 @@ function syncSettings() {
   document.getElementById('settingsTheme').value = themeName;
   document.getElementById('settingsCollision').checked = !!colVizOn;
   document.getElementById('settingsAmb').checked = !!SOUND.amb;
+  document.getElementById('settingsFps').checked = settings.showFps !== false;
 }
 function resetInput() {
   keys = Object.create(null);
@@ -16789,6 +16792,22 @@ document.getElementById('followView').onchange = function () { settings.followVi
 document.getElementById('settingsTheme').onchange = function () { applyTheme(this.value); };
 document.getElementById('settingsCollision').onchange = function () { setColViz(this.checked); };
 document.getElementById('settingsAmb').onchange = function () { setAmb(this.checked); };
+
+/* FPS 弱显示开关（v0.34.2）：控制左上角常驻小灰字；偏好独立落盘，PC/手机同一开关。
+   显示形态沿用 #fps 既有样式（10px 灰字、65% 透明度），不再额外加弱化。 */
+function setFpsVisible(v) {
+  settings.showFps = !!v;
+  try { if(!settingsOpen)localStorage.setItem('world01.fps.v1', v ? 'on' : 'off'); } catch (_) {}
+  var el = document.getElementById('fps');
+  if (el) el.style.display = v ? '' : 'none';
+  var cb = document.getElementById('settingsFps');
+  if (cb) cb.checked = !!v;
+}
+/* 开机恢复：存档 flags 优先，其次独立偏好键；都没有则默认显示 */
+setFpsVisible(uiSavedArchive && uiSavedArchive.flags && typeof uiSavedArchive.flags.showFps === 'boolean'
+  ? uiSavedArchive.flags.showFps
+  : localStorage.getItem('world01.fps.v1') !== 'off');
+document.getElementById('settingsFps').onchange = function () { setFpsVisible(this.checked); };
 document.getElementById('settingsReset').onclick = function () {
   settings.mouse = 0.5; settings.touch = 1; settings.timeScale = 1; settings.walkSpeed = 1.7; settings.runSpeed = 4.5; settings.sprintSpeed = 6.5; settings.walkAccel = 20; settings.sprintAccel = 24; settings.slowWalk = 0.5; settings.followView = false; applyTheme('dark'); syncSettings();
 };
@@ -23357,7 +23376,7 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.34.1';
+window.__worldVersion = 'v0.34.2';
 if(uiSavedArchive&&uiSavedArchive.flags&&typeof uiSavedArchive.flags.ambient==='boolean')setAmb(uiSavedArchive.flags.ambient);
 window.__world = { get yunagi(){return {built:yunagiLevel.built,train:yunagiLevel.built?{x:yunagiLevel.asset.train.position.x,visible:yunagiLevel.asset.train.visible,children:yunagiLevel.asset.train.children.length}:null,buildMs:yunagiLevel.buildMs,colliders:yunagiLevel.asset?yunagiLevel.asset.obstacles.length:0};}, get yunagiMusic(){return {ready:!!musicBuffers.yunagi,duration:musicBuffers.yunagi?musicBuffers.yunagi.duration:0,playing:musicWorld==='yunagi'&&!!musicSource,muted:SOUND.muted,error:sakuraError};}, saveSettingsArchive:uiSave,loadSettingsArchive:uiLoad, P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
