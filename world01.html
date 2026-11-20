@@ -8285,12 +8285,15 @@ function updatePortals(dt) {
     var d = portalDoors[i];
     if (d.viewMix === undefined) d.viewMix = 0;
     if (d.world !== curWorld || !d.worldToDoor) { d.focus = false; continue; }
-    /* v0.34.8：渲染范围与淡入——门叶开着（拱门无叶）且角色在范围内才推进 mix，进出各 PORTAL_VIEW_FADE 秒 */
+    /* v0.34.9：椭圆渲染范围（切向沿门列长、法向短——一个门覆盖整条门列，出生点仍在法向范围外）
+       + 长过渡伪加载：目标世界就绪后 mix 才开始推进，画面从底色 2.2s 渐透（蝴蝶/街景随过渡出现，掩盖首帧渲染卡顿）；
+       未就绪时门洞保持底色（伪加载中），不再出现就绪瞬间画面突现。 */
     var openEnough = !d.hinge || d.previewWhenClosed || Math.abs(d.angle) > 0.08;
     portalEnd.copy(P.pos).applyMatrix4(d.worldToDoor);
-    var dd2 = portalEnd.x * portalEnd.x + portalEnd.z * portalEnd.z;
+    var exT = portalEnd.x / PORTAL_RANGE_T, ezF = portalEnd.z / PORTAL_RANGE_F;
     var step = Math.min(dt, 0.05) / PORTAL_VIEW_FADE;
-    d.viewMix = THREE.MathUtils.clamp(d.viewMix + (openEnough && dd2 <= PORTAL_VIEW_RANGE * PORTAL_VIEW_RANGE ? step : -step), 0, 1);
+    d.viewMix = THREE.MathUtils.clamp(d.viewMix + (openEnough && worldReady[d.dest] &&
+      exT * exT + ezF * ezF <= 1 ? step : -step), 0, 1);
     if (!d.hinge) continue;
     var stepDoor = Math.min(dt, 0.04), av = d.angularVelocity || 0;
     if (d.servo) av += (d.target - d.angle) * 32 * stepDoor;
@@ -8309,7 +8312,7 @@ function updatePortals(dt) {
     d.pushContact = false;
 
     d.focus = Math.abs(portalEnd.z) < 2.4 && Math.abs(portalEnd.x) < 1.15 && portalEnd.y < DOOR_H;
-    var distance = dd2;
+    var distance = portalEnd.x * portalEnd.x + portalEnd.z * portalEnd.z;
     if (d.focus && distance < bestDistance) { bestDistance = distance; best = d; }
   }
   portalFocusDoor = best;
@@ -8485,26 +8488,31 @@ function drawGardenShadowRipple(door, camera) {
   renderer.render(gardenRippleScene, camera);
 }
 
-/* v0.34.8：门洞实时画面的渲染范围——角色走进范围才渲染门内世界（限制多门同时渲染的开销）。
-   范围 3.0m：门列间距 2.5m，人贴门列时相邻几扇门都能同帧活着；出生点 (4.8,-8) 距最近的花藤拱门
-   3.15m，天然在范围外。进入范围后门内画面从蒙版底色淡入（PORTAL_VIEW_FADE 秒）。 */
-var PORTAL_VIEW_RANGE = 3.0, PORTAL_VIEW_FADE = 0.6, portalRangeVizOn = false;
+/* v0.34.9：门洞实时画面的渲染范围（椭圆）——切向沿门列 8.5m（门列跨度 8.1m，
+   一个门的范围覆盖四扇门），法向垂直门面 2.6m（出生点 (4.8,-8) 距最近门 3.15m，仍在范围外）。
+   进入范围且目标世界就绪后，门内画面从蒙版底色淡入 PORTAL_VIEW_FADE 秒——伪加载：
+   底色=加载中，画面渐透=加载完成，掩盖进入渲染的首帧卡顿。 */
+var PORTAL_RANGE_T = 8.5, PORTAL_RANGE_F = 2.6, PORTAL_VIEW_FADE = 2.2, portalRangeVizOn = false;
 
-/* v0.34.8：范围可视化——每门一个贴地圆盘+外环（世界坐标直挂 scene，随 setWorldVisible 同步显隐）。 */
+/* v0.34.9：范围可视化——每门一个贴地椭圆盘+外环（长轴沿门切向），世界坐标直挂 scene，
+   朝向取门世界四元数（各世界 host 变换不一，挂 parent 不可靠），随 setWorldVisible 同步显隐。 */
 function setPortalRangeViz(on) {
   portalRangeVizOn = !!on;
   for (var i = 0; i < portalDoors.length; i++) {
     var d = portalDoors[i];
     if (portalRangeVizOn && !d.rangeViz) {
       if (!d.worldToDoor) continue;   /* 延后构建的门还没就位，finishWorld 后会补建 */
-      var wp = d.group.getWorldPosition(new THREE.Vector3());
+      var diskGeo = new THREE.CircleGeometry(PORTAL_RANGE_F, 40); diskGeo.scale(PORTAL_RANGE_T / PORTAL_RANGE_F, 1, 1);
+      var rimGeo = new THREE.RingGeometry(PORTAL_RANGE_F - 0.06, PORTAL_RANGE_F, 40); rimGeo.scale(PORTAL_RANGE_T / PORTAL_RANGE_F, 1, 1);
       var g = new THREE.Group();
-      g.add(new THREE.Mesh(new THREE.CircleGeometry(PORTAL_VIEW_RANGE, 40),
+      g.add(new THREE.Mesh(diskGeo,
         new THREE.MeshBasicMaterial({ color: 0x91baa1, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide })));
-      g.add(new THREE.Mesh(new THREE.RingGeometry(PORTAL_VIEW_RANGE - 0.06, PORTAL_VIEW_RANGE, 40),
+      g.add(new THREE.Mesh(rimGeo,
         new THREE.MeshBasicMaterial({ color: 0x91baa1, transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide })));
+      var wp = d.group.getWorldPosition(new THREE.Vector3());
+      var dq = d.group.getWorldQuaternion(new THREE.Quaternion());
       g.position.set(wp.x, wp.y + 0.04, wp.z);
-      g.rotation.x = -Math.PI / 2;
+      g.quaternion.copy(dq).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2));
       g.renderOrder = 5;
       scene.add(g);
       d.rangeViz = g;
@@ -9329,7 +9337,7 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.34.8';
+window.__worldVersion = 'v0.34.9';
 window.__worldReady = function () { return JSON.parse(JSON.stringify(worldReady)); };   /* 诊断：场景就绪状态 */
 window.__worldProgress = function () { return JSON.parse(JSON.stringify(worldProgress)); };   /* 诊断：构建进度 */
 window.__loadDebug = function () {   /* 诊断：世界加载状态 */
