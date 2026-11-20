@@ -8371,8 +8371,15 @@ function updatePortals(dt) {
     portalEnd.copy(P.pos).applyMatrix4(d.worldToDoor);
     var dd2 = portalEnd.x * portalEnd.x + portalEnd.z * portalEnd.z;
     var step = Math.min(dt, 0.05) / PORTAL_VIEW_FADE;
+    /* v0.35.2：判定半径按世界距离归一。worldToDoor 吸收了门组缩放（铰链门 1.25），
+       直接拿局部 3m 判会让便利店/夕凪门的实际范围变成 3.75m，和石门/拱门不一致，
+       也和可视化圆盘（世界 3m）对不上。 */
+    if (!d.rangeLocal) {
+      var e = d.group.matrixWorld.elements;
+      d.rangeLocal = PORTAL_VIEW_RANGE / Math.max(0.0001, Math.sqrt(e[0] * e[0] + e[1] * e[1] + e[2] * e[2]));
+    }
     d.viewMix = THREE.MathUtils.clamp(d.viewMix + (openEnough && worldReady[d.dest] &&
-      dd2 <= PORTAL_VIEW_RANGE * PORTAL_VIEW_RANGE ? step : -step), 0, 1);
+      dd2 <= d.rangeLocal * d.rangeLocal ? step : -step), 0, 1);
     if (!d.hinge) continue;
     var stepDoor = Math.min(dt, 0.04), av = d.angularVelocity || 0;
     if (d.servo) av += (d.target - d.angle) * 32 * stepDoor;
@@ -8438,6 +8445,12 @@ function crossPortal(previousPosition) {
     pendingPortalCrossing = null;
     if (!worldReady[d.dest]) ensureWorld(d.dest);   /* v0.34.4：还没建完就穿门 → 同步跑完剩余步骤 */
     beginPortalBlend(curWorld, d.dest, d.arrive);
+    /* v0.35.2：穿门瞬间把两侧门洞都顶到全量。mix 是各自走近后 2.2s 慢慢涨的，
+       而石门常开、正常步速从进圈到穿门只有零点几秒，离开时它往往停在半途——
+       等你从对面穿回来，门洞就是那半黑的冻结值（用户：刚出来门里怎么是黑的）。
+       人在门口本来就该看到对面；走出 3m 后再按 2.2s 正常衰减。 */
+    d.viewMix = 1;
+    d.arrive.viewMix = 1;
     if (d.through) carryThroughPortal(d);
     curWorld = d.dest;
     setWorldVisible(curWorld);
@@ -9412,7 +9425,7 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.35.1';
+window.__worldVersion = 'v0.35.2';
 window.__worldReady = function () { return JSON.parse(JSON.stringify(worldReady)); };   /* 诊断：场景就绪状态 */
 window.__worldProgress = function () { return JSON.parse(JSON.stringify(worldProgress)); };   /* 诊断：构建进度 */
 window.__loadDebug = function () {   /* 诊断：世界加载状态 */
