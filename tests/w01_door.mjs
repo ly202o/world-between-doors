@@ -40,6 +40,8 @@ const key = async k => {
 
 await send('Page.navigate', { url: 'http://127.0.0.1:8779/world01.html?s=' + Date.now() });
 await until(async () => (await ev('typeof __world')) === 'object', 12000);
+/* v0.34.4：便利店进原野后才后台加载，等它就绪（店门系统才有东西可测） */
+await until(async () => { const r = JSON.parse(await ev('JSON.stringify(window.__worldReady())')); return r.konbini; }, 60000);
 /* v0.24.0：便利店在独立的世界里，测试前先切过去（门店门系统本身与所在世界无关） */
 await ev('__world.gotoWorld("konbini")'); await sleep(300);
 

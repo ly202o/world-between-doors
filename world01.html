@@ -17737,7 +17737,7 @@ function supportAt(px, pz, feet, world) {
   var best = 0;
   if(world==='yunagi'&&yunagiLevel.built){var groundPoint=yunagiLevel.host.worldToLocal(new THREE.Vector3(px,0,pz));best=yunagiLevel.asset.ground(groundPoint.x,groundPoint.z)*1.4;}
   if (world === 'garden') best = platformSupport(gardenInverse, 14.5, px, pz);
-  if (world === 'konbini') best = platformSupport(duskGroundInverse, 10, px, pz);
+  if (world === 'konbini' && duskGroundInverse) best = platformSupport(duskGroundInverse, 10, px, pz);
   if (world === 'field' && px * px + (pz + 5) * (pz + 5) > 23 * 23) best = -100;
   var limit = feet + STEP_UP + 0.02;
   for (var i = 0; i < colliders.length; i++) {
@@ -20713,21 +20713,15 @@ function makeGate(parent, x, z, ry, name) {
 
 /* v0.27.8：天光不再按位置混算，改由 applyWorldLighting 按当前世界一次性切换——
    跨门是「世界变了」，不是「走进另一个光照区」。 */
-var duskLevel = null;
-
-/* ---------------- 把这一关放进世界 ---------------- */
-var _bwD = BUILD_WORLD; BUILD_WORLD = 'konbini';
-duskLevel = buildDuskLevel(scene);
-BUILD_WORLD = _bwD;
+/* v0.34.4 延后构建：开局只建占位 host（回程门、碰撞归属都挂在它上），
+   便利店内容进原野后由后台队列分步建（konbiniSteps）。 */
+var duskLevel = { built: false };
+duskLevel.host = new THREE.Group(); duskLevel.host.name = 'duskWorld';
 duskLevel.host.position.set(DUSK_SPOT.x, 0, DUSK_SPOT.z);
 duskLevel.host.rotation.y = DUSK_YAW;
 scene.add(duskLevel.host);
 duskLevel.host.updateMatrixWorld(true);
-var duskGroundInverse = duskLevel.host.matrixWorld.clone().invert();
-duskLevel.sky.material.transparent = true;
-duskLevel.sky.material.opacity = 0;
-duskLevel.sky.visible = false;
-duskLevel.lights.sun.castShadow = false;
+var duskGroundInverse = null;   /* 构建完成后才有值；supportAt 只在便利店世界用到 */
 
 
 /* ============================================================================
@@ -21852,6 +21846,7 @@ function updateGateButterflies(dt) {
 }
 
 function showGateButterflies(world) {
+  if (!doorG) return;   /* v0.34.4：花园没建完时蝴蝶不存在 */
   if (world === 'spawn' || world === 'garden') {
     gateButterflyClip.copy(doorG.seam);
     if (world === 'spawn') gateButterflyClip.negate();
@@ -21863,7 +21858,11 @@ function showGateButterflies(world) {
   }
 }
 
-var sunnyGarden = buildSunnyGarden(scene);
+/* v0.34.4 延后构建：占位 host 先进场景（splitWorlds/可见性切换挂它），
+   花园内容进原野后由后台队列分步建（gardenSteps），建完搬进占位 host。 */
+var sunnyGarden = { built: false };
+sunnyGarden.host = new THREE.Group(); sunnyGarden.host.name = 'sunnyGarden';
+scene.add(sunnyGarden.host);
 var spawnRoot = new THREE.Group(); spawnRoot.name = 'spawnWorld';
 /* v0.26.0 重叠层：出生世界不再偏移，与便利店/场地共用世界坐标 */
 spawnRoot.position.set(0, 0, 0);
@@ -21943,8 +21942,8 @@ yunagiLevel.host.name='yunagiWorld';yunagiLevel.host.position.set(60,0,0);yunagi
    夕凪街原本进门前才同步构建（几百 ms 卡帧）。改为分步后台预构建：
    进游戏后在原野滞留期间悄悄建好，进度显示在门楣 3D 上方与屏幕底部弱提示。
    门洞实时渲染在目标世界未就绪时跳过（只显示蒙版底色），就绪后自动出现。 */
-var worldReady = { spawn: true, field: true, konbini: true, garden: true, yunagi: false };
-var worldProgress = { yunagi: 0 };
+var worldReady = { spawn: true, field: true, konbini: false, garden: false, yunagi: false };
+var worldProgress = { konbini: 0, field: 1, garden: 0, yunagi: 0 };
 var doorLoadBadges = {};            /* world -> 门楣进度牌 */
 var loadHintEl = null;
 function loadHint(text) {
@@ -22003,13 +22002,17 @@ function makeDoorLoadBadge(door, label) {
       g.fillText(this.label, cx, 210);
       this.tex.needsUpdate = true;
     },
-    done: function () {
+    done: function () {   /* v0.34.4：完成只画满圈，牌停留；淡出由 updateLoadBadges 按移动后 30 秒规则触发 */
+      this.draw(1);
+      this.doneAt = performance.now();
+    },
+    fade: function () {
       var self = this;
       self.doneFading = true;
       var m = this.mesh;
       var fade = setInterval(function () {
         m.material.opacity -= 0.08;
-        if (m.material.opacity <= 0) { m.visible = false; clearInterval(fade); m.material.opacity = 0.85; self.doneFading = false; }
+        if (m.material.opacity <= 0) { m.visible = false; clearInterval(fade); m.material.opacity = 0.85; self.doneFading = false; self.doneAt = null; }
       }, 50);
     },
     float: function (t) {
@@ -22018,8 +22021,24 @@ function makeDoorLoadBadge(door, label) {
       this.mesh.material.opacity = 0.72 + Math.sin(t * 0.9) * 0.12;
     } };
 }
+/* 加载牌停留规则（v0.34.4）：角色没动就一直挂；动过之后完成满 30 秒才淡出——
+   加载快的也能看清牌子。原地起跳/转身不算移动（只算水平位移）。 */
+var playerMovedAt = null, playerPathLen = 0, playerLastX = null, playerLastZ = null;
 function updateLoadBadges(t) {
-  for (var k in doorLoadBadges) doorLoadBadges[k].float(t * 0.001);
+  if (playerMovedAt === null && P && P.pos) {
+    if (playerLastX === null) { playerLastX = P.pos.x; playerLastZ = P.pos.z; }
+    var dx = P.pos.x - playerLastX, dz = P.pos.z - playerLastZ;
+    playerPathLen += Math.sqrt(dx * dx + dz * dz);
+    playerLastX = P.pos.x; playerLastZ = P.pos.z;
+    if (playerPathLen > 1.0) playerMovedAt = performance.now();
+  }
+  var now = performance.now();
+  for (var k in doorLoadBadges) {
+    var b = doorLoadBadges[k];
+    b.float(t * 0.001);
+    if (b.doneAt && !b.doneFading && playerMovedAt !== null &&
+        now > Math.max(b.doneAt, playerMovedAt) + 30000) b.fade();
+  }
 }
 function setWorldProgress(w, p) {
   worldProgress[w] = p;
@@ -22027,7 +22046,8 @@ function setWorldProgress(w, p) {
   if (badge) {   /* draw() 自带 visible=true，无需前置可见判断（否则牌永远不会出现） */
     if (p >= 1) badge.done(); else badge.draw(p);
   }
-  loadHint(p < 1 ? w === 'yunagi' ? '夕凪 · 加载中 ' + Math.round(p * 100) + '%' : w + ' · 加载中 ' + Math.round(p * 100) + '%' : null);
+  var W_LOAD_NAMES = { konbini: '便利店', field: '初始之地', garden: '蝶语花园', yunagi: '夕凪', spawn: '原野' };
+  loadHint(p < 1 ? (W_LOAD_NAMES[w] || w) + ' · 加载中 ' + Math.round(p * 100) + '%' : null);
 }
 function yunagiSteps() {
   return [
@@ -22044,32 +22064,114 @@ function yunagiSteps() {
     }
   ];
 }
-/* 分步后台构建：每步之间让出主线程渲染一帧，避免整段卡死 */
-function buildYunagiAsync() {
-  if (yunagiLevel.built || yunagiLevel.building) return;
-  yunagiLevel.building = true;
-  var started = performance.now();
-  var steps = yunagiSteps();
-  var i = 0;
-  setWorldProgress('yunagi', 0.05);
-  (function next() {
-    if (i >= steps.length) {
-      yunagiLevel.built = true; yunagiLevel.building = false;
-      yunagiLevel.buildMs = performance.now() - started;
-      worldReady.yunagi = true;
-      return;
+/* ---------------- 分步后台构建（v0.34.4） ----------------
+   开局只建原野；便利店/蝶语花园/夕凪进原野后按门列顺序逐个后台预构建，
+   每步之间让出主帧渲染一帧。玩家提前穿门走 ensureWorld 同步兜底（共享步骤游标，不重复建）。 */
+var worldBuildState = { konbini: false, garden: false, yunagi: false };
+var worldStepIndex = { konbini: 0, garden: 0, yunagi: 0 };
+function konbiniSteps() {
+  return [
+    function () {   /* 工厂建内容，搬进占位 host（局部坐标不变） */
+      var g = buildDuskLevel(scene);
+      while (g.host.children.length) duskLevel.host.add(g.host.children[0]);
+      duskLevel.sky = g.sky; duskLevel.lights = g.lights; duskLevel.store = g.store;
+      duskLevel.doors = g.doors; duskLevel.ceiling = g.ceiling; duskLevel.ceilLamps = g.ceilLamps;
+      setWorldProgress('konbini', 0.4);
+    },
+    function () {   /* 天幕按原启动配置收起；美术定稿参数 */
+      duskLevel.sky.material.transparent = true;
+      duskLevel.sky.material.opacity = 0;
+      duskLevel.sky.visible = false;
+      duskLevel.lights.sun.castShadow = false;
+      tuneKonbiniArt();
+      setWorldProgress('konbini', 0.6);
+    },
+    function () {   /* 店门物理（杂志架搬走等）+ 支撑矩阵 */
+      duskLevel.host.updateMatrixWorld(true);
+      duskGroundInverse = duskLevel.host.matrixWorld.clone().invert();
+      initStoreDoor();
+      setWorldProgress('konbini', 0.8);
+    },
+    function () {   /* 碰撞补全：自动抽取店内家具棱柱 */
+      fillCollisionGaps();
+      setWorldProgress('konbini', 1);
     }
-    steps[i++]();
+  ];
+}
+function gardenSteps() {
+  return [
+    function () {
+      var g = buildSunnyGarden(scene);
+      while (g.host.children.length) sunnyGarden.host.add(g.host.children[0]);
+      scene.remove(g.host);
+      sunnyGarden.sky = g.sky; sunnyGarden.arch = g.arch;
+      sunnyGarden.lights = g.lights;   /* 花园阴影层用：漏拷会在走近拱门时崩掉主循环 */
+      sunnyGarden.groundY = g.groundY; sunnyGarden.gateX = g.gateX;
+      sunnyGarden.updateButterflies = g.updateButterflies;
+      setWorldProgress('garden', 0.45);
+    },
+    function () {   /* 拱门对位 + 双端门 + 门楣牌；门这步起才可通行 */
+      connectGardenArch();
+      portalDoors.push(doorG, doorRG);
+      initPortalDoorFrames();   /* v0.34.4：补 worldToDoor/seam/mask */
+      fitPortalFrameColliders(doorG); fitPortalFrameColliders(doorRG);
+      doorLoadBadges.garden = makeDoorLoadBadge(doorG, '蝶语花园');
+      setWorldProgress('garden', 0.65);
+    },
+    function () {   /* 围栏碰撞 + 门口蝴蝶 */
+      registerGardenFence();
+      buildGateButterflies();
+      setWorldProgress('garden', 0.85);
+    },
+    function () {
+      fillCollisionGaps();
+      setWorldProgress('garden', 1);
+    }
+  ];
+}
+function worldStepsFor(w) {
+  return w === 'konbini' ? konbiniSteps() : w === 'garden' ? gardenSteps() : yunagiSteps();
+}
+function runWorldStep(w) {
+  var steps = worldStepsFor(w);
+  if (worldStepIndex[w] >= steps.length) return;
+  steps[worldStepIndex[w]++]();
+}
+function finishWorld(w, started) {
+  worldBuildState[w] = false;
+  worldReady[w] = true;
+  if (w === 'yunagi') { yunagiLevel.built = true; yunagiLevel.buildMs = performance.now() - started; }
+  applyWorldLighting(curWorld);   /* 新世界的灯就位后按当前世界刷新一遍（便利店灯不能漏进原野） */
+}
+/* 分步后台构建：每步之间让出主线程渲染一帧，避免整段卡死 */
+function buildWorldAsync(w) {
+  if (worldReady[w] || worldBuildState[w]) return;
+  worldBuildState[w] = true;
+  var started = performance.now();
+  setWorldProgress(w, 0.05);
+  (function next() {
+    if (worldStepIndex[w] >= worldStepsFor(w).length) { finishWorld(w, started); return; }
+    runWorldStep(w);
     setTimeout(next, 80);
   })();
 }
-/* 同步兜底：玩家在后台构建完成前就穿门进来，一次性跑完（保住进入可靠性） */
-function ensureYunagi(){
-  if(yunagiLevel.built)return;
-  var started=performance.now(),steps=yunagiSteps();
-  for(var i=0;i<steps.length;i++)steps[i]();
-  yunagiLevel.built=true;yunagiLevel.building=false;worldReady.yunagi=true;
-  yunagiLevel.buildMs=performance.now()-started;
+/* 同步兜底：玩家在后台构建完成前就穿门进来，一次性跑完剩余步骤（保住进入可靠性） */
+function ensureWorld(w) {
+  if (worldReady[w]) return;
+  while (worldStepIndex[w] < worldStepsFor(w).length) runWorldStep(w);
+  finishWorld(w, performance.now());
+}
+/* 进原野后按门列顺序逐个加载：便利店 → 蝶语花园 → 夕凪（初始之地开局已就绪） */
+function startWorldQueue() {
+  var q = ['konbini', 'garden', 'yunagi'];
+  (function next() {
+    if (!q.length) return;
+    var w = q.shift();
+    buildWorldAsync(w);
+    var iv = setInterval(function () {
+      if (worldReady[w]) { clearInterval(iv); setTimeout(next, 120); }
+    }, 60);
+  })();
 }
 function makeYunagiDoor(parent,x,z,yaw,name){
   var d=makeKonbiniPortalDoor(parent,x,z,yaw,name);d.previewWhenClosed=false;
@@ -22088,7 +22190,7 @@ function splitWorlds() {
 }
 
 function setWorldVisible(w) {
-  if(w==='yunagi')ensureYunagi();
+  ensureWorld(w);   /* v0.34.4：没建完就切世界 → 同步跑完剩余步骤 */
   yunagiLevel.host.visible=(w==='yunagi');
   spawnRoot.visible = (w === 'spawn');
   fieldRoot.visible = (w === 'field');
@@ -22117,10 +22219,10 @@ function applyWorldLighting(w) {
   if(w==='yunagi'&&yunagiLevel.built)scene.background=yunagiLevel.asset.sky;else if(!scene.background||!scene.background.isColor)scene.background=new THREE.Color();scene.environment=w==='yunagi'&&yunagiLevel.built?yunagiLevel.asset.environment:null;renderer.toneMapping=w==='yunagi'?THREE.ACESFilmicToneMapping:THREE.NoToneMapping;renderer.toneMappingExposure=w==='yunagi'?1.12:1;
   var th = THEMES[themeName];
   if (scene.background&&scene.background.isColor) scene.background.setHex(worldBackground(w, th));
-  if(w==='yunagi'){hemi.intensity=0;sun.intensity=0;sun.castShadow=false;duskLevel.sky.visible=false;scene.fog.color.setHex(0x8993aa);scene.fog.near=140;scene.fog.far=300;return;}
+  if(w==='yunagi'){hemi.intensity=0;sun.intensity=0;sun.castShadow=false;if(duskLevel.sky)duskLevel.sky.visible=false;scene.fog.color.setHex(0x8993aa);scene.fog.near=140;scene.fog.far=300;return;}
   if (w === 'garden') {
     hemi.intensity = 0; sun.intensity = 0; sun.castShadow = false;
-    duskLevel.sky.visible = false;
+    if (duskLevel.sky) duskLevel.sky.visible = false;
     sunnyGarden.sky.material.uniforms.uSize.value.set(renderer.domElement.width, renderer.domElement.height);
     scene.fog.color.setHex(0xb4d7e9); scene.fog.near = 140; scene.fog.far = 230;
     return;
@@ -22141,10 +22243,12 @@ function applyWorldLighting(w) {
     hemi.intensity = th.hemiI * (isVoid ? VOID_HEMI : 1.0);
     sun.intensity = th.sunI * (isVoid ? VOID_SUN : 1.0);
     sun.castShadow = !isVoid;
-    var L2 = duskLevel.lights;
-    L2.hemi.intensity = 0; L2.sun.intensity = 0; L2.fill.intensity = 0; L2.bounce.intensity = 0;
-    L2.sun.castShadow = false;
-    duskLevel.sky.visible = false;
+    if (duskLevel.lights) {   /* v0.34.4：便利店还没建时没有自己的灯可关 */
+      var L2 = duskLevel.lights;
+      L2.hemi.intensity = 0; L2.sun.intensity = 0; L2.fill.intensity = 0; L2.bounce.intensity = 0;
+      L2.sun.castShadow = false;
+      duskLevel.sky.visible = false;
+    }
     if (isVoid) {
       scene.fog.color.setHex(VOID_BG); scene.fog.near = VOID_FOG_NEAR; scene.fog.far = VOID_FOG_FAR;
     } else {
@@ -22336,10 +22440,15 @@ function buildPortalDoors() {
   doorY=makeYunagiDoor(spawnRoot,1.65,-10.8,DOOR_FACE,'doorYunagi');
   doorRY=makeYunagiDoor(yunagiLevel.host,10.65,3.965,0,'returnYunagi');doorRY.group.position.y=.434;doorRY.group.position.y/=1.4;doorRY.group.scale.divideScalar(1.4);
   doorY.world='spawn';doorY.dest='yunagi';doorY.arrive=doorRY;doorRY.world='yunagi';doorRY.dest='spawn';doorRY.arrive=doorY;
-  doorLoadBadges.yunagi = makeDoorLoadBadge(doorY, '夕凪');   /* v0.34.3：门楣上方进度牌 */
+  /* v0.34.4：每个门都挂进度牌；便利店/花园延后构建，牌先挂上（花园的拱门建到那步才有，牌随建随挂） */
+  doorLoadBadges.konbini = makeDoorLoadBadge(doorK, '便利店');
+  doorLoadBadges.field = makeDoorLoadBadge(doorF, '初始之地');
+  doorLoadBadges.yunagi = makeDoorLoadBadge(doorY, '夕凪');
+  doorLoadBadges.konbini.draw(0.02);
+  doorLoadBadges.yunagi.draw(0.02);
+  setWorldProgress('field', 1);   /* 初始之地开局已就绪：牌画满、按停留规则挂着 */
   connectOffsetDoors(doorY,doorRY,-Math.PI/2);connectOffsetDoors(doorRY,doorY,Math.PI/2);
-  connectGardenArch();
-  portalDoors = [doorK, doorF, doorRK, doorRF, doorG, doorRG, doorY, doorRY];
+  portalDoors = [doorK, doorF, doorRK, doorRF, doorY, doorRY];   /* 花园双拱门在 gardenSteps 建完 push 进来 */
   for (var i = 0; i < portalDoors.length; i++) portalDoors[i].frontOnly = true;
   connectOffsetDoors(doorF, doorRF, 0);
   connectOffsetDoors(doorRF, doorF, 0);
@@ -22463,8 +22572,13 @@ function carryThroughPortal(door) {
 
 function initPortals() {
   makePortalUI();
+  initPortalDoorFrames();
+}
+/* v0.34.4：拆出门框初始化，后建世界把门 push 进 portalDoors 后再跑一次（只补未初始化的门） */
+function initPortalDoorFrames() {
   for (var i = 0; i < portalDoors.length; i++) {
     var d = portalDoors[i];
+    if (d.worldToDoor) continue;
     d.group.updateMatrixWorld(true);
     var q = new THREE.Quaternion(); d.group.getWorldQuaternion(q);
     var wp = d.group.getWorldPosition(new THREE.Vector3());
@@ -22552,7 +22666,7 @@ function updatePortals(dt) {
   portalTip.style.transform = best ? 'translateX(-50%) translateY(0)' : 'translateX(-50%) translateY(8px)';
   portalBtn.style.display = best && TOUCH_UI ? 'block' : 'none';
   if (best) {
-    portalTip.textContent = best.open ? '按 E 关门' : '按 E 开门';
+    portalTip.textContent = !worldReady[best.dest] ? '加载中…' : (best.open ? '按 E 关门' : '按 E 开门');
     portalBtn.textContent = best.open ? '关门' : '开门';
     portalBtn.classList.toggle('on', !!best.open);   /* 开着＝按下态，和快跑键同一套高亮 */
   }
@@ -22589,6 +22703,7 @@ function crossPortal(previousPosition) {
     }
     if (pendingPortalCrossing !== d || portalEnd.z < clearance) continue;
     pendingPortalCrossing = null;
+    if (!worldReady[d.dest]) ensureWorld(d.dest);   /* v0.34.4：还没建完就穿门 → 同步跑完剩余步骤 */
     beginPortalBlend(curWorld, d.dest, d.arrive);
     if (d.through) carryThroughPortal(d);
     curWorld = d.dest;
@@ -23216,10 +23331,8 @@ function buildVoidHaze() {
 function initPortalWorlds() {
   splitWorlds();
   buildVoidHaze();
-  tuneKonbiniArt();
   buildPortalDoors();
-  buildGateButterflies();
-  registerGardenFence();
+  /* v0.34.4：tuneKonbiniArt / buildGateButterflies / registerGardenFence 随各自世界延后构建 */
   setWorldVisible('spawn');
   applyWorldLighting('spawn');
 }
@@ -23358,7 +23471,7 @@ function updateStoreDoor(dt) {
     for (var j = 0; j < duskLevel.ceilLamps.length; j++) duskLevel.ceilLamps[j].visible = !inside;
   }
 }
-initStoreDoor();
+/* v0.34.4：initStoreDoor() 移入 konbiniSteps（店里内容建完才能初始化店门） */
 initPortals();
 
 /* ---------------- 主循环 ---------------- */
@@ -23485,7 +23598,7 @@ function loop(t) {
   updateStoreDoor(dt);
   updatePortals(dt);
   if (portalVizDirty) { refreshColViz(); portalVizDirty = false; }
-  if (curWorld === 'garden' || curWorld === 'spawn' || portalBlendWorld === 'garden' || portalBlendWorld === 'spawn') {
+  if ((curWorld === 'garden' || curWorld === 'spawn' || portalBlendWorld === 'garden' || portalBlendWorld === 'spawn') && sunnyGarden.built) {
     sunnyGarden.updateButterflies(dt);
     updateGateButterflies(dt);
     showGateButterflies(curWorld);
@@ -23511,7 +23624,7 @@ function loop(t) {
     window.__worldBoot = true;
     loadHint('原野 · 加载完成');
     setTimeout(function () { loadHint(null); }, 1200);   /* 无条件淡出：原野本来就绪，这只是过场提示 */
-    setTimeout(function () { buildYunagiAsync(); }, 2500);
+    setTimeout(startWorldQueue, 500);   /* v0.34.4：进原野后按门列顺序后台加载便利店 → 花园 → 夕凪 */
   }
   rafId = requestAnimationFrame(loop);
 }
@@ -23523,9 +23636,17 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.34.3';
+window.__worldVersion = 'v0.34.4';
 window.__worldReady = function () { return JSON.parse(JSON.stringify(worldReady)); };   /* 诊断：场景就绪状态 */
 window.__worldProgress = function () { return JSON.parse(JSON.stringify(worldProgress)); };   /* 诊断：构建进度 */
+window.__loadDebug = function () {   /* 诊断：加载牌停留规则状态 */
+  var out = { moved: playerMovedAt, path: Math.round(playerPathLen * 100) / 100, badges: {} };
+  for (var k in doorLoadBadges) {
+    var b = doorLoadBadges[k];
+    out.badges[k] = { vis: b.mesh.visible, done: !!b.doneAt, fading: !!b.doneFading, op: Math.round(b.mesh.material.opacity * 100) / 100 };
+  }
+  return out;
+};
 if(uiSavedArchive&&uiSavedArchive.flags&&typeof uiSavedArchive.flags.ambient==='boolean')setAmb(uiSavedArchive.flags.ambient);
 window.__world = { get yunagi(){return {built:yunagiLevel.built,train:yunagiLevel.built?{x:yunagiLevel.asset.train.position.x,visible:yunagiLevel.asset.train.visible,children:yunagiLevel.asset.train.children.length}:null,buildMs:yunagiLevel.buildMs,colliders:yunagiLevel.asset?yunagiLevel.asset.obstacles.length:0};}, get yunagiMusic(){return {ready:!!musicBuffers.yunagi,duration:musicBuffers.yunagi?musicBuffers.yunagi.duration:0,playing:musicWorld==='yunagi'&&!!musicSource,muted:SOUND.muted,error:sakuraError};}, saveSettingsArchive:uiSave,loadSettingsArchive:uiLoad, P: P, vel: vel, camera: camera, ANIM: ANIM,
 targets: targets,
