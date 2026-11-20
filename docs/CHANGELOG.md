@@ -1,3 +1,15 @@
+## v0.34.7 · 2026-11-20 · 移除门楣进度牌，设置面板加加载状态
+
+用户反馈：不要场景中的进度牌了；设置里加一个加载状态，能看各世界加载完没有；屏幕加载进度保留但要弱显示。
+
+拆除 v0.34.3/34.4 引入的门楣进度牌体系（不留半截）：makeDoorLoadBadge 函数、doorLoadBadges、updateLoadBadges 停留规则（移动后 30 秒淡出）、四处门牌挂载与 gardenSteps 牌行、playerMovedAt 路径统计变量全部移除；setWorldProgress 只更新 worldProgress 状态和屏幕弱提示；__loadDebug 诊断改为返回各世界 ready/progress。夕凪门的「原野/夕凪」文字标牌是原有装饰，保留。
+
+设置面板常用页新增「场景加载」状态行（settingsLoadState，只读弱字样式）：每半秒刷新，显示五世界状态——就绪 ✓ / 加载中 xx% / 排队中，全部就绪时显示「场景加载：全部就绪」。数据来自 window.__worldReady/__worldProgress，与存档体系无关。踩坑：move(id, page, true) 的第三个参数会取 el.closest('label')，div 不在 label 里导致 appendChild(null) 抛 TypeError、整个设置面板构建中断（__world 未挂上）——改为不带 label 参数的 move。
+
+屏幕底部加载弱提示保留（10px），透明度 .55 进一步弱化到 .4；「原野 · 加载完成」过场提示保留。顶部加载页（v0.34.6）不受影响，完成后停留半秒淡出（用户确认不再调整）。
+
+验证：9+单行块逐块 node --check 全过；无头验证加载状态文本随构建刷新至「场景加载：全部就绪」、场景无进度牌残留、零 JS 异常；设置面板截图（.art-check/v0347-settings-loadstate.png）；portal 18/20（2 红为既有文案断言旧账）。
+
 ## v0.34.6 · 2026-11-20 · 加载进度页：打开即见画面，白屏变进度条
 
 用户选定加载进度页方案（另两个候选：音乐异步化、音乐降码率，均未做，保留待议）。首次打开不再是白屏：文件最顶部内联一个深色加载层（WORLD 01 字样 + 细进度条 + 「首次加载较大，请稍候」），HTML 流式解析下打开立刻渲染。

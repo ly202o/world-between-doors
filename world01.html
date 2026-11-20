@@ -214,7 +214,7 @@
     color: var(--ink-dim); opacity: 0; letter-spacing: .08em;
     pointer-events: none; z-index: 150; transition: opacity .5s;
   }
-  #loadHint.show { opacity: .55; }
+  #loadHint.show { opacity: .4; }
   #fps {
     position: fixed; left: 10px; top: 8px;
     font: 400 10px/1 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -385,6 +385,7 @@ body.sideOpen #c{width:100%!important}.settingsHeader{display:flex;align-items:c
   <label><input id="settingsCollision" type="checkbox">实际移动碰撞体</label>
   <label><input id="settingsAmb" type="checkbox">环境音（风 / 鸟叫，默认关）</label>
   <label><input id="settingsFps" type="checkbox">显示 FPS（左上角弱显示）</label>
+  <div id="settingsLoadState" class="settingsNote">场景加载：检测中…</div>
   <pre id="debugInfo"></pre>
   <div id="settingsFoot">
   <div id="settingsStatus">设置修改后自动保存到本浏览器</div>
@@ -415,7 +416,7 @@ function select(id){active=id;Object.keys(pages).forEach(function(k){pages[k].hi
 [['common','常用'],['controls','操作'],['advanced','高级'],['resources','资源']].forEach(function(item){var id=item[0],b=button('settingsTab-'+id,item[1]),page=make('div','settingsPage-'+id);b.setAttribute('role','tab');b.setAttribute('aria-controls',page.id);page.setAttribute('role','tabpanel');page.setAttribute('aria-labelledby',b.id);b.onclick=function(){select(id);};tabs.appendChild(b);scroll.appendChild(page);pages[id]=page;tabButtons[id]=b;});
 panel.appendChild(scroll);
 function move(id,target,label){var el=byId(id);if(el)target.appendChild(label?el.closest('label'):el);}
-move('timeScale',pages.common,true);var presets=make('div');presets.className='speedPresets';[.5,1,2,5,10].forEach(function(v){var b=button(null,v+'×');b.setAttribute('data-speed',v);b.onclick=function(){var input=byId('timeScale');input.value=v;input.dispatchEvent(new Event('input',{bubbles:true}));refresh();};presets.appendChild(b);});pages.common.appendChild(presets);move('settingsTheme',pages.common,true);move('settingsAmb',pages.common,true);move('settingsFps',pages.common,true);
+move('timeScale',pages.common,true);var presets=make('div');presets.className='speedPresets';[.5,1,2,5,10].forEach(function(v){var b=button(null,v+'×');b.setAttribute('data-speed',v);b.onclick=function(){var input=byId('timeScale');input.value=v;input.dispatchEvent(new Event('input',{bubbles:true}));refresh();};presets.appendChild(b);});pages.common.appendChild(presets);move('settingsTheme',pages.common,true);move('settingsAmb',pages.common,true);move('settingsFps',pages.common,true);move('settingsLoadState',pages.common);setInterval(function(){var el=byId('settingsLoadState');if(!el)return;var t='场景加载：检测中…';if(window.__worldReady&&window.__worldProgress){var r=window.__worldReady(),pr=window.__worldProgress();var names={spawn:'原野',field:'初始之地',konbini:'便利店',garden:'蝶语花园',yunagi:'夕凪'};var parts=[];['spawn','field','konbini','garden','yunagi'].forEach(function(k){if(r[k])parts.push(names[k]+' ✓');else if(pr[k]>0)parts.push(names[k]+' '+Math.round(pr[k]*100)+'%');else parts.push(names[k]+' 排队中');});var all=r.spawn&&r.field&&r.konbini&&r.garden&&r.yunagi;t=all?'场景加载：全部就绪':'场景加载：'+parts.join(' · ');}if(el.textContent!==t)el.textContent=t;},500);
 var actions=make('div'),full=button('fullscreenBtn','全屏'),update=button('updateGameBtn','更新游戏'),display=make('p','displayStatus');actions.className='settingsActions';actions.appendChild(full);actions.appendChild(update);pages.common.appendChild(actions);pages.common.appendChild(display);
 full.onclick=function(){var on=document.fullscreenElement||document.webkitFullscreenElement,fn=on?(document.exitFullscreen||document.webkitExitFullscreen):(document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen);if(!fn){display.textContent='此浏览器请用分享菜单添加到主屏幕。';return;}try{var result=fn.call(on?document:document.documentElement);if(result&&result.catch)result.catch(function(){display.textContent='浏览器未允许全屏。';});}catch(e){display.textContent='浏览器未允许全屏。';}};function fullText(){full.textContent=(document.fullscreenElement||document.webkitFullscreenElement)?'退出全屏':'全屏';}document.addEventListener('fullscreenchange',fullText);document.addEventListener('webkitfullscreenchange',fullText);update.onclick=function(){location.reload();};
 move('mouseSensitivity',pages.controls,true);byId('mouseSensitivity').closest('label').classList.add('desktopControl');move('touchSensitivity',pages.controls,true);byId('touchSensitivity').closest('label').classList.add('touchControl');move('followView',pages.controls,true);var note=make('p',null,'电脑：WASD 移动，Shift 快跑，空格跳跃，V 切换视角。手机：左侧移动，右侧控制视角。');note.className='settingsNote';pages.controls.appendChild(note);
@@ -7664,11 +7665,10 @@ yunagiLevel.host.name='yunagiWorld';yunagiLevel.host.position.set(60,0,0);yunagi
 /* ---------------- 场景就绪体系（v0.34.3） ----------------
    旧场景（原野/便利店/花园）启动时已同步构建，天然就绪；
    夕凪街原本进门前才同步构建（几百 ms 卡帧）。改为分步后台预构建：
-   进游戏后在原野滞留期间悄悄建好，进度显示在门楣 3D 上方与屏幕底部弱提示。
+   进游戏后在原野滞留期间悄悄建好，进度显示在屏幕底部弱提示与设置面板的加载状态。
    门洞实时渲染在目标世界未就绪时跳过（只显示蒙版底色），就绪后自动出现。 */
 var worldReady = { spawn: true, field: true, konbini: false, garden: false, yunagi: false };
 var worldProgress = { konbini: 0, field: 1, garden: 0, yunagi: 0 };
-var doorLoadBadges = {};            /* world -> 门楣进度牌 */
 var loadHintEl = null;
 function loadHint(text) {
   if (!loadHintEl) loadHintEl = document.getElementById('loadHint');
@@ -7676,100 +7676,8 @@ function loadHint(text) {
   if (text) { loadHintEl.textContent = text; loadHintEl.classList.add('show'); }
   else { loadHintEl.classList.remove('show'); loadHintEl.textContent = ''; }   /* 连文字一起清，杜绝旧提示残留 */
 }
-/* 门楣加载牌（v0.34.3）：按所在门的风格做成场景内物件——
-   夕凪木门配暖纸木牌：米黄纸底、棕红描边、衬线字，中央一个墨色进度圈
-   （弧线随进度画满），像挂在门楣上的一盏小牌子。轻微呼吸浮动，不抢视线。 */
-function makeDoorLoadBadge(door, label, yTop, zBack) {
-  var cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
-  var tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-  var mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.58),
-    new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
-  mesh.position.set(0, yTop || DOOR_H + 0.62, zBack || -0.18);   /* v0.34.5: 石门顶盖/花园拱冠会吞牌，允许按门上调 */
-  mesh.rotation.y = Math.PI;
-  mesh.userData.colExempt = '门楣加载提示牌（v0.34.3）';
-  mesh.visible = false;
-  door.group.add(mesh);
-  var baseY = mesh.position.y;
-  return { mesh: mesh, cv: cv, tex: tex, label: label, baseY: baseY,
-    draw: function (p) {
-      this.mesh.visible = true;
-      var g = this.cv.getContext('2d');
-      g.clearRect(0, 0, 256, 256);
-      /* 纸牌底：暖纸渐变 + 深棕描边 + 内侧高光，同门楣标牌的配色语言 */
-      var grad = g.createLinearGradient(0, 0, 0, 256);
-      grad.addColorStop(0, '#e2c9a0'); grad.addColorStop(1, '#c9ad84');
-      g.fillStyle = grad;
-      g.beginPath();
-      if (g.roundRect) { g.roundRect(14, 14, 228, 228, 26); } else { g.rect(14, 14, 228, 228); }
-      g.fill();
-      g.strokeStyle = '#74534a'; g.lineWidth = 7;
-      g.beginPath();
-      if (g.roundRect) { g.roundRect(14, 14, 228, 228, 26); } else { g.rect(14, 14, 228, 228); }
-      g.stroke();
-      g.strokeStyle = 'rgba(255,244,220,.35)'; g.lineWidth = 2;
-      g.beginPath();
-      if (g.roundRect) { g.roundRect(24, 24, 208, 208, 20); } else { g.rect(24, 24, 208, 208); }
-      g.stroke();
-      /* 进度圈：底弧淡棕，进度弧深棕，圆头 */
-      var cx = 128, cy = 112, r = 62;
-      g.lineCap = 'round';
-      g.strokeStyle = 'rgba(116,83,74,.28)'; g.lineWidth = 12;
-      g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
-      g.strokeStyle = '#74534a'; g.lineWidth = 12;
-      g.beginPath(); g.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.02, p)); g.stroke();
-      /* 圈中央：衬线百分比 */
-      g.fillStyle = '#493a36'; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.font = '600 40px serif';
-      g.fillText(Math.round(p * 100) + '%', cx, cy + 2);
-      /* 底部：场景名 */
-      g.font = '28px serif';
-      g.fillText(this.label, cx, 210);
-      this.tex.needsUpdate = true;
-    },
-    done: function () {   /* v0.34.4：完成只画满圈，牌停留；淡出由 updateLoadBadges 按移动后 30 秒规则触发 */
-      this.draw(1);
-      this.doneAt = performance.now();
-    },
-    fade: function () {
-      var self = this;
-      self.doneFading = true;
-      var m = this.mesh;
-      var fade = setInterval(function () {
-        m.material.opacity -= 0.08;
-        if (m.material.opacity <= 0) { m.visible = false; clearInterval(fade); m.material.opacity = 0.85; self.doneFading = false; self.doneAt = null; }
-      }, 50);
-    },
-    float: function (t) {
-      if (!this.mesh.visible || this.doneFading) return;
-      this.mesh.position.y = this.baseY + Math.sin(t * 1.4) * 0.018;
-      this.mesh.material.opacity = 0.72 + Math.sin(t * 0.9) * 0.12;
-    } };
-}
-/* 加载牌停留规则（v0.34.4）：角色没动就一直挂；动过之后完成满 30 秒才淡出——
-   加载快的也能看清牌子。原地起跳/转身不算移动（只算水平位移）。 */
-var playerMovedAt = null, playerPathLen = 0, playerLastX = null, playerLastZ = null;
-function updateLoadBadges(t) {
-  if (playerMovedAt === null && P && P.pos) {
-    if (playerLastX === null) { playerLastX = P.pos.x; playerLastZ = P.pos.z; }
-    var dx = P.pos.x - playerLastX, dz = P.pos.z - playerLastZ;
-    playerPathLen += Math.sqrt(dx * dx + dz * dz);
-    playerLastX = P.pos.x; playerLastZ = P.pos.z;
-    if (playerPathLen > 1.0) playerMovedAt = performance.now();
-  }
-  var now = performance.now();
-  for (var k in doorLoadBadges) {
-    var b = doorLoadBadges[k];
-    b.float(t * 0.001);
-    if (b.doneAt && !b.doneFading && playerMovedAt !== null &&
-        now > Math.max(b.doneAt, playerMovedAt) + 30000) b.fade();
-  }
-}
 function setWorldProgress(w, p) {
   worldProgress[w] = p;
-  var badge = doorLoadBadges[w];
-  if (badge) {   /* draw() 自带 visible=true，无需前置可见判断（否则牌永远不会出现） */
-    if (p >= 1) badge.done(); else badge.draw(p);
-  }
   var W_LOAD_NAMES = { konbini: '便利店', field: '初始之地', garden: '蝶语花园', yunagi: '夕凪', spawn: '原野' };
   loadHint(p < 1 ? (W_LOAD_NAMES[w] || w) + ' · 加载中 ' + Math.round(p * 100) + '%' : null);
 }
@@ -7834,12 +7742,11 @@ function gardenSteps() {
       sunnyGarden.updateButterflies = g.updateButterflies;
       setWorldProgress('garden', 0.45);
     },
-    function () {   /* 拱门对位 + 双端门 + 门楣牌；门这步起才可通行 */
+    function () {   /* 拱门对位 + 双端门；门这步起才可通行 */
       connectGardenArch();
       portalDoors.push(doorG, doorRG);
       initPortalDoorFrames();   /* v0.34.4：补 worldToDoor/seam/mask */
       fitPortalFrameColliders(doorG); fitPortalFrameColliders(doorRG);
-      doorLoadBadges.garden = makeDoorLoadBadge(doorG, '蝶语花园', 3.72, -0.30);
       setWorldProgress('garden', 0.65);
     },
     function () {   /* 围栏碰撞 + 门口蝴蝶 */
@@ -8167,12 +8074,7 @@ function buildPortalDoors() {
   doorRY=makeYunagiDoor(yunagiLevel.host,10.65,3.965,0,'returnYunagi');doorRY.group.position.y=.434;doorRY.group.position.y/=1.4;doorRY.group.scale.divideScalar(1.4);
   doorY.world='spawn';doorY.dest='yunagi';doorY.arrive=doorRY;doorRY.world='yunagi';doorRY.dest='spawn';doorRY.arrive=doorY;
   /* v0.34.4：每个门都挂进度牌；便利店/花园延后构建，牌先挂上（花园的拱门建到那步才有，牌随建随挂） */
-  doorLoadBadges.konbini = makeDoorLoadBadge(doorK, '便利店');
-  doorLoadBadges.field = makeDoorLoadBadge(doorF, '初始之地', 3.55, -0.42);
-  doorLoadBadges.yunagi = makeDoorLoadBadge(doorY, '夕凪');
-  doorLoadBadges.konbini.draw(0.02);
-  doorLoadBadges.yunagi.draw(0.02);
-  setWorldProgress('field', 1);   /* 初始之地开局已就绪：牌画满、按停留规则挂着 */
+  setWorldProgress('field', 1);   /* 初始之地开局已就绪 */
   connectOffsetDoors(doorY,doorRY,-Math.PI/2);connectOffsetDoors(doorRY,doorY,Math.PI/2);
   portalDoors = [doorK, doorF, doorRK, doorRF, doorY, doorRY];   /* 花园双拱门在 gardenSteps 建完 push 进来 */
   for (var i = 0; i < portalDoors.length; i++) portalDoors[i].frontOnly = true;
@@ -9332,7 +9234,6 @@ function loop(t) {
   if(yunagiLevel.built&&(curWorld==='yunagi'||(curWorld==='spawn'&&doorY.open)))yunagiLevel.asset.update(dt,curWorld==='yunagi'?P.pos:null);
   voidClock.value = t * 0.001;
   drawPortalWorld(dt);
-  updateLoadBadges(t);
   updateWorldLocation();
   adaptResolution(dt);
   /* 音效在渲染之后播：手机上 <audio> / WebAudio 的调度是同步开销，
@@ -9362,16 +9263,11 @@ driveAnim(0);
 camera.updateMatrixWorld(true); orthoCam.updateMatrixWorld(true);
 rafId = requestAnimationFrame(loop);
 
-window.__worldVersion = 'v0.34.6';
+window.__worldVersion = 'v0.34.7';
 window.__worldReady = function () { return JSON.parse(JSON.stringify(worldReady)); };   /* 诊断：场景就绪状态 */
 window.__worldProgress = function () { return JSON.parse(JSON.stringify(worldProgress)); };   /* 诊断：构建进度 */
-window.__loadDebug = function () {   /* 诊断：加载牌停留规则状态 */
-  var out = { moved: playerMovedAt, path: Math.round(playerPathLen * 100) / 100, badges: {} };
-  for (var k in doorLoadBadges) {
-    var b = doorLoadBadges[k];
-    out.badges[k] = { vis: b.mesh.visible, done: !!b.doneAt, fading: !!b.doneFading, op: Math.round(b.mesh.material.opacity * 100) / 100 };
-  }
-  return out;
+window.__loadDebug = function () {   /* 诊断：世界加载状态 */
+  return { ready: JSON.parse(JSON.stringify(worldReady)), progress: JSON.parse(JSON.stringify(worldProgress)) };
 };
 if(uiSavedArchive&&uiSavedArchive.flags&&typeof uiSavedArchive.flags.ambient==='boolean')setAmb(uiSavedArchive.flags.ambient);
 window.__world = { get yunagi(){return {built:yunagiLevel.built,train:yunagiLevel.built?{x:yunagiLevel.asset.train.position.x,visible:yunagiLevel.asset.train.visible,children:yunagiLevel.asset.train.children.length}:null,buildMs:yunagiLevel.buildMs,colliders:yunagiLevel.asset?yunagiLevel.asset.obstacles.length:0};}, get yunagiMusic(){return {ready:!!musicBuffers.yunagi,duration:musicBuffers.yunagi?musicBuffers.yunagi.duration:0,playing:musicWorld==='yunagi'&&!!musicSource,muted:SOUND.muted,error:sakuraError};}, saveSettingsArchive:uiSave,loadSettingsArchive:uiLoad, P: P, vel: vel, camera: camera, ANIM: ANIM,
